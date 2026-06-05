@@ -5,13 +5,10 @@ The tree mirrors the rung structure:
   ParsedRung
     ├── RLLInstruction  (name + operands)
     └── RLLBranch       (parallel legs, each a list of nodes)
-
-Helper methods on ParsedRung flatten the tree for common checker queries
-like "find all instructions named JSR in this rung."
 """
 from __future__ import annotations
 
-from typing import Optional, Union
+from typing import Union
 
 from pydantic import BaseModel
 
@@ -76,25 +73,6 @@ class ParsedRung(BaseModel):
 
     elements: list[RLLNode] = []
 
-    def all_instructions(self) -> list[RLLInstruction]:
-        """Return every instruction in this rung, flattened from branches."""
-        result: list[RLLInstruction] = []
-        _collect_instructions(self.elements, result)
-        return result
-
-    def has_instruction(self, name: str) -> bool:
-        """Check whether an instruction with the given name exists."""
-        return any(i.name == name for i in self.all_instructions())
-
-    def find_instructions(self, name: str) -> list[RLLInstruction]:
-        """Return all instructions matching the given name."""
-        return [i for i in self.all_instructions() if i.name == name]
-
-    def first_instruction(self) -> Optional[RLLInstruction]:
-        """Return the first instruction in series order (first element,
-        or first instruction of the first leg of a leading branch)."""
-        return _first_instruction(self.elements)
-
 
 # ---------------------------------------------------------------------------
 # Private helpers
@@ -104,23 +82,3 @@ class ParsedRung(BaseModel):
 def _is_word(token: str) -> bool:
     """True if the token starts with a letter, digit, or underscore."""
     return bool(token) and (token[0].isalpha() or token[0].isdigit() or token[0] == "_")
-
-
-def _collect_instructions(nodes: list[RLLNode], out: list[RLLInstruction]) -> None:
-    for node in nodes:
-        if isinstance(node, RLLInstruction):
-            out.append(node)
-        elif isinstance(node, RLLBranch):
-            for leg in node.legs:
-                _collect_instructions(leg, out)
-
-
-def _first_instruction(nodes: list[RLLNode]) -> Optional[RLLInstruction]:
-    for node in nodes:
-        if isinstance(node, RLLInstruction):
-            return node
-        if isinstance(node, RLLBranch) and node.legs:
-            result = _first_instruction(node.legs[0])
-            if result is not None:
-                return result
-    return None

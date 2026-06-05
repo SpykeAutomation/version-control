@@ -5,9 +5,6 @@ The tree mirrors the ST structure:
   ParsedST
     ├── STStatement     (if, for, while, case, assign, call, expr)
     └── STCall          (function/instruction call with arguments)
-
-Helper methods on ParsedST flatten the tree for common checker queries
-like "find all calls to GSV in this routine."
 """
 from __future__ import annotations
 
@@ -66,45 +63,3 @@ class ParsedST(BaseModel):
     """The full AST for one parsed ST routine (all lines combined)."""
 
     statements: list[STStatement] = []
-
-    def all_calls(self) -> list[STCall]:
-        """Return every function/instruction call in the routine, flattened."""
-        result: list[STCall] = []
-        _collect_calls(self.statements, result)
-        return result
-
-    def has_call(self, name: str) -> bool:
-        """Check whether a call with the given name exists (case-insensitive)."""
-        name_upper = name.upper()
-        return any(c.name.upper() == name_upper for c in self.all_calls())
-
-    def find_calls(self, name: str) -> list[STCall]:
-        """Return all calls matching the given name (case-insensitive)."""
-        name_upper = name.upper()
-        return [c for c in self.all_calls() if c.name.upper() == name_upper]
-
-    def all_assignments(self) -> list[STAssignment]:
-        """Return every assignment in the routine, flattened."""
-        result: list[STAssignment] = []
-        _collect_assignments(self.statements, result)
-        return result
-
-
-# ---------------------------------------------------------------------------
-# Private helpers
-# ---------------------------------------------------------------------------
-
-
-def _collect_calls(stmts: list[STStatement], out: list[STCall]) -> None:
-    for stmt in stmts:
-        if stmt.call is not None:
-            out.append(stmt.call)
-        out.extend(stmt.nested_calls)
-        _collect_calls(stmt.children, out)
-
-
-def _collect_assignments(stmts: list[STStatement], out: list[STAssignment]) -> None:
-    for stmt in stmts:
-        if stmt.assignment is not None:
-            out.append(stmt.assignment)
-        _collect_assignments(stmt.children, out)
