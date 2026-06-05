@@ -1,0 +1,241 @@
+// ---------------------------------------------------------------------------
+// Rockwell Structured Text (ST) Grammar — IEC 61131-3 / Rockwell dialect
+// ---------------------------------------------------------------------------
+// Parses ST routine text from L5X exports
+// into a structured AST of statements, expressions, and function calls.
+//
+// ST text lives inside <STContent><Line><![CDATA[...]]></Line></STContent>
+// of routines with Type="ST". Each line is parsed separately, but the grammar
+// handles the full statement syntax.
+//
+// Key design decisions:
+//   - LALR parser (fast, deterministic)
+//   - Compound suffix terminals resolve DOT vs RANGE_OP ambiguity:
+//     MEMBER_ACCESS (.name), BIT_ACCESS (.digit), DYN_BIT_START (.[)
+//   - Case-insensitive keywords with word-boundary lookahead
+//   - Expression precedence chain via rule inlining (?rule)
+//
+// Patterns handled (from 273 real ST routines, 3 L5X files):
+//   tag := 100;
+//   IF cond THEN ... ELSIF ... ELSE ... END_IF;
+//   FOR i := 0 TO n BY 1 DO ... END_FOR;
+//   WHILE cond DO ... END_WHILE;
+//   REPEAT ... UNTIL cond; END_REPEAT;
+//   CASE expr OF 1: ... 2,3: ... ELSE ... END_CASE;
+//   GSV(WallClockTime,,LocalDateTime,dest);
+//   tag.member.sub := val;
+//   array[i,j] := val;
+//   tag.0 := 1;            (bit access)
+//   tag.[expr] := val;     (dynamic bit access)
+//   \Program:MainProgram.tag
+//   16#FF, 2#1010, 'string with $' escape'
+//   expr + expr, expr AND expr, NOT expr
+// ---------------------------------------------------------------------------
+
+// --- Top-level: a routine is a sequence of statements ---
+start: statement*
+
+// --- Statements ---
+?statement: if_stmt
+          | for_stmt
+          | while_stmt
+          | repeat_stmt
+          | case_stmt
+          | exit_stmt
+          | return_stmt
+          | assign_stmt
+          | call_stmt
+          | expr_stmt
+
+// Assignment: lvalue := expr ;  or  lvalue [:=] expr ; (Rockwell array assign)
+assign_stmt: expr ASSIGN expr ";"
+           | expr ARRAY_ASSIGN expr ";"
+
+// Function/instruction call as statement: NAME(args) ;
+call_stmt: call_expr ";"
+
+// Expression statement (bare expression with semicolon)
+expr_stmt: expr ";"
+
+// IF / ELSIF / ELSE / END_IF
+if_stmt: IF expr THEN statement* elsif_clause* else_clause? END_IF ";"
+elsif_clause: ELSIF expr THEN statement*
+else_clause: ELSE statement*
+
+// FOR / TO / BY / DO / END_FOR
+for_stmt: FOR expr ASSIGN expr TO expr by_clause? DO statement* END_FOR ";"
+by_clause: BY expr
+
+// WHILE / DO / END_WHILE
+while_stmt: WHILE expr DO statement* END_WHILE ";"
+
+// REPEAT / UNTIL / END_REPEAT
+repeat_stmt: REPEAT statement* UNTIL expr ";" END_REPEAT ";"
+
+// CASE / OF / END_CASE
+case_stmt: CASE expr OF case_branch+ else_clause? END_CASE ";"
+case_branch: case_label ("," case_label)* ":" statement*
+case_label: expr
+          | expr RANGE_OP expr
+
+// EXIT and RETURN
+exit_stmt: EXIT ";"
+return_stmt: RETURN ";"
+
+// --- Expressions (precedence chain, lowest to highest) ---
+// ? inlining: single child passes through, multi-child creates named node
+?expr: or_expr
+
+?or_expr: xor_expr
+        | or_expr OR xor_expr      -> bin_op
+
+?xor_expr: and_expr
+         | xor_expr XOR and_expr   -> bin_op
+
+?and_expr: not_expr
+         | and_expr AND not_expr   -> bin_op
+         | and_expr AMP not_expr   -> bin_op
+
+?not_expr: cmp_expr
+         | NOT not_expr            -> unary_op
+
+?cmp_expr: add_expr
+         | cmp_expr EQ add_expr    -> bin_op
+         | cmp_expr NEQ add_expr   -> bin_op
+         | cmp_expr LT add_expr    -> bin_op
+         | cmp_expr GT add_expr    -> bin_op
+         | cmp_expr LEQ add_expr   -> bin_op
+         | cmp_expr GEQ add_expr   -> bin_op
+
+?add_expr: mul_expr
+         | add_expr PLUS mul_expr  -> bin_op
+         | add_expr MINUS mul_expr -> bin_op
+
+?mul_expr: exp_expr
+         | mul_expr STAR exp_expr  -> bin_op
+         | mul_expr SLASH exp_expr -> bin_op
+         | mul_expr MOD exp_expr   -> bin_op
+
+?exp_expr: unary_expr
+         | unary_expr DSTAR exp_expr -> bin_op
+
+?unary_expr: postfix_expr
+           | MINUS unary_expr      -> unary_op
+           | PLUS unary_expr       -> unary_op
+
+?postfix_expr: atom_expr
+             | postfix_expr MEMBER_ACCESS  -> member_access
+             | postfix_expr BIT_ACCESS     -> bit_access
+             | postfix_expr DYN_BIT_START expr "]" -> dyn_bit_access
+             | postfix_expr "[" expr_list "]"      -> index_access
+
+// Function/instruction call — parsed at postfix level
+call_expr: NAME "(" [call_args] ")"
+
+// Argument list (may contain empty args for GSV-style calls)
+call_args: call_arg ("," call_arg)*
+call_arg: expr       -> call_arg_expr
+        |            -> call_arg_empty
+
+expr_list: expr ("," expr)*
+
+?atom_expr: call_expr
+          | NAME
+          | NUMBER
+          | HEX_LITERAL
+          | BIN_LITERAL
+          | STRING
+          | cross_ref
+          | "(" expr ")"    -> paren_expr
+
+// Cross-program / backslash reference: \Program:MainProgram.tag
+cross_ref: BACKSLASH NAME (COLON NAME)? (MEMBER_ACCESS)*
+
+// ---------------------------------------------------------------------------
+// Terminals
+// ---------------------------------------------------------------------------
+
+// --- Case-insensitive keywords (priority 3, word-boundary lookahead) ---
+IF.3:         /if(?![A-Za-z0-9_])/i
+THEN.3:       /then(?![A-Za-z0-9_])/i
+ELSIF.3:      /elsif(?![A-Za-z0-9_])/i
+ELSE.3:       /else(?![A-Za-z0-9_])/i
+END_IF.3:     /end_if(?![A-Za-z0-9_])/i
+FOR.3:        /for(?![A-Za-z0-9_])/i
+TO.3:         /to(?![A-Za-z0-9_])/i
+BY.3:         /by(?![A-Za-z0-9_])/i
+DO.3:         /do(?![A-Za-z0-9_])/i
+END_FOR.3:    /end_for(?![A-Za-z0-9_])/i
+WHILE.3:      /while(?![A-Za-z0-9_])/i
+END_WHILE.3:  /end_while(?![A-Za-z0-9_])/i
+REPEAT.3:     /repeat(?![A-Za-z0-9_])/i
+UNTIL.3:      /until(?![A-Za-z0-9_])/i
+END_REPEAT.3: /end_repeat(?![A-Za-z0-9_])/i
+CASE.3:       /case(?![A-Za-z0-9_])/i
+OF.3:         /of(?![A-Za-z0-9_])/i
+END_CASE.3:   /end_case(?![A-Za-z0-9_])/i
+EXIT.3:       /exit(?![A-Za-z0-9_])/i
+RETURN.3:     /return(?![A-Za-z0-9_])/i
+
+// Logical/arithmetic keyword operators (priority 3)
+AND.3:  /and(?![A-Za-z0-9_])/i
+OR.3:   /or(?![A-Za-z0-9_])/i
+XOR.3:  /xor(?![A-Za-z0-9_])/i
+NOT.3:  /not(?![A-Za-z0-9_])/i
+MOD.3:  /mod(?![A-Za-z0-9_])/i
+
+// --- Assignment operators ---
+ASSIGN: ":="
+ARRAY_ASSIGN: "[:=]"
+
+// --- Range operator for CASE labels ---
+RANGE_OP.2: /\.\.\.?/
+
+// --- Compound suffix terminals (resolve DOT ambiguity for LALR) ---
+// These consume the dot plus the following character(s) as one token.
+MEMBER_ACCESS.2: /\.[A-Za-z_][A-Za-z0-9_]*/
+BIT_ACCESS.2:    /\.\d+/
+DYN_BIT_START.2: /\.\[/
+
+// --- Numeric literals with base prefix (higher priority than NAME/NUMBER) ---
+HEX_LITERAL.2: /16#[0-9A-Fa-f_]+/
+BIN_LITERAL.2: /2#[01_]+/
+
+// --- Identifiers ---
+NAME: /[A-Za-z_][A-Za-z0-9_]*/
+
+// --- Numeric literals ---
+NUMBER: /\d+(\.\d+)?/
+
+// --- String literals with Rockwell $-escape sequences ---
+STRING: /'([^'$]|\$[rRlLnNtT$']|\$[0-9A-Fa-f]{2})*'/
+
+// --- Comparison operators (multi-char higher priority) ---
+NEQ.2: "<>"
+LEQ.2: "<="
+GEQ.2: ">="
+EQ:    "="
+LT:    "<"
+GT:    ">"
+
+// --- Arithmetic / other operators ---
+DSTAR.2: "**"
+PLUS:    "+"
+MINUS:   "-"
+STAR:    "*"
+SLASH:   "/"
+AMP:     "&"
+PIPE:    "|"
+
+// --- Single-character tokens used in cross-references ---
+BACKSLASH: "\\"
+COLON:     ":"
+
+// --- Whitespace and comments ---
+%import common.WS
+%ignore WS
+%ignore /\/\/[^\r\n]*/
+%ignore /\(\*[\s\S]*?\*\)/
+%ignore /\/\*[\s\S]*?\*\//
+%ignore /#region[^\r\n]*/i
+%ignore /#endregion[^\r\n]*/i

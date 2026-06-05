@@ -1,0 +1,127 @@
+// ---------------------------------------------------------------------------
+// Rockwell RLL (Relay Ladder Logic) Rung Text Grammar
+// ---------------------------------------------------------------------------
+// Parses rung text from L5X exports into a
+// structured AST of instructions, branches, and operands.
+//
+// Rung text lives inside <Text><![CDATA[...]]></Text> of <RLLContent>.
+// Every valid rung is a sequence of instructions and branch groups,
+// terminated by a semicolon.
+//
+// Examples handled:
+//   NOP();
+//   XIC(Tag1)OTE(Tag2);
+//   [XIC(A) ,XIC(B) ]OTE(C);
+//   GSV(Safety,,SafetyLockedState,dest);
+//   CPT(dest,(InpMoveRqst AND (InpMoveRqst - 1)));
+//   MAM(axis,mi,type,pos,speed,Units per sec,...);
+//   XIC(Mod01:I.RunMode)OTE(\sZone01.sSummary.PowerOn);
+//   MOV(0,Alm_Type1_Alms[0,13]);
+//   CMP(Path_Count_Array[2] + Path_Count_Array[3] <= 2);
+//   TON(tmr,?,?);
+//   DCS(tag,EMERGENCY STOP,EQUIVALENT - ACTIVE HIGH,500,MANUAL,AUTOMATIC,...);
+// ---------------------------------------------------------------------------
+
+// --- Top-level rung structure ---
+start: element* ";"
+
+?element: instruction
+        | branch
+
+// --- Instruction: NAME(params) ---
+instruction: NAME "(" [param_list] ")"
+
+// Comma-separated parameter list (may contain empty parameters)
+param_list: param ("," param)*
+
+// A parameter is either one or more atoms, or empty (e.g. GSV(Class,,Attr,Dest))
+param: atom+ -> param_expr
+     |        -> empty_param
+
+// --- Parallel branch groups ---
+// Legs are separated by commas; empty legs are allowed (e.g. [XIC(A) ,])
+branch: "[" leg ("," leg)* "]"
+
+leg: element*
+
+// --- Atoms: the building blocks within parameters ---
+// ?atom inlines this rule — children appear directly in param_expr
+?atom: NAME
+     | NUMBER
+     | HEX_LITERAL
+     | BIN_LITERAL
+     | STRING
+     | QMARK
+     | DOT
+     | COLON
+     | BACKSLASH
+     | HASH
+     | PERCENT
+     | AT_SIGN
+     | PLUS
+     | MINUS
+     | STAR
+     | SLASH
+     | DSTAR
+     | LEQ
+     | GEQ
+     | NEQ
+     | LT
+     | GT
+     | EQUAL
+     | AMPERSAND
+     | TILDE
+     | paren_group
+     | subscript
+
+// Parenthesised sub-expression inside a parameter (CPT, CMP, FAL, FSC)
+paren_group: "(" atom* ")"
+
+// Array subscript inside a parameter — multi-dimensional: Tag[dim1,dim2]
+subscript: "[" [subscript_dim ("," subscript_dim)*] "]"
+
+subscript_dim: atom+
+
+// ---------------------------------------------------------------------------
+// Terminals — ordered so that longer/more-specific tokens win
+// ---------------------------------------------------------------------------
+
+// Numeric literals with base prefix must outprioritise plain NUMBER
+HEX_LITERAL.2: /16#[0-9A-Fa-f_]+/
+BIN_LITERAL.2: /2#[01_]+/
+
+// Identifiers: instruction names, tag names, keywords (AND, OR, MOD, ...)
+NAME: /[A-Za-z_][A-Za-z0-9_]*/
+
+// Numeric literals: integers and decimals
+NUMBER: /\d+(\.\d+)?/
+
+// String literals with Rockwell $-escape sequences ($1F, $r, $l, $$, $')
+STRING: /'([^']|\$')*'/
+
+// Single-character tokens
+QMARK:     "?"
+DOT:       "."
+COLON:     ":"
+BACKSLASH: "\\"
+HASH:      "#"
+PERCENT:   "%"
+AT_SIGN:   "@"
+PLUS:      "+"
+MINUS:     "-"
+SLASH:     "/"
+EQUAL:     "="
+AMPERSAND: "&"
+TILDE:     "~"
+
+// Multi-character operators — higher priority than their single-char prefixes
+DSTAR.2: "**"
+LEQ.2:   "<="
+GEQ.2:   ">="
+NEQ.2:   "<>"
+LT:      "<"
+GT:      ">"
+STAR:    "*"
+
+%import common.WS
+%ignore WS
