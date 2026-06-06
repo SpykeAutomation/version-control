@@ -187,7 +187,12 @@ class Tag(BaseModel):
     constant: bool = False
     external_access: Optional[str] = None
     description: Optional[str] = None
-    value: Optional[str] = None  # Raw L5K value for scalar/simple types
+    value: Optional[str] = None  # Single scalar/string value (None for structured tags)
+    # Flat {member_path: value} for UDT / array tags, decoded from the Decorated
+    # data block. Paths use dots for members and [i] for array indices, e.g.
+    # {"ParentMember.ChildMember": "<value>", "SomeArray[0]": "<value>"}. STRING
+    # members are collapsed to their text. Empty for plain scalar tags. For diffing.
+    values: dict[str, str] = {}
     tag_class: Optional[str] = None  # "Safety" for safety tags; absent/None for standard
     produced_connection: Optional[ProducedTagConnection] = None
     consumed_connection: Optional[ConsumedTagConnection] = None
@@ -241,6 +246,11 @@ class AOIParameter(BaseModel):
     external_access: Optional[str] = None
     description: Optional[str] = None
     alias_for: Optional[str] = None  # local tag (or member) this param is an alias for
+    # Default value(s) from the parameter's DefaultData block. `default_value`
+    # holds a scalar/string default; `default_values` is the flat path→value map
+    # for structured/array defaults (same shape as Tag.values).
+    default_value: Optional[str] = None
+    default_values: dict[str, str] = {}
 
 
 class AOILocalTag(BaseModel):
@@ -250,6 +260,8 @@ class AOILocalTag(BaseModel):
     radix: Optional[str] = None
     external_access: Optional[str] = None
     description: Optional[str] = None
+    default_value: Optional[str] = None       # scalar/string default
+    default_values: dict[str, str] = {}        # flat default map for structured local tags
 
 
 # ---------------------------------------------------------------------------

@@ -115,15 +115,102 @@ def _parse_dimensions(dim_str: Optional[str]) -> Optional[list[int]]:
         return None
 
 
-def _tag_value(el: Element) -> Optional[str]:
+# ---------------------------------------------------------------------------
+# Decorated-data decoding
+#
+# A <Data Format="Decorated"> (or <DefaultData Format="Decorated">) block holds
+# a tag/parameter's value as a labelled tree. We flatten that tree into a flat
+# {member_path: value} map so individual values can be read and diffed.
+#
+# Node shapes handled:
+#   DataValue                       a lone scalar (root of a simple value)
+#   DataValueMember                 a named scalar inside a structure
+#   Structure / StructureMember     a UDT and its sub-objects
+#   Array / ArrayMember             a list (children are Element nodes)
+#   Element                         one list slot (scalar, or wraps a Structure)
+# STRING structures (LEN + DATA) are collapsed to their text.
+#
+# Path convention: members joined with ".", array indices appended as "[i]".
+# A root scalar's value lands under the key "(value)".
+# ---------------------------------------------------------------------------
+
+_ROOT_VALUE_KEY = "(value)"
+
+
+def _join_path(path: str, name: str) -> str:
+    return name if not path else f"{path}.{name}"
+
+
+def _clean_ascii_string(raw: Optional[str]) -> str:
     """
-    Extract the raw L5K-format value for a tag.
-    Only meaningful for scalar / simple types; complex UDT values are omitted.
+    Tidy a decorated ASCII string value. The element text is pretty-printed and
+    the value is wrapped in single-quote delimiters, e.g. "\\n'text'\\n". Strip
+    the surrounding whitespace and one pair of delimiter quotes; characters
+    inside the quotes (including spaces) are preserved.
     """
-    data = el.find("Data[@Format='L5K']")
-    if data is not None and data.text:
-        return data.text.strip()
+    s = (raw or "").strip()
+    if len(s) >= 2 and s[0] == "'" and s[-1] == "'":
+        s = s[1:-1]
+    return s
+
+
+def _string_struct_text(el: Element) -> Optional[str]:
+    """
+    If `el` is a STRING-style structure (a DATA member with Radix="ASCII",
+    alongside a LEN), return its cleaned text; otherwise None. Detection is by
+    shape, not type name, so custom string types are handled too.
+    """
+    for child in el:
+        if child.get("Name") == "DATA" and child.get("Radix") == "ASCII":
+            return _clean_ascii_string(child.text)
     return None
+
+
+def _flatten_decorated(el: Element, path: str, out: dict[str, str]) -> None:
+    """Recursively flatten a Decorated node into {path: value}."""
+    tag = el.tag
+
+    if tag == "DataValue":  # lone scalar
+        out[path or _ROOT_VALUE_KEY] = el.get("Value") or ""
+        return
+
+    if tag == "DataValueMember":  # named scalar (or string text) in a structure
+        member_path = _join_path(path, el.get("Name", ""))
+        # A bare ASCII DATA member carries its text as CDATA, not a Value attr.
+        if el.get("Value") is None and el.get("Radix") == "ASCII":
+            out[member_path] = _clean_ascii_string(el.text)
+        else:
+            out[member_path] = el.get("Value") or ""
+        return
+
+    if tag in ("Structure", "StructureMember"):
+        text = _string_struct_text(el)
+        if text is not None:  # collapse a STRING structure to its text
+            name = el.get("Name")
+            key = _join_path(path, name) if name else (path or _ROOT_VALUE_KEY)
+            out[key] = text
+            return
+        name = el.get("Name")  # StructureMember has one; a root Structure does not
+        base = _join_path(path, name) if name else path
+        for child in el:
+            _flatten_decorated(child, base, out)
+        return
+
+    if tag in ("Array", "ArrayMember"):
+        name = el.get("Name")  # ArrayMember has one; a root Array does not
+        base = _join_path(path, name) if name else path
+        for child in el:
+            _flatten_decorated(child, base, out)
+        return
+
+    if tag == "Element":
+        elem_path = f"{path}{el.get('Index', '')}"  # Index already looks like "[i]"
+        if el.get("Value") is not None:
+            out[elem_path] = el.get("Value") or ""
+        else:
+            for child in el:  # an Element wrapping a Structure
+                _flatten_decorated(child, elem_path, out)
+        return
 
 
 # ---------------------------------------------------------------------------
@@ -376,9 +463,52 @@ class L5XParser:
             return []
         return [self._parse_tag(t, scope) for t in container.findall("Tag")]
 
+    def _extract_values(
+        self, parent_el: Element, data_tag: str
+    ) -> tuple[Optional[str], dict[str, str]]:
+        """
+        Decode the value(s) from a tag/parameter's data blocks.
+
+        `data_tag` is the child element name to scan ("Data" for tags,
+        "DefaultData" for AOI parameter/local-tag defaults).
+
+        Returns ``(scalar_value, values_map)``:
+          - a plain scalar/string value goes in ``scalar_value`` (map empty);
+          - a structured/array value goes in ``values_map`` (scalar None).
+        Prefers the Decorated block; falls back to String, then the raw L5K
+        text if Decorated data was not exported.
+        """
+        decorated = string_block = l5k_block = None
+        for d in parent_el.findall(data_tag):
+            fmt = d.get("Format")
+            if fmt == "Decorated":
+                decorated = d
+            elif fmt == "String":
+                string_block = d
+            elif fmt == "L5K":
+                l5k_block = d
+
+        if decorated is not None:
+            children = list(decorated)
+            if children:
+                flat: dict[str, str] = {}
+                _flatten_decorated(children[0], "", flat)
+                if list(flat.keys()) == [_ROOT_VALUE_KEY]:
+                    return flat[_ROOT_VALUE_KEY], {}
+                return None, flat
+
+        if string_block is not None and string_block.text:
+            return string_block.text.strip().strip("'"), {}
+
+        if l5k_block is not None and l5k_block.text:
+            return l5k_block.text.strip(), {}
+
+        return None, {}
+
     def _parse_tag(self, el: Element, scope: str) -> Tag:
         tag_type = _attr(el, "TagType")
         data_type = _attr(el, "DataType", "")
+        value, values = self._extract_values(el, "Data")
         return Tag(
             name=_attr(el, "Name", ""),
             scope=scope,
@@ -389,7 +519,8 @@ class L5XParser:
             constant=_bool_attr(el, "Constant"),
             external_access=_attr(el, "ExternalAccess"),
             description=_description(el),
-            value=_tag_value(el),
+            value=value,
+            values=values,
             tag_class=_attr(el, "Class"),
             produced_connection=self._parse_produced_connection(el)
             if tag_type == "Produced"
@@ -471,6 +602,7 @@ class L5XParser:
         params_el = el.find("Parameters")
         if params_el is not None:
             for p in params_el.findall("Parameter"):
+                default_value, default_values = self._extract_values(p, "DefaultData")
                 params.append(
                     AOIParameter(
                         name=_attr(p, "Name", ""),
@@ -483,6 +615,8 @@ class L5XParser:
                         external_access=_attr(p, "ExternalAccess"),
                         description=_description(p),
                         alias_for=_attr(p, "AliasFor"),
+                        default_value=default_value,
+                        default_values=default_values,
                     )
                 )
 
@@ -490,6 +624,7 @@ class L5XParser:
         local_tags_el = el.find("LocalTags")
         if local_tags_el is not None:
             for lt in local_tags_el.findall("LocalTag"):
+                default_value, default_values = self._extract_values(lt, "DefaultData")
                 local_tags.append(
                     AOILocalTag(
                         name=_attr(lt, "Name", ""),
@@ -498,6 +633,8 @@ class L5XParser:
                         radix=_attr(lt, "Radix"),
                         external_access=_attr(lt, "ExternalAccess"),
                         description=_description(lt),
+                        default_value=default_value,
+                        default_values=default_values,
                     )
                 )
 
