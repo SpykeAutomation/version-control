@@ -213,6 +213,37 @@ class ModulePort(BaseModel):
     bus_size: Optional[int] = None   # number of slots on the bus
 
 
+class ModuleConnection(BaseModel):
+    """
+    One <Connection> under a module's <Communications> element: the I/O
+    connection configuration an engineer tunes (RPI, data sizes, production
+    trigger, connection path). The safety-timing fields mirror those on
+    ConsumedTagConnection and populate only for safety connections.
+    """
+
+    name: Optional[str] = None                     # Name
+    rpi: Optional[int] = None                       # RPI (microseconds)
+    type: Optional[str] = None                      # Input, Output, StandardDataDriven, ...
+    input_size: Optional[int] = None                # InputSize
+    output_size: Optional[int] = None               # OutputSize
+    input_cxn_point: Optional[int] = None           # InputCxnPoint
+    output_cxn_point: Optional[int] = None          # OutputCxnPoint
+    priority: Optional[str] = None                  # Priority (e.g. Scheduled)
+    input_connection_type: Optional[str] = None     # Multicast / Unicast
+    input_production_trigger: Optional[str] = None   # Cyclic / Change Of State / ...
+    unicast: Optional[bool] = None                  # Unicast
+    event_id: Optional[int] = None                  # EventID
+    programmatically_send_event_trigger: bool = False  # ProgrammaticallySendEventTrigger
+    connection_path: Optional[str] = None           # ConnectionPath
+    input_tag_suffix: Optional[str] = None          # InputTagSuffix (e.g. "I0")
+    output_tag_suffix: Optional[str] = None         # OutputTagSuffix (e.g. "O0")
+    # Safety-only connection timing
+    timeout_multiplier: Optional[int] = None         # TimeoutMultiplier
+    network_delay_multiplier: Optional[int] = None   # NetworkDelayMultiplier
+    reaction_time_limit: Optional[float] = None      # ReactionTimeLimit
+    max_observed_network_delay: Optional[float] = None  # MaxObservedNetworkDelay
+
+
 class Module(BaseModel):
     name: str
     catalog_number: Optional[str] = None
@@ -228,6 +259,16 @@ class Module(BaseModel):
     safety_network: Optional[str] = None
     ekey_state: Optional[str] = None  # Disabled, CompatibleModule, ExactMatch
     ports: list[ModulePort] = []
+    # I/O connection configuration from the <Communications> element.
+    comm_method: Optional[str] = None   # Communications CommMethod attribute
+    # Flat {member_path: value} map of the module's configuration, decoded from
+    # a decorated <ConfigTag> block (same shape as Tag.values). Empty when the
+    # module has no decorated config tag.
+    config_values: dict[str, str] = {}
+    # Raw L5K config blob from <ConfigData>, kept as a diff-detectable fallback
+    # when no decorated config tag was exported. None when config_values is set.
+    config_l5k: Optional[str] = None
+    connections: list[ModuleConnection] = []
 
 
 # ---------------------------------------------------------------------------
