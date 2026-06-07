@@ -193,6 +193,10 @@ class Tag(BaseModel):
     # {"ParentMember.ChildMember": "<value>", "SomeArray[0]": "<value>"}. STRING
     # members are collapsed to their text. Empty for plain scalar tags. For diffing.
     values: dict[str, str] = {}
+    # {operand: comment} per-bit/per-member comments from the tag's <Comments>
+    # block; operand is the raw attribute, e.g. ".0", ".STATE", "[0]". Empty
+    # when the tag has no operand comments.
+    comments: dict[str, str] = {}
     tag_class: Optional[str] = None  # "Safety" for safety tags; absent/None for standard
     produced_connection: Optional[ProducedTagConnection] = None
     consumed_connection: Optional[ConsumedTagConnection] = None
@@ -242,6 +246,20 @@ class ModuleConnection(BaseModel):
     network_delay_multiplier: Optional[int] = None   # NetworkDelayMultiplier
     reaction_time_limit: Optional[float] = None      # ReactionTimeLimit
     max_observed_network_delay: Optional[float] = None  # MaxObservedNetworkDelay
+    # {operand: comment} per-bit/per-member comments from the connection's
+    # <InputTag>/<OutputTag> <Comments> block (the I/O point documentation).
+    # Operand is the raw attribute, e.g. ".PT00DATA", ".OUTPUTAREA[0].0".
+    input_comments: dict[str, str] = {}
+    output_comments: dict[str, str] = {}
+
+
+class RackConnection(BaseModel):
+    """A <RackConnection> under a module's <Communications>. Rack-optimized
+    connections carry no tunable attributes here; only the per-operand comments
+    on their alias I/O tags are captured (operand = raw attribute, e.g. ".0")."""
+
+    in_alias_comments: dict[str, str] = {}    # <InAliasTag> per-operand comments
+    out_alias_comments: dict[str, str] = {}   # <OutAliasTag> per-operand comments
 
 
 class Module(BaseModel):
@@ -269,6 +287,7 @@ class Module(BaseModel):
     # when no decorated config tag was exported. None when config_values is set.
     config_l5k: Optional[str] = None
     connections: list[ModuleConnection] = []
+    rack_connections: list[RackConnection] = []
 
 
 # ---------------------------------------------------------------------------
@@ -292,6 +311,9 @@ class AOIParameter(BaseModel):
     # for structured/array defaults (same shape as Tag.values).
     default_value: Optional[str] = None
     default_values: dict[str, str] = {}
+    # {operand: comment} per-bit/per-member comments from the parameter's
+    # <Comments> block; operand is the raw attribute, e.g. ".0", ".STATE".
+    comments: dict[str, str] = {}
 
 
 class AOILocalTag(BaseModel):
@@ -303,6 +325,9 @@ class AOILocalTag(BaseModel):
     description: Optional[str] = None
     default_value: Optional[str] = None       # scalar/string default
     default_values: dict[str, str] = {}        # flat default map for structured local tags
+    # {operand: comment} per-bit/per-member comments from the local tag's
+    # <Comments> block; operand is the raw attribute, e.g. ".0", ".STATE".
+    comments: dict[str, str] = {}
 
 
 # ---------------------------------------------------------------------------
