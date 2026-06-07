@@ -32,6 +32,7 @@ from .models import (
     ModuleConnection,
     ModulePort,
     ProducedTagConnection,
+    RackConnection,
     RedundancyInfo,
     SafetyInfo,
     Security,
@@ -100,6 +101,29 @@ def _description(el: Element) -> Optional[str]:
     if desc is not None and desc.text:
         return desc.text.strip()
     return None
+
+
+def _operand_comments(el: Optional[Element]) -> dict[str, str]:
+    """Return {operand: comment} from a <Comments> child, or {} if absent.
+
+    Maps each <Comment Operand="...">'s raw Operand attribute (e.g. ".0",
+    ".STATE", "[0]", ".OUTPUTAREA[0].0") to its stripped CDATA text. Mirrors
+    _description(): per-bit / per-member operand comments on tags, AOI
+    parameters/local tags, and module I/O tags. `el` may be None so callers can
+    pass an optional element (e.g. a connection's InputTag) without a guard.
+    """
+    if el is None:
+        return {}
+    comments_el = el.find("Comments")
+    if comments_el is None:
+        return {}
+    out: dict[str, str] = {}
+    for c in comments_el.findall("Comment"):
+        operand = c.get("Operand")
+        if operand is None:
+            continue
+        out[operand] = c.text.strip() if c.text else ""
+    return out
 
 
 def _parse_dimensions(dim_str: Optional[str]) -> Optional[list[int]]:
@@ -409,7 +433,7 @@ class L5XParser:
                     )
                 )
 
-        comm_method, config_values, config_l5k, connections = (
+        comm_method, config_values, config_l5k, connections, rack_connections = (
             self._parse_module_communications(el)
         )
 
@@ -432,25 +456,36 @@ class L5XParser:
             config_values=config_values,
             config_l5k=config_l5k,
             connections=connections,
+            rack_connections=rack_connections,
         )
 
     def _parse_module_communications(
         self, module_el: Element
-    ) -> tuple[Optional[str], dict[str, str], Optional[str], list[ModuleConnection]]:
+    ) -> tuple[
+        Optional[str],
+        dict[str, str],
+        Optional[str],
+        list[ModuleConnection],
+        list[RackConnection],
+    ]:
         """
         Decode the <Communications> block of a module.
 
-        Returns ``(comm_method, config_values, config_l5k, connections)``:
+        Returns ``(comm_method, config_values, config_l5k, connections,
+        rack_connections)``:
           - ``config_values`` is the flat path->value map from a decorated
             <ConfigTag>; ``config_l5k`` is the raw <ConfigData> L5K blob kept as
             a diff-detectable fallback when no decorated config tag exists.
           - <InputTag>/<OutputTag> blocks hold live I/O state (fault bits,
-            receive buffers), not configuration, so they are intentionally
-            not decoded here.
+            receive buffers), not configuration, so their values are
+            intentionally not decoded here; only their per-operand comments are.
+          - ``rack_connections`` holds the alias-tag comments from any
+            <RackConnection> blocks (rack-optimized connections carry no tunable
+            attributes here).
         """
         comm_el = module_el.find("Communications")
         if comm_el is None:
-            return None, {}, None, []
+            return None, {}, None, [], []
 
         comm_method = _attr(comm_el, "CommMethod")
 
@@ -495,10 +530,27 @@ class L5XParser:
                         max_observed_network_delay=_float_attr(
                             c, "MaxObservedNetworkDelay"
                         ),
+                        input_comments=_operand_comments(c.find("InputTag")),
+                        output_comments=_operand_comments(c.find("OutputTag")),
                     )
                 )
 
-        return comm_method, config_values, config_l5k, connections
+        rack_connections: list[RackConnection] = []
+        if connections_el is not None:
+            for rc in connections_el.findall("RackConnection"):
+                in_comments = _operand_comments(rc.find("InAliasTag"))
+                out_comments = _operand_comments(rc.find("OutAliasTag"))
+                # A rack connection carries no other diffable data; skip it
+                # entirely when neither alias tag has comments to avoid noise.
+                if in_comments or out_comments:
+                    rack_connections.append(
+                        RackConnection(
+                            in_alias_comments=in_comments,
+                            out_alias_comments=out_comments,
+                        )
+                    )
+
+        return comm_method, config_values, config_l5k, connections, rack_connections
 
     # ------------------------------------------------------------------
     # Data Types (UDTs)
@@ -604,6 +656,7 @@ class L5XParser:
             description=_description(el),
             value=value,
             values=values,
+            comments=_operand_comments(el),
             tag_class=_attr(el, "Class"),
             produced_connection=self._parse_produced_connection(el)
             if tag_type == "Produced"
@@ -700,6 +753,7 @@ class L5XParser:
                         alias_for=_attr(p, "AliasFor"),
                         default_value=default_value,
                         default_values=default_values,
+                        comments=_operand_comments(p),
                     )
                 )
 
@@ -718,6 +772,7 @@ class L5XParser:
                         description=_description(lt),
                         default_value=default_value,
                         default_values=default_values,
+                        comments=_operand_comments(lt),
                     )
                 )
 
