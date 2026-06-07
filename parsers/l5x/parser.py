@@ -103,6 +103,14 @@ def _description(el: Element) -> Optional[str]:
     return None
 
 
+def _child_text(el: Element, tag: str) -> Optional[str]:
+    """Return the stripped CDATA text of a named child element, or None."""
+    child = el.find(tag)
+    if child is not None and child.text:
+        return child.text.strip()
+    return None
+
+
 def _operand_comments(el: Optional[Element]) -> dict[str, str]:
     """Return {operand: comment} from a <Comments> child, or {} if absent.
 
@@ -791,6 +799,8 @@ class L5XParser:
             edited_by=_attr(el, "EditedBy"),
             software_revision=_attr(el, "SoftwareRevision"),
             description=_description(el),
+            revision_note=_child_text(el, "RevisionNote"),
+            additional_help_text=_child_text(el, "AdditionalHelpText"),
             parameters=params,
             local_tags=local_tags,
             routines=self._parse_routines(el),
