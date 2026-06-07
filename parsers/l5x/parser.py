@@ -648,6 +648,21 @@ class L5XParser:
 
         return None, {}
 
+    def _extract_motion_config(self, tag_el: Element) -> dict[str, str]:
+        """
+        Read motion parameters from a tag's <Data Format="Axis"> or
+        <Data Format="MotionGroup"> block. The parameters are all attributes on a
+        single child element (AxisParameters / MotionGroupParameters), so we take
+        that element's attributes verbatim. Keyed on Format (not the child name) so
+        every axis subtype is covered. Empty for non-motion tags.
+        """
+        for data_el in tag_el.findall("Data"):
+            if data_el.get("Format") in ("Axis", "MotionGroup"):
+                child = next(iter(data_el), None)
+                if child is not None:
+                    return dict(child.attrib)
+        return {}
+
     def _parse_tag(self, el: Element, scope: str) -> Tag:
         tag_type = _attr(el, "TagType")
         data_type = _attr(el, "DataType", "")
@@ -664,6 +679,7 @@ class L5XParser:
             description=_description(el),
             value=value,
             values=values,
+            motion_config=self._extract_motion_config(el),
             comments=_operand_comments(el),
             tag_class=_attr(el, "Class"),
             produced_connection=self._parse_produced_connection(el)

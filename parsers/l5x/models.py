@@ -193,6 +193,11 @@ class Tag(BaseModel):
     # {"ParentMember.ChildMember": "<value>", "SomeArray[0]": "<value>"}. STRING
     # members are collapsed to their text. Empty for plain scalar tags. For diffing.
     values: dict[str, str] = {}
+    # Flat {parameter: value} map of motion configuration, read from a
+    # <Data Format="Axis"> or <Data Format="MotionGroup"> block (AXIS_* and
+    # MOTION_GROUP tags). Every parameter is an XML attribute on a single child
+    # element, captured verbatim as strings for diffing. Empty for non-motion tags.
+    motion_config: dict[str, str] = {}
     # {operand: comment} per-bit/per-member comments from the tag's <Comments>
     # block; operand is the raw attribute, e.g. ".0", ".STATE", "[0]". Empty
     # when the tag has no operand comments.
