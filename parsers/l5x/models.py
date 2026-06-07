@@ -393,6 +393,8 @@ class AOI(BaseModel):
     edited_by: Optional[str] = None
     software_revision: Optional[str] = None
     description: Optional[str] = None
+    revision_note: Optional[str] = None        # <RevisionNote> revision history
+    additional_help_text: Optional[str] = None  # <AdditionalHelpText> instruction help
     parameters: list[AOIParameter] = []
     local_tags: list[AOILocalTag] = []
     routines: list[Routine] = []
