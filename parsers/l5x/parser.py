@@ -29,6 +29,7 @@ from .models import (
     DataType,
     EventInfo,
     Module,
+    ModuleConnection,
     ModulePort,
     ProducedTagConnection,
     RedundancyInfo,
@@ -61,6 +62,14 @@ def _bool_attr(el: Element, name: str, default: bool = False) -> bool:
     if not val:
         return default
     return val == "true"
+
+
+def _opt_bool_attr(el: Element, name: str) -> Optional[bool]:
+    """Like _bool_attr but returns None (rather than a default) when absent."""
+    val = el.get(name)
+    if val is None:
+        return None
+    return val.strip().lower() == "true"
 
 
 def _int_attr(el: Element, name: str, default: Optional[int] = None) -> Optional[int]:
@@ -400,6 +409,10 @@ class L5XParser:
                     )
                 )
 
+        comm_method, config_values, config_l5k, connections = (
+            self._parse_module_communications(el)
+        )
+
         return Module(
             name=_attr(el, "Name", ""),
             catalog_number=_attr(el, "CatalogNumber"),
@@ -415,7 +428,77 @@ class L5XParser:
             safety_network=_attr(el, "SafetyNetwork"),
             ekey_state=ekey_state,
             ports=ports,
+            comm_method=comm_method,
+            config_values=config_values,
+            config_l5k=config_l5k,
+            connections=connections,
         )
+
+    def _parse_module_communications(
+        self, module_el: Element
+    ) -> tuple[Optional[str], dict[str, str], Optional[str], list[ModuleConnection]]:
+        """
+        Decode the <Communications> block of a module.
+
+        Returns ``(comm_method, config_values, config_l5k, connections)``:
+          - ``config_values`` is the flat path->value map from a decorated
+            <ConfigTag>; ``config_l5k`` is the raw <ConfigData> L5K blob kept as
+            a diff-detectable fallback when no decorated config tag exists.
+          - <InputTag>/<OutputTag> blocks hold live I/O state (fault bits,
+            receive buffers), not configuration, so they are intentionally
+            not decoded here.
+        """
+        comm_el = module_el.find("Communications")
+        if comm_el is None:
+            return None, {}, None, []
+
+        comm_method = _attr(comm_el, "CommMethod")
+
+        config_values: dict[str, str] = {}
+        config_l5k: Optional[str] = None
+        config_tag = comm_el.find("ConfigTag")
+        if config_tag is not None:
+            _, config_values = self._extract_values(config_tag, "Data")
+        if not config_values:
+            config_data = comm_el.find("ConfigData")
+            if config_data is not None:
+                scalar, _ = self._extract_values(config_data, "Data")
+                config_l5k = scalar
+
+        connections: list[ModuleConnection] = []
+        connections_el = comm_el.find("Connections")
+        if connections_el is not None:
+            for c in connections_el.findall("Connection"):
+                connections.append(
+                    ModuleConnection(
+                        name=_attr(c, "Name") or None,
+                        rpi=_int_attr(c, "RPI"),
+                        type=_attr(c, "Type"),
+                        input_size=_int_attr(c, "InputSize"),
+                        output_size=_int_attr(c, "OutputSize"),
+                        input_cxn_point=_int_attr(c, "InputCxnPoint"),
+                        output_cxn_point=_int_attr(c, "OutputCxnPoint"),
+                        priority=_attr(c, "Priority"),
+                        input_connection_type=_attr(c, "InputConnectionType"),
+                        input_production_trigger=_attr(c, "InputProductionTrigger"),
+                        unicast=_opt_bool_attr(c, "Unicast"),
+                        event_id=_int_attr(c, "EventID"),
+                        programmatically_send_event_trigger=_bool_attr(
+                            c, "ProgrammaticallySendEventTrigger"
+                        ),
+                        connection_path=_attr(c, "ConnectionPath") or None,
+                        input_tag_suffix=_attr(c, "InputTagSuffix") or None,
+                        output_tag_suffix=_attr(c, "OutputTagSuffix") or None,
+                        timeout_multiplier=_int_attr(c, "TimeoutMultiplier"),
+                        network_delay_multiplier=_int_attr(c, "NetworkDelayMultiplier"),
+                        reaction_time_limit=_float_attr(c, "ReactionTimeLimit"),
+                        max_observed_network_delay=_float_attr(
+                            c, "MaxObservedNetworkDelay"
+                        ),
+                    )
+                )
+
+        return comm_method, config_values, config_l5k, connections
 
     # ------------------------------------------------------------------
     # Data Types (UDTs)
