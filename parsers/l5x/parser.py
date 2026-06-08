@@ -254,6 +254,23 @@ def _flatten_decorated(el: Element, path: str, out: dict[str, str]) -> None:
         return
 
 
+def _flatten_xml(el: Element, path: str, out: dict[str, str]) -> None:
+    """Recursively flatten an arbitrary element subtree into {dotted_path: value}.
+
+    Unlike _flatten_decorated (which understands Decorated data nodes), this is a
+    generic walk for free-form metadata such as <ExtendedProperties>: it emits
+    "<path>.@<attr>" for each attribute and "<path>.#text" for element text.
+    """
+    for name, val in sorted(el.attrib.items()):
+        key = f"{path}.@{name}" if path else f"@{name}"
+        out[key] = val
+    if el.text and el.text.strip():
+        out[f"{path}.#text" if path else "#text"] = el.text.strip()
+    for child in el:
+        child_path = f"{path}.{child.tag}" if path else child.tag
+        _flatten_xml(child, child_path, out)
+
+
 # ---------------------------------------------------------------------------
 # Parser
 # ---------------------------------------------------------------------------
@@ -438,12 +455,24 @@ class L5XParser:
                         upstream=_bool_attr(p, "Upstream"),
                         safety_network=_attr(p, "SafetyNetwork"),
                         bus_size=bus_size,
+                        width=_int_attr(p, "Width"),
                     )
                 )
 
-        comm_method, config_values, config_l5k, connections, rack_connections = (
-            self._parse_module_communications(el)
-        )
+        (
+            comm_method,
+            config_values,
+            config_l5k,
+            config_script_l5k,
+            safety_script_l5k,
+            connections,
+            rack_connections,
+        ) = self._parse_module_communications(el)
+
+        extended_properties: dict[str, str] = {}
+        ext_el = el.find("ExtendedProperties")
+        if ext_el is not None:
+            _flatten_xml(ext_el, "", extended_properties)
 
         return Module(
             name=_attr(el, "Name", ""),
@@ -458,13 +487,23 @@ class L5XParser:
             inhibited=_bool_attr(el, "Inhibited"),
             major_fault=_bool_attr(el, "MajorFault"),
             safety_network=_attr(el, "SafetyNetwork"),
+            safety_enabled=_opt_bool_attr(el, "SafetyEnabled"),
+            auto_diags_enabled=_opt_bool_attr(el, "AutoDiagsEnabled"),
+            user_defined_vendor=_int_attr(el, "UserDefinedVendor"),
+            user_defined_product_type=_int_attr(el, "UserDefinedProductType"),
+            user_defined_product_code=_int_attr(el, "UserDefinedProductCode"),
+            user_defined_major=_int_attr(el, "UserDefinedMajor"),
+            user_defined_minor=_int_attr(el, "UserDefinedMinor"),
             ekey_state=ekey_state,
             ports=ports,
             comm_method=comm_method,
             config_values=config_values,
             config_l5k=config_l5k,
+            config_script_l5k=config_script_l5k,
+            safety_script_l5k=safety_script_l5k,
             connections=connections,
             rack_connections=rack_connections,
+            extended_properties=extended_properties,
         )
 
     def _parse_module_communications(
@@ -473,17 +512,21 @@ class L5XParser:
         Optional[str],
         dict[str, str],
         Optional[str],
+        Optional[str],
+        Optional[str],
         list[ModuleConnection],
         list[RackConnection],
     ]:
         """
         Decode the <Communications> block of a module.
 
-        Returns ``(comm_method, config_values, config_l5k, connections,
-        rack_connections)``:
+        Returns ``(comm_method, config_values, config_l5k, config_script_l5k,
+        safety_script_l5k, connections, rack_connections)``:
           - ``config_values`` is the flat path->value map from a decorated
             <ConfigTag>; ``config_l5k`` is the raw <ConfigData> L5K blob kept as
             a diff-detectable fallback when no decorated config tag exists.
+          - ``config_script_l5k`` / ``safety_script_l5k`` are the opaque L5K text
+            of any <ConfigScript> / <SafetyScript> blocks, kept verbatim.
           - <InputTag>/<OutputTag> blocks hold live I/O state (fault bits,
             receive buffers), not configuration, so their values are
             intentionally not decoded here; only their per-operand comments are.
@@ -493,9 +536,22 @@ class L5XParser:
         """
         comm_el = module_el.find("Communications")
         if comm_el is None:
-            return None, {}, None, [], []
+            return None, {}, None, None, None, [], []
 
         comm_method = _attr(comm_el, "CommMethod")
+
+        config_script_el = comm_el.find("ConfigScript")
+        config_script_l5k = (
+            _child_text(config_script_el, "Data")
+            if config_script_el is not None
+            else None
+        )
+        safety_script_el = comm_el.find("SafetyScript")
+        safety_script_l5k = (
+            _child_text(safety_script_el, "Data")
+            if safety_script_el is not None
+            else None
+        )
 
         config_values: dict[str, str] = {}
         config_l5k: Optional[str] = None
@@ -558,7 +614,15 @@ class L5XParser:
                         )
                     )
 
-        return comm_method, config_values, config_l5k, connections, rack_connections
+        return (
+            comm_method,
+            config_values,
+            config_l5k,
+            config_script_l5k,
+            safety_script_l5k,
+            connections,
+            rack_connections,
+        )
 
     # ------------------------------------------------------------------
     # Data Types (UDTs)

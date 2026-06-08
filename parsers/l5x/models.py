@@ -220,6 +220,7 @@ class ModulePort(BaseModel):
     upstream: bool = False
     safety_network: Optional[str] = None
     bus_size: Optional[int] = None   # number of slots on the bus
+    width: Optional[int] = None      # Width — slots the module occupies on the bus
 
 
 class ModuleConnection(BaseModel):
@@ -280,6 +281,16 @@ class Module(BaseModel):
     inhibited: bool = False
     major_fault: bool = False
     safety_network: Optional[str] = None
+    safety_enabled: Optional[bool] = None      # SafetyEnabled
+    auto_diags_enabled: Optional[bool] = None  # AutoDiagsEnabled
+    # Identity overrides for generic/third-party modules. When CatalogNumber is
+    # generic, these UserDefined* attributes define what the device actually is;
+    # a change here is effectively a different device.
+    user_defined_vendor: Optional[int] = None
+    user_defined_product_type: Optional[int] = None
+    user_defined_product_code: Optional[int] = None
+    user_defined_major: Optional[int] = None
+    user_defined_minor: Optional[int] = None
     ekey_state: Optional[str] = None  # Disabled, CompatibleModule, ExactMatch
     ports: list[ModulePort] = []
     # I/O connection configuration from the <Communications> element.
@@ -291,8 +302,15 @@ class Module(BaseModel):
     # Raw L5K config blob from <ConfigData>, kept as a diff-detectable fallback
     # when no decorated config tag was exported. None when config_values is set.
     config_l5k: Optional[str] = None
+    # Opaque L5K config/safety script blobs (<ConfigScript>/<SafetyScript>,
+    # siblings of <ConfigData>). Plain L5K text, kept verbatim for diffing.
+    config_script_l5k: Optional[str] = None
+    safety_script_l5k: Optional[str] = None
     connections: list[ModuleConnection] = []
     rack_connections: list[RackConnection] = []
+    # Flattened <ExtendedProperties> subtree as a {dotted_path: value} map
+    # (vendor/channel/feedback metadata). Empty when the block is absent.
+    extended_properties: dict[str, str] = {}
 
 
 # ---------------------------------------------------------------------------
