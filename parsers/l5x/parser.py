@@ -735,6 +735,7 @@ class L5XParser:
             name=_attr(el, "Name", ""),
             scope=scope,
             tag_type=tag_type,
+            alias_for=_attr(el, "AliasFor"),
             data_type=data_type,
             dimensions=_parse_dimensions(_attr(el, "Dimensions")),
             radix=_attr(el, "Radix"),
