@@ -187,6 +187,11 @@ class Tag(BaseModel):
     # here silently rewires which tag or I/O point the logic reads/writes. None
     # for non-alias tags.
     alias_for: Optional[str] = None
+    # How a program-scoped tag participates in its program's interface, from the
+    # Usage attribute: Input / Output / InOut / Public expose the tag as a program
+    # parameter; Normal is a plain local tag. A change here rewires the program's
+    # I/O surface. None for controller-scoped tags without a Usage.
+    usage: Optional[str] = None
     data_type: str
     dimensions: Optional[list[int]] = None
     radix: Optional[str] = None
