@@ -181,6 +181,12 @@ class Tag(BaseModel):
     name: str
     scope: str  # "controller" or the program name for program-scoped tags
     tag_type: Optional[str] = None  # Base, Alias, Produced, Consumed
+    # Target an Alias tag points at, from the AliasFor attribute (a module I/O
+    # point, another tag, or a UDT member / array element). This is the defining
+    # property of an alias — an alias carries no value of its own, so a change
+    # here silently rewires which tag or I/O point the logic reads/writes. None
+    # for non-alias tags.
+    alias_for: Optional[str] = None
     data_type: str
     dimensions: Optional[list[int]] = None
     radix: Optional[str] = None
