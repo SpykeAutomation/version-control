@@ -376,6 +376,16 @@ class Routine(BaseModel):
     type: str  # RLL, ST, FBD, SFC
     description: Optional[str] = None
     content: RoutineContent
+    # Source-protected ("encoded") routine exported as <EncodedData
+    # EncodedType="Routine">. The implementation ships as an encrypted blob that
+    # is re-randomised on every export (non-deterministic encoding), so it is
+    # intentionally not stored: it would diff as changed on every export and
+    # carries no recoverable value. No signature is emitted at routine level,
+    # so an encoded routine's internal logic changes cannot be detected from the
+    # export — only its presence and these metadata fields are diffable. `content`
+    # is left empty for encoded routines.
+    encoded: bool = False
+    encryption_config: Optional[str] = None  # EncryptionConfig
 
 
 # ---------------------------------------------------------------------------
@@ -400,6 +410,18 @@ class AOI(BaseModel):
     description: Optional[str] = None
     revision_note: Optional[str] = None        # <RevisionNote> revision history
     additional_help_text: Optional[str] = None  # <AdditionalHelpText> instruction help
+    # Source-protected ("encoded") AOI exported as <EncodedData
+    # EncodedType="AddOnInstructionDefinition">. The public interface
+    # (description, revision note, parameters) is still exported in clear text
+    # and parsed normally; only local tags and routines live inside the
+    # encrypted implementation blob (so local_tags/routines are empty here). That
+    # blob is re-randomised on every export, so it is deliberately not stored —
+    # `signature_id` is Rockwell's deterministic content fingerprint and is the
+    # reliable signal for whether the protected implementation changed.
+    encoded: bool = False
+    signature_id: Optional[str] = None          # SignatureID — protected-content fingerprint
+    signature_timestamp: Optional[str] = None   # SignatureTimestamp
+    encryption_config: Optional[str] = None     # EncryptionConfig
     parameters: list[AOIParameter] = []
     local_tags: list[AOILocalTag] = []
     routines: list[Routine] = []

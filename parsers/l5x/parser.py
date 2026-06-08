@@ -752,12 +752,20 @@ class L5XParser:
         container = controller_el.find("AddOnInstructionDefinitions")
         if container is None:
             return []
-        return [
-            self._parse_aoi(aoi)
-            for aoi in container.findall("AddOnInstructionDefinition")
-        ]
+        aois: list[AOI] = []
+        for child in container:
+            if child.tag == "AddOnInstructionDefinition":
+                aois.append(self._parse_aoi(child))
+            elif (
+                child.tag == "EncodedData"
+                and child.get("EncodedType") == "AddOnInstructionDefinition"
+            ):
+                aois.append(self._parse_encoded_aoi(child))
+        return aois
 
-    def _parse_aoi(self, el: Element) -> AOI:
+    def _parse_aoi_parameters(self, el: Element) -> list[AOIParameter]:
+        """Parse an AOI's <Parameters>. Shared by plain and encoded AOIs (an
+        encoded AOI still exports its parameters in clear text)."""
         params: list[AOIParameter] = []
         params_el = el.find("Parameters")
         if params_el is not None:
@@ -780,7 +788,11 @@ class L5XParser:
                         comments=_operand_comments(p),
                     )
                 )
+        return params
 
+    def _parse_aoi_local_tags(self, el: Element) -> list[AOILocalTag]:
+        """Parse an AOI's <LocalTags>. Empty for encoded AOIs (their local tags
+        live inside the encrypted implementation blob)."""
         local_tags: list[AOILocalTag] = []
         local_tags_el = el.find("LocalTags")
         if local_tags_el is not None:
@@ -799,6 +811,37 @@ class L5XParser:
                         comments=_operand_comments(lt),
                     )
                 )
+        return local_tags
+
+    def _parse_encoded_aoi(self, el: Element) -> AOI:
+        """Parse a source-protected AOI (<EncodedData
+        EncodedType="AddOnInstructionDefinition">). The clear-text public
+        interface is parsed exactly like a plain AOI; the encrypted
+        implementation blob is intentionally ignored (it re-randomises every
+        export), and SignatureID is captured as the change fingerprint."""
+        return AOI(
+            name=_attr(el, "Name", ""),
+            aoi_class=_attr(el, "Class"),
+            revision=_attr(el, "Revision"),
+            revision_extension=_attr(el, "RevisionExtension"),
+            vendor=_attr(el, "Vendor"),
+            edited_date=_attr(el, "EditedDate"),
+            software_revision=_attr(el, "SoftwareRevision"),
+            description=_description(el),
+            revision_note=_child_text(el, "RevisionNote"),
+            additional_help_text=_child_text(el, "AdditionalHelpText"),
+            parameters=self._parse_aoi_parameters(el),
+            local_tags=self._parse_aoi_local_tags(el),
+            routines=self._parse_routines(el),
+            encoded=True,
+            signature_id=_attr(el, "SignatureID"),
+            signature_timestamp=_attr(el, "SignatureTimestamp"),
+            encryption_config=_attr(el, "EncryptionConfig"),
+        )
+
+    def _parse_aoi(self, el: Element) -> AOI:
+        params = self._parse_aoi_parameters(el)
+        local_tags = self._parse_aoi_local_tags(el)
 
         return AOI(
             name=_attr(el, "Name", ""),
@@ -855,7 +898,27 @@ class L5XParser:
         container = parent_el.find("Routines")
         if container is None:
             return []
-        return [self._parse_routine(r) for r in container.findall("Routine")]
+        routines: list[Routine] = []
+        for child in container:
+            if child.tag == "Routine":
+                routines.append(self._parse_routine(child))
+            elif child.tag == "EncodedData" and child.get("EncodedType") == "Routine":
+                routines.append(self._parse_encoded_routine(child))
+        return routines
+
+    def _parse_encoded_routine(self, el: Element) -> Routine:
+        """Parse a source-protected routine (<EncodedData
+        EncodedType="Routine">). Only the stable metadata is captured; the
+        encrypted blob is ignored (it re-randomises every export and no
+        signature is emitted at routine level, so logic changes are not
+        detectable). `content` is left empty."""
+        return Routine(
+            name=_attr(el, "Name", ""),
+            type=_attr(el, "Type", "RLL"),
+            content=RoutineContent(),
+            encoded=True,
+            encryption_config=_attr(el, "EncryptionConfig"),
+        )
 
     def _parse_routine(self, el: Element) -> Routine:
         routine_type = _attr(el, "Type", "RLL")
