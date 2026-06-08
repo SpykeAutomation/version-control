@@ -4,7 +4,8 @@ L5XDocument (Pydantic model), ready for JSON serialisation or database storage.
 
 Supported entities
 ------------------
-- Controller metadata
+- Controller metadata (incl. safety, redundancy, security, time sync, CST,
+  wall-clock/timezone, and onboard Ethernet ports)
 - Modules (I/O tree: adapters, devices, safety modules) with port addresses
 - User-defined data types (UDTs)
 - Add-on instructions (AOIs) — parameters, local tags, routines
@@ -26,7 +27,9 @@ from .models import (
     ConsumedTagConnection,
     Controller,
     ControllerMetadata,
+    CST,
     DataType,
+    EthernetPort,
     EventInfo,
     Module,
     ModuleConnection,
@@ -46,6 +49,7 @@ from .models import (
     Tag,
     Task,
     UDTMember,
+    WallClockTime,
 )
 
 
@@ -391,6 +395,34 @@ class L5XParser:
                 ptp_enable=_bool_attr(ts, "PTPEnable"),
             )
 
+        # CST (Coordinated System Time)
+        cst = None
+        cst_el = el.find("CST")
+        if cst_el is not None:
+            cst = CST(master_id=_int_attr(cst_el, "MasterID"))
+
+        # WallClockTime
+        wall_clock_time = None
+        wct = el.find("WallClockTime")
+        if wct is not None:
+            wall_clock_time = WallClockTime(
+                local_time_adjustment=_int_attr(wct, "LocalTimeAdjustment"),
+                time_zone=_int_attr(wct, "TimeZone"),
+            )
+
+        # EthernetPorts (controller's onboard ports)
+        ethernet_ports: list[EthernetPort] = []
+        ep_container = el.find("EthernetPorts")
+        if ep_container is not None:
+            for p in ep_container.findall("EthernetPort"):
+                ethernet_ports.append(
+                    EthernetPort(
+                        port=_int_attr(p, "Port"),
+                        label=_attr(p, "Label") or None,
+                        port_enabled=_bool_attr(p, "PortEnabled"),
+                    )
+                )
+
         return Controller(
             name=_attr(el, "Name", ""),
             processor_type=_attr(el, "ProcessorType"),
@@ -425,6 +457,9 @@ class L5XParser:
             redundancy_info=redundancy_info,
             security=security,
             time_synchronize=time_synchronize,
+            cst=cst,
+            wall_clock_time=wall_clock_time,
+            ethernet_ports=ethernet_ports,
         )
 
     # ------------------------------------------------------------------

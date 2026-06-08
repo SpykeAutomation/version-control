@@ -104,6 +104,33 @@ class TimeSynchronize(BaseModel):
     ptp_enable: bool = False
 
 
+class CST(BaseModel):
+    """Coordinated System Time config from the controller's <CST> element.
+
+    MasterID names the CST master on the backplane (0 = no master / this
+    controller is not a time master). A change rewires time coordination."""
+
+    master_id: Optional[int] = None  # MasterID
+
+
+class WallClockTime(BaseModel):
+    """Controller real-time-clock config from the <WallClockTime> element."""
+
+    local_time_adjustment: Optional[int] = None  # LocalTimeAdjustment (microseconds)
+    time_zone: Optional[int] = None              # TimeZone (offset, minutes)
+
+
+class EthernetPort(BaseModel):
+    """One onboard Ethernet port from the controller's <EthernetPorts> list.
+
+    Distinct from a module <Port>: these are the controller's own physical
+    ports, carrying the per-port enable flag and dual-port label."""
+
+    port: Optional[int] = None       # Port (1, 2, ...)
+    label: Optional[str] = None      # Label (e.g. "A1")
+    port_enabled: bool = False       # PortEnabled
+
+
 class Controller(BaseModel):
     """Full controller attributes including safety, redundancy, and sync config."""
 
@@ -136,6 +163,9 @@ class Controller(BaseModel):
     redundancy_info: Optional[RedundancyInfo] = None
     security: Optional[Security] = None
     time_synchronize: Optional[TimeSynchronize] = None
+    cst: Optional[CST] = None
+    wall_clock_time: Optional[WallClockTime] = None
+    ethernet_ports: list[EthernetPort] = []
 
 
 # ---------------------------------------------------------------------------
