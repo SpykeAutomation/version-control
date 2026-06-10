@@ -147,6 +147,7 @@ class Controller(BaseModel):
     """Full controller attributes including safety, redundancy, and sync config."""
 
     name: str
+    use: Optional[str] = None  # Use attribute — export role ("Target"/"Context")
     processor_type: Optional[str] = None
     major_rev: Optional[int] = None
     minor_rev: Optional[int] = None
@@ -318,6 +319,9 @@ class ModuleConnection(BaseModel):
     # Operand is the raw attribute, e.g. ".PT00DATA", ".OUTPUTAREA[0].0".
     input_comments: dict[str, str] = {}
     output_comments: dict[str, str] = {}
+    # Top-level <Description> on the connection's <InputTag>/<OutputTag>
+    input_tag_description: Optional[str] = None
+    output_tag_description: Optional[str] = None
 
 
 class RackConnection(BaseModel):
