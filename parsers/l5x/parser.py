@@ -986,6 +986,13 @@ class L5XParser:
 
     def _parse_program(self, el: Element) -> Program:
         name = _attr(el, "Name", "")
+        child_programs: list[str] = []
+        cp_container = el.find("ChildPrograms")
+        if cp_container is not None:
+            child_programs = [
+                _attr(cp, "Name", "")
+                for cp in cp_container.findall("ChildProgram")
+            ]
         return Program(
             name=name,
             description=_description(el),
@@ -995,6 +1002,7 @@ class L5XParser:
             disabled=_bool_attr(el, "Disabled"),
             use_as_folder=_bool_attr(el, "UseAsFolder"),
             program_class=_attr(el, "Class"),
+            child_programs=child_programs,
             tags=self._parse_tags(el, scope=name),
             routines=self._parse_routines(el),
         )

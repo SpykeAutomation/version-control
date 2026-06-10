@@ -518,6 +518,9 @@ class Program(BaseModel):
     disabled: bool = False
     use_as_folder: bool = False
     program_class: Optional[str] = None  # "Standard" or "Safety"
+    # Names of programs nested under this one (<ChildPrograms> — the Logical
+    # Organizer hierarchy). Moving a program in/out of a folder shows up here.
+    child_programs: list[str] = []
     tags: list[Tag] = []
     routines: list[Routine] = []
 
