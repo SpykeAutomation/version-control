@@ -365,6 +365,9 @@ class L5XParser:
                 configure_safety_io_always=_bool_attr(si, "ConfigureSafetyIOAlways"),
                 safety_level=_attr(si, "SafetyLevel"),
                 safety_tag_map=stm.text.strip() if stm is not None and stm.text else None,
+                safety_signature=_attr(si, "SafetySignature"),
+                safety_lock_password=_attr(si, "SafetyLockPassword"),
+                safety_unlock_password=_attr(si, "SafetyUnlockPassword"),
             )
 
         # RedundancyInfo

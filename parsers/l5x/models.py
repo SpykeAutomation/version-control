@@ -86,6 +86,16 @@ class SafetyInfo(BaseModel):
     configure_safety_io_always: bool = False
     safety_level: Optional[str] = None       # e.g. "SIL2/PLd"
     safety_tag_map: Optional[str] = None     # raw tag mapping string
+    # SafetySignature — Rockwell's fingerprint of the entire safety
+    # application (the value an auditor checks to confirm the safety logic is
+    # unchanged). Absent when no signature has been generated.
+    safety_signature: Optional[str] = None
+    # Lock/unlock passwords export as encrypted strings. Unlike encoded
+    # AOI/routine blobs, the encoding is deterministic — identical across
+    # exports of an unchanged project — so a diff here means the password
+    # itself was changed. Either may be absent.
+    safety_lock_password: Optional[str] = None
+    safety_unlock_password: Optional[str] = None
 
 
 class RedundancyInfo(BaseModel):
