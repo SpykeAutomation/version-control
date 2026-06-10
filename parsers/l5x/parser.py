@@ -767,16 +767,19 @@ class L5XParser:
 
         return None, {}
 
-    def _extract_motion_config(self, tag_el: Element) -> dict[str, str]:
+    def _extract_param_block(
+        self, tag_el: Element, formats: tuple[str, ...]
+    ) -> dict[str, str]:
         """
-        Read motion parameters from a tag's <Data Format="Axis"> or
-        <Data Format="MotionGroup"> block. The parameters are all attributes on a
-        single child element (AxisParameters / MotionGroupParameters), so we take
-        that element's attributes verbatim. Keyed on Format (not the child name) so
-        every axis subtype is covered. Empty for non-motion tags.
+        Read the parameter block from a tag's <Data Format=...> element whose
+        Format is one of `formats`. These blocks (AxisParameters /
+        MotionGroupParameters / MessageParameters) all share one shape: every
+        parameter is an attribute on a single child element, so we take that
+        element's attributes verbatim. Keyed on Format (not the child name) so
+        every axis subtype is covered. Empty when no matching block exists.
         """
         for data_el in tag_el.findall("Data"):
-            if data_el.get("Format") in ("Axis", "MotionGroup"):
+            if data_el.get("Format") in formats:
                 child = next(iter(data_el), None)
                 if child is not None:
                     return dict(child.attrib)
@@ -800,7 +803,8 @@ class L5XParser:
             description=_description(el),
             value=value,
             values=values,
-            motion_config=self._extract_motion_config(el),
+            motion_config=self._extract_param_block(el, ("Axis", "MotionGroup")),
+            message_config=self._extract_param_block(el, ("Message",)),
             comments=_operand_comments(el),
             tag_class=_attr(el, "Class"),
             produced_connection=self._parse_produced_connection(el)
@@ -809,26 +813,7 @@ class L5XParser:
             consumed_connection=self._parse_consumed_connection(el)
             if tag_type == "Consumed"
             else None,
-            message_config=self._parse_message_config(el)
-            if data_type.upper() == "MESSAGE"
-            else None,
         )
-
-    def _parse_message_config(self, tag_el: Element) -> Optional["MessageConfig"]:
-        """Extract MessageParameters from a MESSAGE tag's Data element."""
-        from .models import MessageConfig
-
-        for data_el in tag_el.findall("Data"):
-            if data_el.get("Format") == "Message":
-                mp = data_el.find("MessageParameters")
-                if mp is not None:
-                    return MessageConfig(
-                        message_type=mp.get("MessageType"),
-                        destination_tag=mp.get("DestinationTag") or None,
-                        source_tag=mp.get("SourceTag") or None,
-                        service_code=mp.get("ServiceCode"),
-                    )
-        return None
 
     def _parse_produced_connection(self, tag_el: Element) -> Optional[ProducedTagConnection]:
         pi = tag_el.find("ProduceInfo")
