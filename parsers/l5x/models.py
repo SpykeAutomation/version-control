@@ -170,6 +170,8 @@ class Controller(BaseModel):
     sfc_execution_control: Optional[str] = None
     sfc_last_scan: Optional[str] = None
     sfc_restart_position: Optional[str] = None
+    # EtherNetIPMode — onboard-port topology mode (e.g. "Dual-IP", "Linear/DLR")
+    ethernet_ip_mode: Optional[str] = None
     description: Optional[str] = None
     safety_info: Optional[SafetyInfo] = None
     redundancy_info: Optional[RedundancyInfo] = None

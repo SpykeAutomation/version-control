@@ -472,6 +472,7 @@ class L5XParser:
             sfc_execution_control=_attr(el, "SFCExecutionControl"),
             sfc_last_scan=_attr(el, "SFCLastScan"),
             sfc_restart_position=_attr(el, "SFCRestartPosition"),
+            ethernet_ip_mode=_attr(el, "EtherNetIPMode"),
             description=_description(el),
             safety_info=safety_info,
             redundancy_info=redundancy_info,
