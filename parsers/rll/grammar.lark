@@ -13,11 +13,11 @@
 //   XIC(Tag1)OTE(Tag2);
 //   [XIC(A) ,XIC(B) ]OTE(C);
 //   GSV(Safety,,SafetyLockedState,dest);
-//   CPT(dest,(InpMoveRqst AND (InpMoveRqst - 1)));
+//   CPT(dest,(InputWord AND (InputWord - 1)));
 //   MAM(axis,mi,type,pos,speed,Units per sec,...);
-//   XIC(Mod01:I.RunMode)OTE(\sZone01.sSummary.PowerOn);
-//   MOV(0,Alm_Type1_Alms[0,13]);
-//   CMP(Path_Count_Array[2] + Path_Count_Array[3] <= 2);
+//   XIC(Mod01:I.RunMode)OTE(\Prog01.sStatus.PowerOn);
+//   MOV(0,AlarmWords[0,13]);
+//   CMP(CountArray[2] + CountArray[3] <= 2);
 //   TON(tmr,?,?);
 //   DCS(tag,EMERGENCY STOP,EQUIVALENT - ACTIVE HIGH,500,MANUAL,AUTOMATIC,...);
 // ---------------------------------------------------------------------------

@@ -15,7 +15,7 @@
 //   - Case-insensitive keywords with word-boundary lookahead
 //   - Expression precedence chain via rule inlining (?rule)
 //
-// Patterns handled (from 273 real ST routines, 3 L5X files):
+// Patterns handled:
 //   tag := 100;
 //   IF cond THEN ... ELSIF ... ELSE ... END_IF;
 //   FOR i := 0 TO n BY 1 DO ... END_FOR;
