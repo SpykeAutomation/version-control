@@ -90,12 +90,14 @@ class SafetyInfo(BaseModel):
     # application (the value an auditor checks to confirm the safety logic is
     # unchanged). Absent when no signature has been generated.
     safety_signature: Optional[str] = None
-    # Lock/unlock passwords export as encrypted strings. Unlike encoded
-    # AOI/routine blobs, the encoding is deterministic — identical across
-    # exports of an unchanged project — so a diff here means the password
-    # itself was changed. Either may be absent.
-    safety_lock_password: Optional[str] = None
-    safety_unlock_password: Optional[str] = None
+    # Lock/unlock passwords export as encrypted strings whose encoding is
+    # deterministic — identical across exports of an unchanged project. The
+    # ciphertext itself is credential material, so it is never stored; only a
+    # SHA-256 fingerprint is kept. The fingerprint changes iff the underlying
+    # ciphertext changes, which preserves "diff detects a password change"
+    # without persisting the credential into version-control history.
+    safety_lock_password_fingerprint: Optional[str] = None
+    safety_unlock_password_fingerprint: Optional[str] = None
 
 
 class RedundancyInfo(BaseModel):
