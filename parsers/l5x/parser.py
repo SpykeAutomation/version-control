@@ -1097,6 +1097,7 @@ class L5XParser:
         task_type = _attr(el, "Type", "CONTINUOUS")
         return Task(
             name=_attr(el, "Name", ""),
+            description=_description(el),
             type=task_type,
             rate=_float_attr(el, "Rate"),
             priority=_int_attr(el, "Priority"),
