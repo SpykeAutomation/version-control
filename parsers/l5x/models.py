@@ -322,6 +322,11 @@ class ModuleConnection(BaseModel):
     # Top-level <Description> on the connection's <InputTag>/<OutputTag>
     input_tag_description: Optional[str] = None
     output_tag_description: Optional[str] = None
+    # ExternalAccess on the connection's <InputTag>/<OutputTag> — whether
+    # external clients (HMI, OPC) may read/write the I/O tag
+    # (None / "Read Only" / "Read/Write").
+    input_tag_external_access: Optional[str] = None
+    output_tag_external_access: Optional[str] = None
 
 
 class RackConnection(BaseModel):
@@ -399,6 +404,10 @@ class AOIParameter(BaseModel):
     # changes what callers are allowed to wire in.
     constant: bool = False
     external_access: Optional[str] = None
+    # Min/Max — engineer-set limits on the values callers may write to the
+    # parameter. Kept as raw strings (the literal is radix-dependent).
+    min: Optional[str] = None
+    max: Optional[str] = None
     description: Optional[str] = None
     alias_for: Optional[str] = None  # local tag (or member) this param is an alias for
     # Default value(s) from the parameter's DefaultData block. `default_value`

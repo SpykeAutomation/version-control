@@ -694,6 +694,12 @@ class L5XParser:
                         output_tag_description=_description(output_tag)
                         if output_tag is not None
                         else None,
+                        input_tag_external_access=_attr(input_tag, "ExternalAccess")
+                        if input_tag is not None
+                        else None,
+                        output_tag_external_access=_attr(output_tag, "ExternalAccess")
+                        if output_tag is not None
+                        else None,
                     )
                 )
 
@@ -934,6 +940,8 @@ class L5XParser:
                         visible=_bool_attr(p, "Visible", True),
                         constant=_bool_attr(p, "Constant"),
                         external_access=_attr(p, "ExternalAccess"),
+                        min=_attr(p, "Min"),
+                        max=_attr(p, "Max"),
                         description=_description(p),
                         alias_for=_attr(p, "AliasFor"),
                         default_value=default_value,
@@ -990,6 +998,7 @@ class L5XParser:
             signature_id=_attr(el, "SignatureID"),
             signature_timestamp=_attr(el, "SignatureTimestamp"),
             encryption_config=_attr(el, "EncryptionConfig"),
+            custom_properties=_custom_properties(el),
         )
 
     def _parse_aoi(self, el: Element) -> AOI:
@@ -1078,9 +1087,11 @@ class L5XParser:
         return Routine(
             name=_attr(el, "Name", ""),
             type=_attr(el, "Type", "RLL"),
+            description=_description(el),
             content=RoutineContent(),
             encoded=True,
             encryption_config=_attr(el, "EncryptionConfig"),
+            custom_properties=_custom_properties(el),
         )
 
     def _parse_routine(self, el: Element) -> Routine:
