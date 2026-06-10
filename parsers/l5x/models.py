@@ -373,12 +373,18 @@ class Module(BaseModel):
 
 class AOIParameter(BaseModel):
     name: str
-    tag_type: Optional[str] = None  # Input, Output, InOut
+    tag_type: Optional[str] = None  # Base or Alias (direction lives in usage)
     data_type: str
-    usage: Optional[str] = None
+    # Array size for InOut parameters (e.g. [10]); None for scalar parameters.
+    # Resizing changes the AOI's public interface.
+    dimensions: Optional[list[int]] = None
+    usage: Optional[str] = None  # Input, Output, InOut
     radix: Optional[str] = None
     required: bool = False
     visible: bool = True
+    # Constant — the parameter only accepts constant-class tags; flipping it
+    # changes what callers are allowed to wire in.
+    constant: bool = False
     external_access: Optional[str] = None
     description: Optional[str] = None
     alias_for: Optional[str] = None  # local tag (or member) this param is an alias for
