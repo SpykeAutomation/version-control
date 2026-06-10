@@ -206,6 +206,11 @@ class DataType(BaseModel):
     udt_class: Optional[str] = None  # 'class' is a Python keyword
     description: Optional[str] = None
     members: list[UDTMember] = []
+    # Flattened <CustomProperties> subtree — library-management metadata
+    # (provider, version, catalog number, GUID, content CRC). A version bump
+    # here means the object was swapped for a different library revision.
+    # Empty when the object is not library-managed.
+    custom_properties: dict[str, str] = {}
 
 
 # ---------------------------------------------------------------------------
@@ -257,6 +262,8 @@ class Tag(BaseModel):
     # block; operand is the raw attribute, e.g. ".0", ".STATE", "[0]". Empty
     # when the tag has no operand comments.
     comments: dict[str, str] = {}
+    # Flattened <CustomProperties> library metadata (see DataType.custom_properties)
+    custom_properties: dict[str, str] = {}
     tag_class: Optional[str] = None  # "Safety" for safety tags; absent/None for standard
     produced_connection: Optional[ProducedTagConnection] = None
     consumed_connection: Optional[ConsumedTagConnection] = None
@@ -465,6 +472,8 @@ class Routine(BaseModel):
     # is left empty for encoded routines.
     encoded: bool = False
     encryption_config: Optional[str] = None  # EncryptionConfig
+    # Flattened <CustomProperties> library metadata (see DataType.custom_properties)
+    custom_properties: dict[str, str] = {}
 
 
 # ---------------------------------------------------------------------------
@@ -504,6 +513,8 @@ class AOI(BaseModel):
     parameters: list[AOIParameter] = []
     local_tags: list[AOILocalTag] = []
     routines: list[Routine] = []
+    # Flattened <CustomProperties> library metadata (see DataType.custom_properties)
+    custom_properties: dict[str, str] = {}
 
 
 # ---------------------------------------------------------------------------
@@ -525,6 +536,8 @@ class Program(BaseModel):
     child_programs: list[str] = []
     tags: list[Tag] = []
     routines: list[Routine] = []
+    # Flattened <CustomProperties> library metadata (see DataType.custom_properties)
+    custom_properties: dict[str, str] = {}
 
 
 # ---------------------------------------------------------------------------
