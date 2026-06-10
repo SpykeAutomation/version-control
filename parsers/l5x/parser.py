@@ -139,6 +139,22 @@ def _operand_comments(el: Optional[Element]) -> dict[str, str]:
     return out
 
 
+def _custom_properties(el: Element) -> dict[str, str]:
+    """Return the flattened <CustomProperties> child subtree, or {} if absent.
+
+    Carries library-management metadata (provider ID, version Maj/Min, catalog
+    number, GUID, content CRC) on objects that came from a managed library —
+    a version bump here means the object was swapped for a different library
+    revision. Flattened with _flatten_xml, same shape as extended_properties.
+    """
+    cp = el.find("CustomProperties")
+    if cp is None:
+        return {}
+    out: dict[str, str] = {}
+    _flatten_xml(cp, "", out)
+    return out
+
+
 def _password_fingerprint(ciphertext: Optional[str]) -> Optional[str]:
     """Return a short SHA-256 fingerprint of an exported password ciphertext.
 
@@ -275,16 +291,27 @@ def _flatten_xml(el: Element, path: str, out: dict[str, str]) -> None:
     """Recursively flatten an arbitrary element subtree into {dotted_path: value}.
 
     Unlike _flatten_decorated (which understands Decorated data nodes), this is a
-    generic walk for free-form metadata such as <ExtendedProperties>: it emits
-    "<path>.@<attr>" for each attribute and "<path>.#text" for element text.
+    generic walk for free-form metadata such as <ExtendedProperties> and
+    <CustomProperties>: it emits "<path>.@<attr>" for each attribute and
+    "<path>.#text" for element text. When a tag repeats among siblings (e.g.
+    two <Provider> blocks), each occurrence is indexed "Tag[i]" so none
+    overwrites another; unique tags keep their plain name.
     """
     for name, val in sorted(el.attrib.items()):
         key = f"{path}.@{name}" if path else f"@{name}"
         out[key] = val
     if el.text and el.text.strip():
         out[f"{path}.#text" if path else "#text"] = el.text.strip()
+    tag_counts: dict[str, int] = {}
     for child in el:
-        child_path = f"{path}.{child.tag}" if path else child.tag
+        tag_counts[child.tag] = tag_counts.get(child.tag, 0) + 1
+    tag_seen: dict[str, int] = {}
+    for child in el:
+        name = child.tag
+        if tag_counts[name] > 1:
+            name = f"{name}[{tag_seen.get(child.tag, 0)}]"
+            tag_seen[child.tag] = tag_seen.get(child.tag, 0) + 1
+        child_path = f"{path}.{name}" if path else name
         _flatten_xml(child, child_path, out)
 
 
@@ -715,6 +742,7 @@ class L5XParser:
             udt_class=_attr(el, "Class"),
             description=_description(el),
             members=members,
+            custom_properties=_custom_properties(el),
         )
 
     # ------------------------------------------------------------------
@@ -808,6 +836,7 @@ class L5XParser:
             motion_config=self._extract_param_block(el, ("Axis", "MotionGroup")),
             message_config=self._extract_param_block(el, ("Message",)),
             comments=_operand_comments(el),
+            custom_properties=_custom_properties(el),
             tag_class=_attr(el, "Class"),
             produced_connection=self._parse_produced_connection(el)
             if tag_type == "Produced"
@@ -973,6 +1002,7 @@ class L5XParser:
             parameters=params,
             local_tags=local_tags,
             routines=self._parse_routines(el),
+            custom_properties=_custom_properties(el),
         )
 
     # ------------------------------------------------------------------
@@ -1006,6 +1036,7 @@ class L5XParser:
             child_programs=child_programs,
             tags=self._parse_tags(el, scope=name),
             routines=self._parse_routines(el),
+            custom_properties=_custom_properties(el),
         )
 
     # ------------------------------------------------------------------
@@ -1045,6 +1076,7 @@ class L5XParser:
             type=routine_type,
             description=_description(el),
             content=self._parse_routine_content(el, routine_type),
+            custom_properties=_custom_properties(el),
         )
 
     def _parse_routine_content(self, el: Element, routine_type: str) -> RoutineContent:
