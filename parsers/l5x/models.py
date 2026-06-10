@@ -7,10 +7,9 @@ tags, programs/routines, and tasks.
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 
 # ---------------------------------------------------------------------------
@@ -75,9 +74,9 @@ class ControllerMetadata(BaseModel):
     contains_context: Optional[bool] = None
     export_date: Optional[str] = None
     export_options: Optional[str] = None
-    converted_at: str = Field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat()
-    )
+    # NOTE: no conversion timestamp here — parsing the same file twice must
+    # produce byte-identical output, or every re-parse diffs as changed.
+    # Record "when was this converted" alongside the output (e.g. the commit).
 
 
 class SafetyInfo(BaseModel):
