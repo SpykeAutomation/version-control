@@ -531,6 +531,7 @@ class L5XParser:
 
         return Module(
             name=_attr(el, "Name", ""),
+            description=_description(el),
             catalog_number=_attr(el, "CatalogNumber"),
             vendor=_int_attr(el, "Vendor"),
             product_type=_int_attr(el, "ProductType"),

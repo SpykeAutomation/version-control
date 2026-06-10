@@ -322,6 +322,7 @@ class RackConnection(BaseModel):
 
 class Module(BaseModel):
     name: str
+    description: Optional[str] = None
     catalog_number: Optional[str] = None
     vendor: Optional[int] = None
     product_type: Optional[int] = None
