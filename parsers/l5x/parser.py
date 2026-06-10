@@ -15,6 +15,7 @@ Supported entities
 """
 from __future__ import annotations
 
+import hashlib
 import re
 import xml.etree.ElementTree as ET
 from xml.etree.ElementTree import Element
@@ -136,6 +137,18 @@ def _operand_comments(el: Optional[Element]) -> dict[str, str]:
             continue
         out[operand] = c.text.strip() if c.text else ""
     return out
+
+
+def _password_fingerprint(ciphertext: Optional[str]) -> Optional[str]:
+    """Return a short SHA-256 fingerprint of an exported password ciphertext.
+
+    The ciphertext is credential material and must not be persisted; the
+    fingerprint changes iff the ciphertext changes, so a diff still detects a
+    password change. Returns None when the attribute is absent.
+    """
+    if ciphertext is None:
+        return None
+    return hashlib.sha256(ciphertext.encode("utf-8")).hexdigest()[:16]
 
 
 def _parse_dimensions(dim_str: Optional[str]) -> Optional[list[int]]:
@@ -365,6 +378,13 @@ class L5XParser:
                 configure_safety_io_always=_bool_attr(si, "ConfigureSafetyIOAlways"),
                 safety_level=_attr(si, "SafetyLevel"),
                 safety_tag_map=stm.text.strip() if stm is not None and stm.text else None,
+                safety_signature=_attr(si, "SafetySignature"),
+                safety_lock_password_fingerprint=_password_fingerprint(
+                    _attr(si, "SafetyLockPassword")
+                ),
+                safety_unlock_password_fingerprint=_password_fingerprint(
+                    _attr(si, "SafetyUnlockPassword")
+                ),
             )
 
         # RedundancyInfo

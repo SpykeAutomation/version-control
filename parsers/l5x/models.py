@@ -86,6 +86,18 @@ class SafetyInfo(BaseModel):
     configure_safety_io_always: bool = False
     safety_level: Optional[str] = None       # e.g. "SIL2/PLd"
     safety_tag_map: Optional[str] = None     # raw tag mapping string
+    # SafetySignature — Rockwell's fingerprint of the entire safety
+    # application (the value an auditor checks to confirm the safety logic is
+    # unchanged). Absent when no signature has been generated.
+    safety_signature: Optional[str] = None
+    # Lock/unlock passwords export as encrypted strings whose encoding is
+    # deterministic — identical across exports of an unchanged project. The
+    # ciphertext itself is credential material, so it is never stored; only a
+    # SHA-256 fingerprint is kept. The fingerprint changes iff the underlying
+    # ciphertext changes, which preserves "diff detects a password change"
+    # without persisting the credential into version-control history.
+    safety_lock_password_fingerprint: Optional[str] = None
+    safety_unlock_password_fingerprint: Optional[str] = None
 
 
 class RedundancyInfo(BaseModel):
