@@ -17,9 +17,14 @@ from __future__ import annotations
 
 import hashlib
 import re
-import xml.etree.ElementTree as ET
+import xml.etree.ElementTree as ET  # only for tostring(); parsing goes via defusedxml
 from xml.etree.ElementTree import Element
 from typing import Optional
+
+# Hardened parse entry points: reject entity-expansion / external-entity
+# attacks in untrusted L5X files. Output is plain stdlib Element objects.
+from defusedxml.ElementTree import fromstring as _safe_fromstring
+from defusedxml.ElementTree import parse as _safe_parse
 
 from .models import (
     AOI,
@@ -337,12 +342,12 @@ class L5XParser:
 
     def parse_file(self, path: str) -> L5XDocument:
         """Parse an L5X file from disk."""
-        tree = ET.parse(path)
+        tree = _safe_parse(path)
         return self._parse_root(tree.getroot())
 
     def parse_string(self, xml_string: str) -> L5XDocument:
         """Parse an L5X document from a string (useful for testing)."""
-        return self._parse_root(ET.fromstring(xml_string))
+        return self._parse_root(_safe_fromstring(xml_string))
 
     # ------------------------------------------------------------------
     # Root
@@ -472,6 +477,7 @@ class L5XParser:
 
         return Controller(
             name=_attr(el, "Name", ""),
+            use=_attr(el, "Use"),
             processor_type=_attr(el, "ProcessorType"),
             major_rev=_int_attr(el, "MajorRev"),
             minor_rev=_int_attr(el, "MinorRev"),
@@ -652,6 +658,8 @@ class L5XParser:
         connections_el = comm_el.find("Connections")
         if connections_el is not None:
             for c in connections_el.findall("Connection"):
+                input_tag = c.find("InputTag")
+                output_tag = c.find("OutputTag")
                 connections.append(
                     ModuleConnection(
                         name=_attr(c, "Name") or None,
@@ -678,8 +686,14 @@ class L5XParser:
                         max_observed_network_delay=_float_attr(
                             c, "MaxObservedNetworkDelay"
                         ),
-                        input_comments=_operand_comments(c.find("InputTag")),
-                        output_comments=_operand_comments(c.find("OutputTag")),
+                        input_comments=_operand_comments(input_tag),
+                        output_comments=_operand_comments(output_tag),
+                        input_tag_description=_description(input_tag)
+                        if input_tag is not None
+                        else None,
+                        output_tag_description=_description(output_tag)
+                        if output_tag is not None
+                        else None,
                     )
                 )
 
