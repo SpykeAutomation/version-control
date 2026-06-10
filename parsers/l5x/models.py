@@ -211,14 +211,6 @@ class DataType(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-class MessageConfig(BaseModel):
-    """Configuration extracted from a MESSAGE tag's MessageParameters element."""
-    message_type: Optional[str] = None     # e.g. "CIP Generic", "CIP Data Table Read"
-    destination_tag: Optional[str] = None  # local tag written by MSG GET/read
-    source_tag: Optional[str] = None       # local tag read by MSG PUT/write
-    service_code: Optional[str] = None     # e.g. "16#000e" (Get Attribute Single)
-
-
 class Tag(BaseModel):
     name: str
     scope: str  # "controller" or the program name for program-scoped tags
@@ -251,6 +243,14 @@ class Tag(BaseModel):
     # MOTION_GROUP tags). Every parameter is an XML attribute on a single child
     # element, captured verbatim as strings for diffing. Empty for non-motion tags.
     motion_config: dict[str, str] = {}
+    # Flat {parameter: value} map of MSG instruction configuration, read
+    # verbatim from a MESSAGE tag's <Data Format="Message">/<MessageParameters>
+    # block (same shape as motion_config). Everything the engineer sets in the
+    # MSG dialog lives here: MessageType, ConnectionPath (which device the
+    # message talks to), Remote/LocalElement, RequestedLength, ServiceCode,
+    # ObjectType, AttributeNumber, CacheConnections, ... Empty for
+    # non-MESSAGE tags.
+    message_config: dict[str, str] = {}
     # {operand: comment} per-bit/per-member comments from the tag's <Comments>
     # block; operand is the raw attribute, e.g. ".0", ".STATE", "[0]". Empty
     # when the tag has no operand comments.
@@ -258,7 +258,6 @@ class Tag(BaseModel):
     tag_class: Optional[str] = None  # "Safety" for safety tags; absent/None for standard
     produced_connection: Optional[ProducedTagConnection] = None
     consumed_connection: Optional[ConsumedTagConnection] = None
-    message_config: Optional[MessageConfig] = None  # populated for MESSAGE tags
 
 
 # ---------------------------------------------------------------------------
