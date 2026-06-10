@@ -523,6 +523,7 @@ class Program(BaseModel):
 
 class Task(BaseModel):
     name: str
+    description: Optional[str] = None
     type: str  # CONTINUOUS, PERIODIC, EVENT
     rate: Optional[float] = None
     priority: Optional[int] = None
