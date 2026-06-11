@@ -14,6 +14,8 @@
 //     MEMBER_ACCESS (.name), BIT_ACCESS (.digit), DYN_BIT_START (.[)
 //   - Case-insensitive keywords with word-boundary lookahead
 //   - Expression precedence chain via rule inlining (?rule)
+//   - CASE bodies parse as a flat label/statement sequence (see case_stmt)
+//     because LALR(1) lookahead cannot split branches during the parse
 //
 // Patterns handled:
 //   tag := 100;
@@ -73,8 +75,14 @@ while_stmt: WHILE expr DO statement* END_WHILE ";"
 repeat_stmt: REPEAT statement* UNTIL expr ";" END_REPEAT ";"
 
 // CASE / OF / END_CASE
-case_stmt: CASE expr OF case_branch+ else_clause? END_CASE ";"
-case_branch: case_label ("," case_label)* ":" statement*
+// Labels and branch statements are parsed as one flat sequence because a
+// LALR(1) parser cannot tell where a branch body ends and the next label
+// list starts until it sees the ":" — the visitor regroups the flat items
+// into branches.
+case_stmt: CASE expr OF case_item+ else_clause? END_CASE ";"
+?case_item: case_labels
+          | statement
+case_labels: case_label ("," case_label)* ":"
 case_label: expr
           | expr RANGE_OP expr
 

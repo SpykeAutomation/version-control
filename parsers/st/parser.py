@@ -24,6 +24,13 @@ from .models import ParsedST, STAssignment, STCall, STStatement
 
 _GRAMMAR_PATH = Path(__file__).parent / "grammar.lark"
 
+# Tree names that represent statements (mirrors ?statement in grammar.lark)
+_STMT_TYPES = (
+    "if_stmt", "for_stmt", "while_stmt", "repeat_stmt",
+    "case_stmt", "assign_stmt", "call_stmt", "expr_stmt",
+    "exit_stmt", "return_stmt",
+)
+
 
 class _STTreeVisitor:
     """Walk a Lark parse tree and produce STStatement / STCall nodes."""
@@ -76,14 +83,8 @@ class _STTreeVisitor:
             condition = _reconstruct_expr(tc[if_idx + 1])
 
         for child in tree.children:
-            if isinstance(child, Tree) and child.data in (
+            if isinstance(child, Tree) and child.data in _STMT_TYPES + (
                 "elsif_clause", "else_clause",
-            ):
-                children.append(self._visit_stmt(child))
-            elif isinstance(child, Tree) and child.data in (
-                "if_stmt", "for_stmt", "while_stmt", "repeat_stmt",
-                "case_stmt", "assign_stmt", "call_stmt", "expr_stmt",
-                "exit_stmt", "return_stmt",
             ):
                 children.append(self._visit_stmt(child))
         return STStatement(kind="if", children=children, nested_calls=calls, condition=condition)
@@ -116,7 +117,8 @@ class _STTreeVisitor:
         calls = self._find_calls_shallow(tree)
 
         # for_stmt: FOR expr ASSIGN expr TO expr by_clause? DO stmts END_FOR ";"
-        # Earley may flatten simple exprs to Tokens, so extract by keyword position.
+        # ?-inlined simple exprs appear as bare Tokens, so extract by keyword
+        # position rather than by fixed child index.
         loop_var = loop_start = loop_end = loop_step = None
         tc = tree.children
         # Find positions of keyword tokens
@@ -220,18 +222,25 @@ class _STTreeVisitor:
         )
 
     def _visit_case_stmt(self, tree: Tree) -> STStatement:
+        # The grammar parses labels and branch statements as a flat sequence
+        # (see case_stmt in grammar.lark); regroup them into branches here.
+        # Each case_labels node starts a new branch; the statements that
+        # follow it belong to that branch.
         children: list[STStatement] = []
+        branch: Optional[STStatement] = None
         for child in tree.children:
-            if isinstance(child, Tree) and child.data == "case_branch":
-                children.append(self._visit_case_branch(child))
-            elif isinstance(child, Tree) and child.data == "else_clause":
+            if not isinstance(child, Tree):
+                continue
+            if child.data == "case_labels":
+                branch = STStatement(kind="case_branch", children=[])
+                children.append(branch)
+            elif child.data == "else_clause":
                 children.append(self._visit_else_clause(child))
+                branch = None
+            elif child.data in _STMT_TYPES and branch is not None:
+                branch.children.append(self._visit_stmt(child))
         calls = self._find_calls_shallow(tree)
         return STStatement(kind="case", children=children, nested_calls=calls)
-
-    def _visit_case_branch(self, tree: Tree) -> STStatement:
-        children = self._visit_body_stmts(tree)
-        return STStatement(kind="case_branch", children=children)
 
     def _visit_exit_stmt(self, _tree: Tree) -> STStatement:
         return STStatement(kind="exit")
@@ -243,11 +252,7 @@ class _STTreeVisitor:
         """Extract child statements from a compound statement body."""
         result: list[STStatement] = []
         for child in tree.children:
-            if isinstance(child, Tree) and child.data in (
-                "if_stmt", "for_stmt", "while_stmt", "repeat_stmt",
-                "case_stmt", "assign_stmt", "call_stmt", "expr_stmt",
-                "exit_stmt", "return_stmt",
-            ):
+            if isinstance(child, Tree) and child.data in _STMT_TYPES:
                 result.append(self._visit_stmt(child))
         return result
 
@@ -273,9 +278,6 @@ class _STTreeVisitor:
                     args.append(_reconstruct_expr(child))
                 elif child.data == "call_arg_empty":
                     args.append(None)
-        # NOP() → Earley matches call_args with one empty arg; treat as no args
-        if len(args) == 1 and args[0] is None:
-            return []
         return args
 
     def _find_calls(self, tree: Tree) -> list[STCall]:
@@ -291,11 +293,8 @@ class _STTreeVisitor:
             if isinstance(child, Tree):
                 if child.data == "call_expr":
                     calls.append(self._extract_call(child))
-                elif child.data not in (
-                    "if_stmt", "for_stmt", "while_stmt", "repeat_stmt",
-                    "case_stmt", "assign_stmt", "call_stmt", "expr_stmt",
-                    "exit_stmt", "return_stmt", "elsif_clause", "else_clause",
-                    "case_branch",
+                elif child.data not in _STMT_TYPES + (
+                    "elsif_clause", "else_clause", "case_labels",
                 ):
                     self._walk_for_calls(child, calls)
         return calls
@@ -405,11 +404,7 @@ class STParser:
 
     def __init__(self) -> None:
         grammar_text = _GRAMMAR_PATH.read_text(encoding="utf-8")
-        self._lark = Lark(
-            grammar_text,
-            parser="earley",
-            ambiguity="resolve",
-        )
+        self._lark = Lark(grammar_text, parser="lalr")
         self._visitor = _STTreeVisitor()
 
     def parse(self, text: str) -> ParsedST:
