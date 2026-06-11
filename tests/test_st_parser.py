@@ -342,14 +342,15 @@ def test_long_input_error_message_is_truncated(st):
 
 
 # ---------------------------------------------------------------------------
-# Known grammar gap (REMAINING_ISSUES 6)
+# Scientific notation
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="NUMBER does not accept scientific notation; '2.0e5' fails to parse",
-)
 def test_scientific_notation_literal(st):
     s = stmt(st, "RateSet := 2.0e5;")
     assert s.assignment.value == "2.0e5"
+
+
+def test_scientific_notation_signed_exponent(st):
+    s = stmt(st, "Gain := 2.5E-3 + 1e+6;")
+    assert s.assignment.value == "2.5E-3 + 1e+6"

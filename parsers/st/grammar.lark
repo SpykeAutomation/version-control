@@ -212,8 +212,8 @@ BIN_LITERAL.2: /2#[01_]+/
 // --- Identifiers ---
 NAME: /[A-Za-z_][A-Za-z0-9_]*/
 
-// --- Numeric literals ---
-NUMBER: /\d+(\.\d+)?/
+// --- Numeric literals: integers, decimals, and scientific notation ---
+NUMBER: /\d+(\.\d+)?([eE][+-]?\d+)?/
 
 // --- String literals with Rockwell $-escape sequences ---
 STRING: /'([^'$]|\$[rRlLnNtTpP$']|\$[0-9A-Fa-f]{2})*'/
@@ -233,7 +233,6 @@ MINUS:   "-"
 STAR:    "*"
 SLASH:   "/"
 AMP:     "&"
-PIPE:    "|"
 
 // --- Single-character tokens used in cross-references ---
 BACKSLASH: "\\"
