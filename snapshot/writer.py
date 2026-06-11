@@ -48,6 +48,16 @@ _MANAGED_DIRS = ("aois", "programs")
 # underscore — what Logix allows). Anything else means corrupt input.
 _IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
+# Windows reserves these device names — in any case, even with an extension.
+# A file called AUX.json fails to create or silently vanishes on some
+# systems, and a git checkout containing one breaks there too. Names like
+# AUX are legal in Logix, so they are escaped, not rejected.
+_WINDOWS_RESERVED = frozenset(
+    {"con", "prn", "aux", "nul"}
+    | {f"com{i}" for i in range(1, 10)}
+    | {f"lpt{i}" for i in range(1, 10)}
+)
+
 
 class SnapshotError(ValueError):
     """Raised when a document cannot be written as a snapshot folder."""
@@ -61,6 +71,18 @@ def canonical_json(data: object) -> str:
     kept readable, and exactly one trailing newline.
     """
     return json.dumps(data, indent=2, ensure_ascii=False) + "\n"
+
+
+def _file_name(name: str) -> str:
+    """Return the on-disk name for an entity.
+
+    A Windows-reserved name gets a trailing hyphen ("AUX" becomes "AUX-").
+    Hyphens cannot appear in Logix names, so the escaped name can never
+    collide with a real one. The name inside the file stays unchanged.
+    """
+    if name.casefold() in _WINDOWS_RESERVED:
+        return name + "-"
+    return name
 
 
 def _check_names(names: list[str], kind: str) -> None:
@@ -105,11 +127,13 @@ def snapshot_document(doc: L5XDocument) -> dict[str, str]:
 
     _check_names([a.name for a in doc.add_on_instructions], "AOI")
     for aoi in doc.add_on_instructions:
-        files[f"aois/{aoi.name}.json"] = canonical_json(aoi.model_dump(mode="json"))
+        files[f"aois/{_file_name(aoi.name)}.json"] = canonical_json(
+            aoi.model_dump(mode="json")
+        )
 
     _check_names([p.name for p in doc.programs], "Program")
     for program in doc.programs:
-        base = f"programs/{program.name}"
+        base = f"programs/{_file_name(program.name)}"
         files[f"{base}/program.json"] = canonical_json(
             program.model_dump(mode="json", exclude={"tags", "routines"})
         )
@@ -118,7 +142,7 @@ def snapshot_document(doc: L5XDocument) -> dict[str, str]:
         )
         _check_names([r.name for r in program.routines], "Routine")
         for routine in program.routines:
-            files[f"{base}/routines/{routine.name}.json"] = canonical_json(
+            files[f"{base}/routines/{_file_name(routine.name)}.json"] = canonical_json(
                 routine.model_dump(mode="json")
             )
 

@@ -149,6 +149,28 @@ def test_bad_name_rejected(l5x):
         snapshot_document(doc)
 
 
+def test_windows_reserved_names_escaped(l5x):
+    # Windows reserves device names like AUX, CON, and COM1: a file called
+    # AUX.json fails or vanishes on some systems. Such names are legal in
+    # Logix, so on disk they get a trailing hyphen (which no Logix name can
+    # contain); the name inside the file stays unchanged.
+    doc = l5x.parse_string(make_l5x())
+    doc.add_on_instructions = [AOI(name="COM1")]
+    doc.programs = [
+        Program(
+            name="Aux",
+            routines=[Routine(name="CON", type="RLL", content=RoutineContent())],
+        )
+    ]
+    files = snapshot_document(doc)
+    assert "aois/COM1-.json" in files
+    assert "programs/Aux-/program.json" in files
+    assert "programs/Aux-/routines/CON-.json" in files
+    assert json.loads(files["aois/COM1-.json"])["name"] == "COM1"
+    assert json.loads(files["programs/Aux-/program.json"])["name"] == "Aux"
+    assert json.loads(files["programs/Aux-/routines/CON-.json"])["name"] == "CON"
+
+
 def test_case_collision_rejected(l5x):
     doc = l5x.parse_string(make_l5x())
     doc.add_on_instructions = [AOI(name="MixCtrl"), AOI(name="MIXCTRL")]
