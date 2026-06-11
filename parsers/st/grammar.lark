@@ -208,7 +208,7 @@ NAME: /[A-Za-z_][A-Za-z0-9_]*/
 NUMBER: /\d+(\.\d+)?/
 
 // --- String literals with Rockwell $-escape sequences ---
-STRING: /'([^'$]|\$[rRlLnNtT$']|\$[0-9A-Fa-f]{2})*'/
+STRING: /'([^'$]|\$[rRlLnNtTpP$']|\$[0-9A-Fa-f]{2})*'/
 
 // --- Comparison operators (multi-char higher priority) ---
 NEQ.2: "<>"
