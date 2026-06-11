@@ -97,7 +97,7 @@ NAME: /[A-Za-z_][A-Za-z0-9_]*/
 NUMBER: /\d+(\.\d+)?/
 
 // String literals with Rockwell $-escape sequences ($1F, $r, $l, $$, $')
-STRING: /'([^']|\$')*'/
+STRING: /'([^'$]|\$[rRlLnNtTpP$']|\$[0-9A-Fa-f]{2})*'/
 
 // Single-character tokens
 QMARK:     "?"
