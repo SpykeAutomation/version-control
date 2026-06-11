@@ -1,0 +1,41 @@
+# Runs the test suite on every pull request and on every push to main.
+#
+# The weekly run exists because requirements.txt uses loose version pins:
+# a new lark or pydantic release could change parser behavior, and the
+# scheduled run surfaces that even when no one is pushing code.
+name: tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "0 6 * * 1" # Mondays 06:00 UTC
+  workflow_dispatch:
+
+# If new commits land on the same branch, stop the outdated run.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        # Linux on the oldest and newest supported Python, plus one
+        # Windows job to match the development environment.
+        os: [ubuntu-latest]
+        python-version: ["3.10", "3.14"]
+        include:
+          - os: windows-latest
+            python-version: "3.14"
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - run: pip install -r requirements-dev.txt
+      - run: pytest
