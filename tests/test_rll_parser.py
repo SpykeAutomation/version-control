@@ -198,14 +198,15 @@ def test_long_rung_error_message_is_truncated(rll):
 
 
 # ---------------------------------------------------------------------------
-# Known grammar gap (REMAINING_ISSUES 6)
+# Scientific notation
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="NUMBER does not accept scientific notation; '2.0e5' splits into two tokens",
-)
 def test_scientific_notation_is_single_token(rll):
     param = rll.parse("MOV(2.0e5,RateSet);").elements[0].params[0]
     assert param.tokens == ["2.0e5"]
+
+
+def test_scientific_notation_signed_exponent_is_single_token(rll):
+    param = rll.parse("MOV(2.5E-3,Gain);").elements[0].params[0]
+    assert param.tokens == ["2.5E-3"]

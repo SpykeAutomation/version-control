@@ -93,8 +93,8 @@ BIN_LITERAL.2: /2#[01_]+/
 // Identifiers: instruction names, tag names, keywords (AND, OR, MOD, ...)
 NAME: /[A-Za-z_][A-Za-z0-9_]*/
 
-// Numeric literals: integers and decimals
-NUMBER: /\d+(\.\d+)?/
+// Numeric literals: integers, decimals, and scientific notation
+NUMBER: /\d+(\.\d+)?([eE][+-]?\d+)?/
 
 // String literals with Rockwell $-escape sequences ($1F, $r, $l, $$, $')
 STRING: /'([^'$]|\$[rRlLnNtTpP$']|\$[0-9A-Fa-f]{2})*'/
