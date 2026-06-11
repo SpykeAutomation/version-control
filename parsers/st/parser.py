@@ -336,8 +336,9 @@ def _reconstruct_expr(node) -> str:
             indices = ", ".join(parts[1:]) if len(parts) > 1 else ""
             return f"{base}[{indices}]"
         if node.data == "dyn_bit_access":
+            # children: postfix_expr, DYN_BIT_START token (".["), expr
             base = parts[0] if parts else ""
-            idx = parts[1] if len(parts) > 1 else ""
+            idx = parts[2] if len(parts) > 2 else ""
             return f"{base}.[{idx}]"
         if node.data == "paren_expr":
             inner = parts[0] if parts else ""
