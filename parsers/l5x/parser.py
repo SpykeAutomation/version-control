@@ -379,17 +379,12 @@ class L5XParser:
     # ------------------------------------------------------------------
 
     def _parse_metadata(self, root: Element) -> ControllerMetadata:
-        contains_ctx_raw = _attr(root, "ContainsContext", "")
-        contains_context: Optional[bool] = (
-            None if not contains_ctx_raw
-            else contains_ctx_raw.strip().lower() == "true"
-        )
         return ControllerMetadata(
             schema_revision=_attr(root, "SchemaRevision"),
             software_revision=_attr(root, "SoftwareRevision"),
             target_name=_attr(root, "TargetName"),
             target_type=_attr(root, "TargetType"),
-            contains_context=contains_context,
+            contains_context=_opt_bool_attr(root, "ContainsContext"),
             export_date=_attr(root, "ExportDate"),
             export_options=_attr(root, "ExportOptions"),
         )
@@ -810,7 +805,7 @@ class L5XParser:
                 return None, flat
 
         if string_block is not None and string_block.text:
-            return string_block.text.strip().strip("'"), {}
+            return _clean_ascii_string(string_block.text), {}
 
         if l5k_block is not None and l5k_block.text:
             return l5k_block.text.strip(), {}
@@ -885,16 +880,12 @@ class L5XParser:
         ci = tag_el.find("ConsumeInfo")
         if ci is None:
             return None
-        unicast_raw = _attr(ci, "Unicast")
-        unicast: Optional[bool] = (
-            unicast_raw.strip().lower() == "true" if unicast_raw is not None else None
-        )
         return ConsumedTagConnection(
             producer=_attr(ci, "Producer") or None,
             remote_tag=_attr(ci, "RemoteTag") or None,
             remote_instance=_int_attr(ci, "RemoteInstance"),
             rpi=_float_attr(ci, "RPI"),
-            unicast=unicast,
+            unicast=_opt_bool_attr(ci, "Unicast"),
             timeout_multiplier=_int_attr(ci, "TimeoutMultiplier"),
             network_delay_multiplier=_int_attr(ci, "NetworkDelayMultiplier"),
             reaction_time_limit=_float_attr(ci, "ReactionTimeLimit"),

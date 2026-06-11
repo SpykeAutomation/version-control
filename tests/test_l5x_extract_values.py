@@ -70,12 +70,11 @@ def test_data_tag_name_is_honored(l5x):
     assert value == "9"
 
 
-def test_string_fallback_strips_all_outer_quotes(l5x):
-    # Documents current behavior: .strip("'") removes every leading/trailing
-    # quote, unlike _clean_ascii_string which removes exactly one pair
-    # (REMAINING_ISSUES 5). Update this if that cleanup lands.
+def test_string_fallback_strips_one_quote_pair(l5x):
+    # The String fallback uses _clean_ascii_string, which removes exactly one
+    # pair of delimiter quotes and keeps anything inside them.
     value, _ = extract(l5x, "<Data Format=\"String\">''quoted''</Data>")
-    assert value == "quoted"
+    assert value == "'quoted'"
 
 
 def test_extract_param_block_matches_format(l5x):
