@@ -8,6 +8,7 @@ of Rockwell dependencies.
 from __future__ import annotations
 
 import asyncio
+import os
 from pathlib import Path
 
 
@@ -20,6 +21,13 @@ _SDK_MISSING = (
     "Logix Designer SDK Python package (logix_designer_sdk) installed. "
     "On other computers, export the project as .L5X from Studio 5000 "
     "and use that file instead."
+)
+
+_DOTNET_MISSING = (
+    "The Logix Designer SDK is installed but could not start its .NET "
+    "engine. Install the 64-bit .NET 8 runtime (on ARM versions of "
+    "Windows, the 32-bit runtime is needed as well) and try again. "
+    "Details: {error}"
 )
 
 # Big projects can take minutes to open; this only guards against hangs.
@@ -63,12 +71,36 @@ def acd_to_l5x(
 
 def _load_sdk():
     """Import the Rockwell SDK, or explain plainly why conversion can't run here."""
+    _prepare_dotnet_env()
     try:
         import logix_designer_sdk
         from logix_designer_sdk.exceptions import LogixSdkError
     except ImportError:
         raise IngestError(_SDK_MISSING) from None
+    except RuntimeError as error:
+        # pythonnet raises RuntimeError when no usable .NET runtime is found
+        raise IngestError(_DOTNET_MISSING.format(error=error)) from error
     return logix_designer_sdk, LogixSdkError
+
+
+def _prepare_dotnet_env(environ=None) -> None:
+    """Point each part of the SDK at the right .NET runtime when needed.
+
+    The SDK runs as two programs: this 64-bit Python process and a 32-bit
+    helper it launches. On ARM versions of Windows the 64-bit runtime
+    lives in an "x64" subfolder that is not searched automatically, and
+    pointing only the general setting (DOTNET_ROOT) at it would break the
+    32-bit helper — so each side gets its own setting. Values the user
+    has already set are left alone.
+    """
+    env = os.environ if environ is None else environ
+    dotnet_x64 = Path(env.get("ProgramFiles", r"C:\Program Files")) / "dotnet" / "x64"
+    if "DOTNET_ROOT" not in env and (dotnet_x64 / "shared").is_dir():
+        env["DOTNET_ROOT"] = str(dotnet_x64)
+    dotnet_x86 = Path(env.get("ProgramFiles(x86)", r"C:\Program Files (x86)")) / "dotnet"
+    if (dotnet_x86 / "shared").is_dir():
+        env.setdefault("DOTNET_ROOT_X86", str(dotnet_x86))
+        env.setdefault("DOTNET_ROOT(x86)", str(dotnet_x86))
 
 
 async def _convert(sdk, source: Path, target: Path) -> None:

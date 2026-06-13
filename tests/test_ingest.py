@@ -6,6 +6,7 @@ import types
 import pytest
 
 from ingest import IngestError, acd_to_l5x
+from ingest.converter import _prepare_dotnet_env
 
 
 class FakeSdkError(Exception):
@@ -115,3 +116,55 @@ def test_hung_conversion_times_out(tmp_path, monkeypatch):
     install_fake_sdk(monkeypatch, open_delay=0.5)
     with pytest.raises(IngestError, match="did not finish"):
         acd_to_l5x(make_acd(tmp_path), timeout=0.05)
+
+
+def test_missing_dotnet_explains_plainly(tmp_path, monkeypatch):
+    # pythonnet raises RuntimeError, not ImportError, when the SDK is
+    # installed but no usable .NET runtime can be found.
+    class BrokenDotnetFinder:
+        def find_spec(self, name, path=None, target=None):
+            if name.startswith("logix_designer_sdk"):
+                raise RuntimeError("Failed to create a .NET runtime (coreclr)")
+            return None
+
+    monkeypatch.delitem(sys.modules, "logix_designer_sdk", raising=False)
+    monkeypatch.delitem(sys.modules, "logix_designer_sdk.exceptions", raising=False)
+    monkeypatch.setattr(sys, "meta_path", [BrokenDotnetFinder()] + sys.meta_path)
+    with pytest.raises(IngestError, match=".NET"):
+        acd_to_l5x(make_acd(tmp_path))
+
+
+def _fake_program_files(tmp_path, with_x64=True, with_x86=True):
+    pf64 = tmp_path / "Program Files"
+    pf86 = tmp_path / "Program Files (x86)"
+    if with_x64:
+        (pf64 / "dotnet" / "x64" / "shared").mkdir(parents=True)
+    if with_x86:
+        (pf86 / "dotnet" / "shared").mkdir(parents=True)
+    return {"ProgramFiles": str(pf64), "ProgramFiles(x86)": str(pf86)}
+
+
+def test_arm_dotnet_locations_are_set(tmp_path):
+    env = _fake_program_files(tmp_path)
+    _prepare_dotnet_env(env)
+    assert env["DOTNET_ROOT"] == str(tmp_path / "Program Files" / "dotnet" / "x64")
+    assert env["DOTNET_ROOT_X86"] == str(tmp_path / "Program Files (x86)" / "dotnet")
+    assert env["DOTNET_ROOT(x86)"] == str(tmp_path / "Program Files (x86)" / "dotnet")
+
+
+def test_user_dotnet_settings_are_left_alone(tmp_path):
+    env = _fake_program_files(tmp_path)
+    env["DOTNET_ROOT"] = "user-choice"
+    env["DOTNET_ROOT_X86"] = "user-choice-86"
+    _prepare_dotnet_env(env)
+    assert env["DOTNET_ROOT"] == "user-choice"
+    assert env["DOTNET_ROOT_X86"] == "user-choice-86"
+
+
+def test_ordinary_machine_is_untouched(tmp_path):
+    # No ARM-style x64 subfolder, no 32-bit runtime folder: change nothing
+    env = _fake_program_files(tmp_path, with_x64=False, with_x86=False)
+    _prepare_dotnet_env(env)
+    assert "DOTNET_ROOT" not in env
+    assert "DOTNET_ROOT_X86" not in env
+    assert "DOTNET_ROOT(x86)" not in env
