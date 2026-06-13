@@ -211,3 +211,30 @@ def test_cli_writes_snapshot(tmp_path):
 def test_cli_reports_missing_file(tmp_path, capsys):
     assert main([str(tmp_path / "missing.xml"), "-o", str(tmp_path / "out")]) == 1
     assert "error:" in capsys.readouterr().err
+
+
+def test_name_with_trailing_newline_rejected(l5x):
+    # XML normalises a literal newline in an attribute to a space, but the
+    # character reference &#10; survives parsing; the name check must not
+    # let it become part of a file name.
+    doc = l5x.parse_string(
+        make_l5x(body='<Programs><Program Name="Prog&#10;"/></Programs>')
+    )
+    assert doc.programs[0].name == "Prog\n"  # the newline really arrives
+    with pytest.raises(SnapshotError):
+        snapshot_document(doc)
+
+
+def test_cli_reports_deeply_nested_file(tmp_path, capsys):
+    # FBD content is kept as raw XML, so extreme nesting there surfaces as
+    # a RecursionError; the CLI must turn that into a clean error message.
+    deep = "<a>" * 3000 + "</a>" * 3000
+    body = (
+        '<Programs><Program Name="Prog"><Routines>'
+        f'<Routine Name="Deep" Type="FBD"><FBDContent>{deep}</FBDContent></Routine>'
+        "</Routines></Program></Programs>"
+    )
+    bad = tmp_path / "deep.xml"
+    bad.write_text(make_l5x(body=body), encoding="utf-8")
+    assert main([str(bad), "-o", str(tmp_path / "out")]) == 1
+    assert "error:" in capsys.readouterr().err

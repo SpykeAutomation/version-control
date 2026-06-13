@@ -46,7 +46,9 @@ _MANAGED_DIRS = ("aois", "programs")
 
 # Names that become file names must be plain identifiers (letters, digits,
 # underscore — what Logix allows). Anything else means corrupt input.
-_IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+# Checked with fullmatch: a $-anchored match would still accept a trailing
+# newline, which XML can smuggle into an attribute as &#10;.
+_IDENTIFIER = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 
 # Windows reserves these device names — in any case, even with an extension.
 # A file called AUX.json fails to create or silently vanishes on some
@@ -89,7 +91,7 @@ def _check_names(names: list[str], kind: str) -> None:
     """Reject names that cannot safely become file names in one folder."""
     seen: dict[str, str] = {}
     for name in names:
-        if not _IDENTIFIER.match(name):
+        if not _IDENTIFIER.fullmatch(name):
             raise SnapshotError(f"{kind} name {name!r} is not a valid identifier")
         # Windows file names are case-insensitive, so two names differing
         # only by case would silently collapse into one file.

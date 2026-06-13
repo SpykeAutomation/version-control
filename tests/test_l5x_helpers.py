@@ -303,3 +303,24 @@ def test_flatten_xml_index_kept_in_deeper_prefixes():
 def test_flatten_xml_nested_path_with_text_and_attrs():
     out = flatten_xml('<Root><A><B C="9">deep</B></A></Root>')
     assert out == {"A.B.@C": "9", "A.B.#text": "deep"}
+
+
+# ---------------------------------------------------------------------------
+# nesting depth guard
+# ---------------------------------------------------------------------------
+
+
+def test_flatten_xml_rejects_extreme_nesting():
+    deep = "<a>" * 200 + "x" + "</a>" * 200
+    with pytest.raises(ValueError, match="nested"):
+        flatten_xml(f"<CustomProperties>{deep}</CustomProperties>")
+
+
+def test_flatten_decorated_rejects_extreme_nesting():
+    deep = (
+        '<StructureMember Name="M" DataType="UDT">' * 200
+        + '<DataValueMember Name="V" DataType="DINT" Value="1"/>'
+        + "</StructureMember>" * 200
+    )
+    with pytest.raises(ValueError, match="nested"):
+        flatten_decorated(f'<Structure DataType="UDT">{deep}</Structure>')

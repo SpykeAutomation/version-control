@@ -60,19 +60,41 @@ def diff_documents(
                 prefix="controller",
             ),
         ],
-        modules=diff_named(old.modules, new.modules),
-        data_types=diff_named(old.data_types, new.data_types),
-        add_on_instructions=diff_named(old.add_on_instructions, new.add_on_instructions),
-        controller_tags=diff_named(old.controller_tags, new.controller_tags),
+        modules=diff_named(old.modules, new.modules, kind="module"),
+        data_types=diff_named(old.data_types, new.data_types, kind="data type"),
+        add_on_instructions=diff_named(
+            old.add_on_instructions, new.add_on_instructions, kind="AOI"
+        ),
+        controller_tags=diff_named(old.controller_tags, new.controller_tags, kind="tag"),
         programs=_diff_programs(old.programs, new.programs, get_rll, get_st),
-        tasks=diff_named(old.tasks, new.tasks),
+        tasks=diff_named(old.tasks, new.tasks, kind="task"),
     )
 
 
-def diff_named(old_list, new_list, exclude: frozenset[str] = frozenset()) -> list[EntityChange]:
+def _by_name(entities, kind: str) -> dict:
+    """Index entities by name, rejecting duplicates.
+
+    Names are unique within their scope in a valid project, so a duplicate
+    means corrupt input — and keeping only one of the pair would silently
+    hide any changes to the other.
+    """
+    by_name: dict = {}
+    for e in entities:
+        if e.name in by_name:
+            raise ValueError(f"two {kind}s share the name {e.name!r}")
+        by_name[e.name] = e
+    return by_name
+
+
+def diff_named(
+    old_list,
+    new_list,
+    exclude: frozenset[str] = frozenset(),
+    kind: str = "entity",
+) -> list[EntityChange]:
     """Match two lists of named entities by name and report the differences."""
-    olds = {e.name: e for e in old_list}
-    news = {e.name: e for e in new_list}
+    olds = _by_name(old_list, kind)
+    news = _by_name(new_list, kind)
     changes: list[EntityChange] = []
     for name in sorted(olds.keys() | news.keys()):
         if name not in news:
@@ -97,8 +119,8 @@ def _diff_programs(old_list, new_list, get_rll, get_st) -> list[ProgramChange]:
     and its routines. Programs that are equal are skipped without looking
     inside them.
     """
-    olds = {p.name: p for p in old_list}
-    news = {p.name: p for p in new_list}
+    olds = _by_name(old_list, "program")
+    news = _by_name(new_list, "program")
     changes: list[ProgramChange] = []
     for name in sorted(olds.keys() | news.keys()):
         if name not in news:
@@ -117,7 +139,7 @@ def _diff_programs(old_list, new_list, get_rll, get_st) -> list[ProgramChange]:
                 o.model_dump(mode="json", exclude={"tags", "routines"}),
                 n.model_dump(mode="json", exclude={"tags", "routines"}),
             ),
-            tags=diff_named(o.tags, n.tags),
+            tags=diff_named(o.tags, n.tags, kind="tag"),
             routines=_diff_routines(o, n, get_rll, get_st),
         )
         if change.fields or change.tags or change.routines:
@@ -131,8 +153,8 @@ def _diff_routines(old_prog: Program, new_prog: Program, get_rll, get_st) -> lis
     A change that turns out to be nothing real (for example rungs that only
     got renumbered) produces no entry at all.
     """
-    olds = {r.name: r for r in old_prog.routines}
-    news = {r.name: r for r in new_prog.routines}
+    olds = _by_name(old_prog.routines, "routine")
+    news = _by_name(new_prog.routines, "routine")
     changes: list[RoutineChange] = []
     for name in sorted(olds.keys() | news.keys()):
         if name not in news:

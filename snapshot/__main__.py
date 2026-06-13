@@ -36,6 +36,11 @@ def main(argv: list[str] | None = None) -> int:
     except (OSError, SyntaxError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
+    except RecursionError:
+        # Reached only by content kept as raw XML (FBD/SFC); parsed content
+        # is depth-checked with a clear message before it gets this far.
+        print("error: the file nests elements too deeply to process", file=sys.stderr)
+        return 1
 
     print(f"Wrote {len(written)} files to {out_dir}")
     return 0
