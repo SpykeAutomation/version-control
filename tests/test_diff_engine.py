@@ -31,6 +31,14 @@ def test_export_date_is_ignored(l5x, rll, st):
     assert _diff_xml(l5x, rll, st, KITCHEN_SINK, redated).is_empty()
 
 
+def test_export_options_are_ignored(l5x, rll, st):
+    # A manual export and an SDK conversion of the same project list
+    # different export options; that is not a project change.
+    one = make_l5x(root_attrs='ExportOptions="NoRawData Dependencies"')
+    other = make_l5x(root_attrs='ExportOptions="NoRawData"')
+    assert _diff_xml(l5x, rll, st, one, other).is_empty()
+
+
 def test_module_connection_change_has_named_path(l5x, rll, st):
     changed = _replaced('RPI="20000"', 'RPI="25000"')
     cs = _diff_xml(l5x, rll, st, KITCHEN_SINK, changed)

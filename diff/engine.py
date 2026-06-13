@@ -13,9 +13,11 @@ from .models import ChangeSet, EntityChange, ProgramChange, RoutineChange
 from .rll import diff_rungs
 from .st import diff_st_lines
 
-# The export timestamp changes on every export and is not project content
-# (same policy as snapshots, which drop it entirely).
-_METADATA_EXCLUDE = frozenset({"export_date"})
+# The export timestamp and the export option list describe how and when
+# the file was exported, not what is in the project. A manual export and
+# an SDK conversion of the same project list different options, so neither
+# field belongs in a diff.
+_METADATA_EXCLUDE = frozenset({"export_date", "export_options"})
 
 
 @lru_cache(maxsize=None)
