@@ -1,4 +1,6 @@
 """End-to-end document diffs over the kitchen-sink fixture."""
+import pytest
+
 from diff import diff_documents
 
 from fixtures_l5x import KITCHEN_SINK, make_l5x
@@ -128,3 +130,14 @@ def test_snapshot_round_trip_diffs_empty(tmp_path, l5x, rll, st):
     write_snapshot(doc, tmp_path)
     back = read_snapshot(tmp_path)
     assert diff_documents(doc, back, rll_parser=rll, st_parser=st).is_empty()
+
+
+def test_duplicate_names_rejected(l5x, rll, st):
+    # Names are unique in a valid project; a duplicate would otherwise
+    # silently shadow one entity and hide its changes from the diff.
+    dup = make_l5x(
+        body='<Tags><Tag Name="SameTag" DataType="DINT"/>'
+        '<Tag Name="SameTag" DataType="DINT"/></Tags>'
+    )
+    with pytest.raises(ValueError, match="SameTag"):
+        _diff_xml(l5x, rll, st, dup, dup)

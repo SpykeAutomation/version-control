@@ -215,6 +215,19 @@ def _parse_dimensions(dim_str: Optional[str]) -> Optional[list[int]]:
 
 _ROOT_VALUE_KEY = "(value)"
 
+# The flattening walks recurse once per nesting level. Real exports nest a
+# handful of levels; hundreds means a corrupt (or hostile) file, and letting
+# it recurse on would crash the whole process with a RecursionError.
+_MAX_DEPTH = 100
+
+
+def _check_depth(depth: int) -> None:
+    if depth > _MAX_DEPTH:
+        raise ValueError(
+            f"data is nested more than {_MAX_DEPTH} levels deep — "
+            "this does not look like a valid L5X export"
+        )
+
 
 def _join_path(path: str, name: str) -> str:
     return name if not path else f"{path}.{name}"
@@ -245,8 +258,9 @@ def _string_struct_text(el: Element) -> Optional[str]:
     return None
 
 
-def _flatten_decorated(el: Element, path: str, out: dict[str, str]) -> None:
+def _flatten_decorated(el: Element, path: str, out: dict[str, str], depth: int = 0) -> None:
     """Recursively flatten a Decorated node into {path: value}."""
+    _check_depth(depth)
     tag = el.tag
 
     if tag == "DataValue":  # lone scalar
@@ -272,14 +286,14 @@ def _flatten_decorated(el: Element, path: str, out: dict[str, str]) -> None:
         name = el.get("Name")  # StructureMember has one; a root Structure does not
         base = _join_path(path, name) if name else path
         for child in el:
-            _flatten_decorated(child, base, out)
+            _flatten_decorated(child, base, out, depth + 1)
         return
 
     if tag in ("Array", "ArrayMember"):
         name = el.get("Name")  # ArrayMember has one; a root Array does not
         base = _join_path(path, name) if name else path
         for child in el:
-            _flatten_decorated(child, base, out)
+            _flatten_decorated(child, base, out, depth + 1)
         return
 
     if tag == "Element":
@@ -288,11 +302,11 @@ def _flatten_decorated(el: Element, path: str, out: dict[str, str]) -> None:
             out[elem_path] = el.get("Value") or ""
         else:
             for child in el:  # an Element wrapping a Structure
-                _flatten_decorated(child, elem_path, out)
+                _flatten_decorated(child, elem_path, out, depth + 1)
         return
 
 
-def _flatten_xml(el: Element, path: str, out: dict[str, str]) -> None:
+def _flatten_xml(el: Element, path: str, out: dict[str, str], depth: int = 0) -> None:
     """Recursively flatten an arbitrary element subtree into {dotted_path: value}.
 
     Unlike _flatten_decorated (which understands Decorated data nodes), this is a
@@ -302,6 +316,7 @@ def _flatten_xml(el: Element, path: str, out: dict[str, str]) -> None:
     two <Provider> blocks), each occurrence is indexed "Tag[i]" so none
     overwrites another; unique tags keep their plain name.
     """
+    _check_depth(depth)
     for name, val in sorted(el.attrib.items()):
         key = f"{path}.@{name}" if path else f"@{name}"
         out[key] = val
@@ -317,7 +332,7 @@ def _flatten_xml(el: Element, path: str, out: dict[str, str]) -> None:
             name = f"{name}[{tag_seen.get(child.tag, 0)}]"
             tag_seen[child.tag] = tag_seen.get(child.tag, 0) + 1
         child_path = f"{path}.{name}" if path else name
-        _flatten_xml(child, child_path, out)
+        _flatten_xml(child, child_path, out, depth + 1)
 
 
 # ---------------------------------------------------------------------------

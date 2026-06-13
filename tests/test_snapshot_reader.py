@@ -60,3 +60,18 @@ def test_corrupt_file_names_the_file(tmp_path, l5x):
     (tmp_path / "tags.json").write_text("not json", encoding="utf-8")
     with pytest.raises(SnapshotError, match="tags.json"):
         read_snapshot(tmp_path)
+
+
+def test_wrong_controller_shape_names_the_file(tmp_path, l5x):
+    write_snapshot(l5x.parse_string(make_l5x()), tmp_path)
+    (tmp_path / "controller.json").write_text("[]", encoding="utf-8")
+    with pytest.raises(SnapshotError, match="controller.json"):
+        read_snapshot(tmp_path)
+
+
+def test_wrong_program_shape_names_the_file(tmp_path, l5x):
+    doc = l5x.parse_string(make_l5x(body='<Programs><Program Name="Prog"/></Programs>'))
+    write_snapshot(doc, tmp_path)
+    (tmp_path / "programs" / "Prog" / "program.json").write_text("[]", encoding="utf-8")
+    with pytest.raises(SnapshotError, match="program.json"):
+        read_snapshot(tmp_path)

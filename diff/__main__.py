@@ -48,6 +48,11 @@ def main(argv: list[str] | None = None) -> int:
     except (OSError, SyntaxError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
+    except RecursionError:
+        # Reached only by content kept as raw XML (FBD/SFC); parsed content
+        # is depth-checked with a clear message before it gets this far.
+        print("error: a file nests elements too deeply to process", file=sys.stderr)
+        return 2
 
     print(changes.model_dump_json(indent=2) if args.json else render_text(changes))
     return 0 if changes.is_empty() else 1

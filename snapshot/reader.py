@@ -30,6 +30,20 @@ def _load_json(path: Path) -> object:
         raise SnapshotError(f"{path.name} is not valid JSON: {exc}") from None
 
 
+def _load_dict(path: Path) -> dict:
+    """Read one snapshot file that must hold a JSON object.
+
+    The reader looks up keys in these files itself, so anything else (say
+    a JSON list) would crash with a bare TypeError instead of an error
+    naming the file. Files passed straight to the document model need no
+    such check — its validation already names what is wrong.
+    """
+    data = _load_json(path)
+    if not isinstance(data, dict):
+        raise SnapshotError(f"{path.name} should hold a JSON object")
+    return data
+
+
 def read_snapshot(folder: Path | str) -> L5XDocument:
     """Load a snapshot folder back into the same document the parser made.
 
@@ -42,7 +56,7 @@ def read_snapshot(folder: Path | str) -> L5XDocument:
     if not root.is_dir():
         raise SnapshotError(f"not a snapshot folder: {root}")
 
-    controller_file = _load_json(root / "controller.json")
+    controller_file = _load_dict(root / "controller.json")
     data: dict = {
         "metadata": controller_file.get("metadata", {}),
         "controller": controller_file.get("controller", {}),
@@ -62,7 +76,7 @@ def read_snapshot(folder: Path | str) -> L5XDocument:
     programs_dir = root / "programs"
     if programs_dir.is_dir():
         for prog_dir in sorted(p for p in programs_dir.iterdir() if p.is_dir()):
-            program = _load_json(prog_dir / "program.json")
+            program = _load_dict(prog_dir / "program.json")
             program["tags"] = _load_json(prog_dir / "tags.json")
             program["routines"] = []
             routines_dir = prog_dir / "routines"
