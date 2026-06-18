@@ -10,12 +10,16 @@ diff fills it in later.
 """
 from __future__ import annotations
 
-from typing import Optional
+from typing import Iterable, Optional
 
+from parsers.l5x.models import AOI
 from parsers.rll.instructions import instruction_table
 from parsers.rll.models import ParsedRung, RLLBranch, RLLInstruction, RLLNode
 
 from .ladder_models import Element, Operand
+
+# An AOI's automatic enable parameters are never passed in a call.
+_ENABLE_PARAMS = frozenset({"EnableIn", "EnableOut"})
 
 
 class LabelResolver:
@@ -49,6 +53,31 @@ class LabelResolver:
         if labels is not None:
             return {"display": "box", "form": None, "operands": labels}
         return None
+
+
+def aoi_operand_labels(aois: Iterable[AOI]) -> dict[str, list[str]]:
+    """Operand-row labels for each AOI, keyed by AOI name.
+
+    A user AOI is not in the built-in table; its operand names live in the
+    project's own definition. An instance call reads
+    ``AOIName(backing_tag, arg1, arg2, ...)``: the backing tag comes first
+    (unlabeled — it is the instance, not a parameter), then one argument per
+    required parameter in definition order. The automatic EnableIn/EnableOut
+    parameters are never passed, so they are skipped.
+
+    Feed the result to ``LabelResolver(aoi_operands=...)`` so ``classify`` can
+    label AOI boxes the same way it labels built-ins.
+    """
+    table: dict[str, list[str]] = {}
+    for aoi in aois:
+        labels = [""]  # the backing-tag row
+        labels.extend(
+            p.name
+            for p in aoi.parameters
+            if p.required and p.name not in _ENABLE_PARAMS
+        )
+        table[aoi.name] = labels
+    return table
 
 
 def classify(node: RLLNode, resolver: Optional[LabelResolver] = None) -> Element:
