@@ -80,7 +80,7 @@ def test_classify_rung_returns_every_top_level_element(rll):
 
 def test_aoi_operands_resolve_from_the_resolver_overlay():
     # A user AOI is unknown to the built-in table; its labels come from the
-    # project's parsed parameter names (what P4 will supply).
+    # project's parsed parameter names.
     resolver = LabelResolver(aoi_operands={"ValveCtl": ["Valve", "Command", "Status"]})
     instr = RLLInstruction(name="ValveCtl", params=[])
     parsed_instr = _make(instr, ["V1", "Open", "Sts"])

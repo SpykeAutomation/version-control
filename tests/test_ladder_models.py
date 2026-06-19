@@ -1,6 +1,6 @@
 """The ladder-diff IR is a contract, so pin its shape and its guarantees.
 
-These tests do not exercise any logic (there is none yet in P1) — they pin
+These tests do not exercise any logic — they pin
 that the models build, survive a JSON round-trip, and dump deterministically,
 since a renderer on the other side builds against exactly this output.
 """
