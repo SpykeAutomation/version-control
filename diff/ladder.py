@@ -11,13 +11,23 @@ before/after pair a side-by-side view needs.
 from __future__ import annotations
 
 import difflib
+from functools import lru_cache
 from typing import Iterable, Optional
 
-from parsers.l5x.models import AOI
+from parsers.l5x.models import AOI, L5XDocument, Routine
+from parsers.rll import RLLParser
 from parsers.rll.instructions import instruction_table
 from parsers.rll.models import ParsedRung, RLLBranch, RLLInstruction, RLLNode
 
-from .ladder_models import Element, Operand
+from .ladder_models import (
+    Element,
+    LadderDocument,
+    Operand,
+    RoutineLadderDiff,
+    RoutineSummary,
+    RungDiff,
+)
+from .rll import RungRow, align_rungs
 
 # An AOI's automatic enable parameters are never passed in a call.
 _ENABLE_PARAMS = frozenset({"EnableIn", "EnableOut"})
@@ -301,3 +311,158 @@ def _coarse_key(el: Element) -> tuple:
 def _leg_key(leg: list[Element]) -> tuple:
     """Content identity of a branch leg, for aligning legs against each other."""
     return tuple(_exact_key(e) for e in leg)
+
+
+# ---------------------------------------------------------------------------
+# Document builder
+# ---------------------------------------------------------------------------
+
+
+@lru_cache(maxsize=1)
+def _default_parser() -> RLLParser:
+    return RLLParser()
+
+
+def build_ladder_document(
+    old: L5XDocument,
+    new: L5XDocument,
+    *,
+    old_label: Optional[str] = None,
+    new_label: Optional[str] = None,
+    commit: Optional[str] = None,
+    rll_parser: Optional[RLLParser] = None,
+) -> LadderDocument:
+    """Build the ladder-diff document for two versions of a project.
+
+    A pure function of its inputs: it takes two already-parsed documents (and
+    the version labels to show) and returns the render-ready IR. It reads no
+    files and knows nothing about git — a caller resolves the two versions and
+    supplies the labels.
+
+    One card is produced per ladder routine that has a real rung change; each
+    card shows the whole routine, unchanged rungs kept in place for context.
+    """
+    parser = rll_parser or _default_parser()
+    resolver_old = LabelResolver(aoi_operands=aoi_operand_labels(old.add_on_instructions))
+    resolver_new = LabelResolver(aoi_operands=aoi_operand_labels(new.add_on_instructions))
+    controller = getattr(new.controller, "name", None) or getattr(old.controller, "name", None)
+
+    old_programs = {p.name: p for p in old.programs}
+    new_programs = {p.name: p for p in new.programs}
+
+    routines: list[RoutineLadderDiff] = []
+    for prog_name in sorted(old_programs.keys() & new_programs.keys()):
+        old_routines = {r.name: r for r in old_programs[prog_name].routines}
+        new_routines = {r.name: r for r in new_programs[prog_name].routines}
+        for rt_name in sorted(old_routines.keys() & new_routines.keys()):
+            o_rt, n_rt = old_routines[rt_name], new_routines[rt_name]
+            if o_rt == n_rt or o_rt.type != "RLL" or n_rt.type != "RLL":
+                continue
+            card = _build_routine(
+                controller, prog_name, rt_name, o_rt, n_rt,
+                old_label, new_label, parser, resolver_old, resolver_new,
+            )
+            if card is not None:
+                routines.append(card)
+    return LadderDocument(commit=commit, routines=routines)
+
+
+def _build_routine(
+    controller: Optional[str],
+    program: str,
+    routine: str,
+    old_rt: Routine,
+    new_rt: Routine,
+    old_label: Optional[str],
+    new_label: Optional[str],
+    parser: RLLParser,
+    resolver_old: LabelResolver,
+    resolver_new: LabelResolver,
+) -> Optional[RoutineLadderDiff]:
+    rows = align_rungs(old_rt.content.rungs or [], new_rt.content.rungs or [], lambda: parser)
+    rungs = [_build_rung(row, parser, resolver_old, resolver_new) for row in rows]
+    if all(r.status == "unchanged" for r in rungs):
+        return None  # the routine differs, but not in any rung the view shows
+    return RoutineLadderDiff(
+        controller=controller,
+        program=program,
+        routine=routine,
+        routine_type="RLL",
+        old_label=old_label,
+        new_label=new_label,
+        summary=_summarize(rungs),
+        rungs=rungs,
+    )
+
+
+def _build_rung(
+    row: RungRow,
+    parser: RLLParser,
+    resolver_old: LabelResolver,
+    resolver_new: LabelResolver,
+) -> RungDiff:
+    old_rung, new_rung = row.old, row.new
+    if row.status == "modified":
+        old_parsed = _try_parse(old_rung.text, parser)
+        new_parsed = _try_parse(new_rung.text, parser)
+        if old_parsed is None or new_parsed is None:
+            before = [Element(kind="raw", status="modified", text=old_rung.text or "")]
+            after = [Element(kind="raw", status="modified", text=new_rung.text or "")]
+        else:
+            before, after = diff_rung_elements(old_parsed, new_parsed, resolver_old, resolver_new)
+    elif row.status == "removed":
+        before, after = _classify_text(old_rung.text, parser, resolver_old), []
+    elif row.status == "added":
+        before, after = [], _classify_text(new_rung.text, parser, resolver_new)
+    else:  # unchanged or comment_changed — logic is identical on both sides
+        before = _classify_text(old_rung.text, parser, resolver_old) if old_rung else []
+        after = _classify_text(new_rung.text, parser, resolver_new) if new_rung else []
+    return RungDiff(
+        status=row.status,
+        old_number=old_rung.number if old_rung else None,
+        new_number=new_rung.number if new_rung else None,
+        old_comment=old_rung.comment if old_rung else None,
+        new_comment=new_rung.comment if new_rung else None,
+        before=before,
+        after=after,
+    )
+
+
+def _try_parse(text: Optional[str], parser: RLLParser) -> Optional[ParsedRung]:
+    """Parse rung text, or None if it is empty or the grammar cannot read it."""
+    if not text:
+        return None
+    try:
+        return parser.parse(text)
+    except Exception:
+        return None
+
+
+def _classify_text(text: Optional[str], parser: RLLParser, resolver: LabelResolver) -> list[Element]:
+    """Classify a rung's text, falling back to a raw element it cannot parse."""
+    parsed = _try_parse(text, parser)
+    if parsed is None:
+        return [Element(kind="raw", text=text)] if text else []
+    return classify_rung(parsed, resolver)
+
+
+def _summarize(rungs: list[RungDiff]) -> RoutineSummary:
+    return RoutineSummary(
+        rungs_modified=sum(1 for r in rungs if r.status == "modified"),
+        rungs_added=sum(1 for r in rungs if r.status == "added"),
+        rungs_removed=sum(1 for r in rungs if r.status == "removed"),
+        additions=sum(_count_status(r.after, "added") for r in rungs),
+        removals=sum(_count_status(r.before, "removed") for r in rungs),
+    )
+
+
+def _count_status(elements: list[Element], status: str) -> int:
+    """Count leaf elements (not branches) carrying a status, recursing legs."""
+    total = 0
+    for el in elements:
+        if el.kind == "branch":
+            for leg in el.legs:
+                total += _count_status(leg, status)
+        elif el.status == status:
+            total += 1
+    return total
