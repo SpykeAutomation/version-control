@@ -19,4 +19,6 @@ EXPOSE 8000
 
 # Single worker: Git operations share a working tree per project and are
 # serialized by an in-process lock (see app/storage.py).
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
+# Shell form so ${PORT} is honored on hosts that inject it (e.g. Render),
+# defaulting to 8000 locally and under docker-compose.
+CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1
