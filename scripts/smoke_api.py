@@ -123,4 +123,9 @@ check("other user can comment", c.status_code == 201 and c.json()["author"]["nam
 check("comments list shows the comment", len(client.get(
     f"/projects/{pid2}/pulls/2/comments", headers=auth(alice)).json()) == 1)
 
+print("== malformed upload ==")
+bad = commit(pid, alice, "main", "Garbage", "this is not an L5X file")
+check("malformed upload returns 400 (not 500)", bad.status_code == 400)
+check("error message is helpful", "parse" in bad.json()["detail"].lower())
+
 print(f"\nALL {ok} CHECKS PASSED")

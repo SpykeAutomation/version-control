@@ -95,8 +95,17 @@ class ProjectRepo:
         self._ensure_repo()
         self._checkout_branch(branch)
 
-        doc = self.parser.parse_file(str(l5x_path))
-        write_snapshot(doc, self.path)
+        # Parsing and snapshotting process user-uploaded content, which can
+        # fail in many ways (malformed XML, not an L5X, unsupported logic).
+        # Translate all of those into ProjectRepoError so callers get one
+        # clean "bad input" error instead of a leaked parser exception.
+        try:
+            doc = self.parser.parse_file(str(l5x_path))
+            write_snapshot(doc, self.path)
+        except ProjectRepoError:
+            raise
+        except Exception as exc:
+            raise ProjectRepoError(f"could not parse L5X file: {exc}") from exc
         self._run("add", "-A")
 
         if not self._has_staged_changes():
