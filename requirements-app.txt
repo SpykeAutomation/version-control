@@ -1,0 +1,10 @@
+# API service dependencies (engine deps come from requirements.txt).
+-r requirements.txt
+fastapi>=0.110
+uvicorn[standard]>=0.29
+sqlalchemy>=2.0
+pydantic-settings>=2.0
+PyJWT>=2.8
+bcrypt>=4.1
+python-multipart>=0.0.9
+email-validator>=2.0

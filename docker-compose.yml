@@ -1,0 +1,16 @@
+# For a DigitalOcean droplet (or local Docker). Pair with Caddy/nginx for HTTPS.
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      PLCVC_DATA_DIR: /data
+      PLCVC_JWT_SECRET: ${PLCVC_JWT_SECRET:-change-me-in-production}
+      PLCVC_CORS_ORIGINS: ${PLCVC_CORS_ORIGINS:-*}
+    volumes:
+      - plc-data:/data        # persistent: Git repos + SQLite DB
+    restart: unless-stopped
+
+volumes:
+  plc-data:
