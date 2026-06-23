@@ -1,0 +1,23 @@
+# Reverse proxy + automatic HTTPS for the PLC version-control API.
+# DOMAIN is injected from the environment (see docker-compose.yml / .env),
+# e.g. api.spykeautomation.com. Caddy obtains and renews the TLS cert
+# automatically via Let's Encrypt once the domain's DNS points here.
+{$DOMAIN} {
+	encode gzip
+
+	# Cap request bodies so a malformed or oversized L5X upload cannot
+	# exhaust the disk. Raise if real projects legitimately exceed this.
+	request_body {
+		max_size 25MB
+	}
+
+	reverse_proxy api:8000
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "no-referrer"
+		-Server
+	}
+}

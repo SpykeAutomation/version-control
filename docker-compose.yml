@@ -1,16 +1,41 @@
-# For a DigitalOcean droplet (or local Docker). Pair with Caddy/nginx for HTTPS.
+# Production stack for a DigitalOcean droplet (also the reference for any host).
+#
+# Caddy terminates TLS on 80/443 and reverse-proxies to the API over the
+# internal Docker network. The API port is NEVER published to the host.
+# Config/secrets come from a .env file in this directory (see .env.example);
+# Docker Compose auto-loads it for the ${...} substitutions below.
+#
+# Local development does not use this file — run uvicorn directly (see README).
 services:
   api:
     build: .
-    ports:
-      - "8000:8000"
     environment:
       PLCVC_DATA_DIR: /data
-      PLCVC_JWT_SECRET: ${PLCVC_JWT_SECRET:-change-me-in-production}
+      PLCVC_JWT_SECRET: ${PLCVC_JWT_SECRET:?set PLCVC_JWT_SECRET in .env}
       PLCVC_CORS_ORIGINS: ${PLCVC_CORS_ORIGINS:-*}
     volumes:
-      - plc-data:/data        # persistent: Git repos + SQLite DB
+      # Persistent: per-project Git repos + the SQLite DB. Host path is kept
+      # outside the repo clone so redeploys/re-clones never touch customer data.
+      - ${PLCVC_HOST_DATA_DIR:-./data}:/data
+    expose:
+      - "8000"        # internal only — not published to the host
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2
+    depends_on:
+      - api
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN in .env (e.g. api.spykeautomation.com)}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data       # Let's Encrypt certs/account — MUST persist
+      - caddy_config:/config
     restart: unless-stopped
 
 volumes:
-  plc-data:
+  caddy_data:
+  caddy_config:
