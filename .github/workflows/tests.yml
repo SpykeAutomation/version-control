@@ -3,6 +3,8 @@
 # The weekly run exists because requirements.txt uses loose version pins:
 # a new lark or pydantic release could change parser behavior, and the
 # scheduled run surfaces that even when no one is pushing code.
+#
+# The backend lives in backend/ (monorepo); all steps run there.
 name: tests
 
 on:
@@ -31,24 +33,32 @@ jobs:
           - os: windows-latest
             python-version: "3.14"
     runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: backend
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
+          cache-dependency-path: backend/requirements-dev.txt
       - run: pip install -r requirements-dev.txt
       - run: pytest
 
   api-smoke:
     name: api smoke
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: pip
+          cache-dependency-path: backend/requirements-app.txt
       - run: pip install -r requirements-app.txt httpx
       - run: python scripts/smoke_api.py
         env:
