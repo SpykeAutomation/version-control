@@ -6,6 +6,8 @@
 # Docker Compose auto-loads it for the ${...} substitutions below.
 #
 # Local development does not use this file — run uvicorn directly (see README).
+name: plc-vcs   # stable project name regardless of which folder compose runs in
+
 services:
   api:
     build: .
