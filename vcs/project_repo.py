@@ -11,7 +11,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 
-from diff import ChangeSet, diff_documents
+from diff import ChangeSet, LadderDocument, build_ladder_document, diff_documents
 from parsers.l5x import L5XParser
 from snapshot import read_snapshot, write_snapshot
 
@@ -137,6 +137,25 @@ class ProjectRepo:
     def diff_refs(self, old_ref: str, new_ref: str) -> ChangeSet:
         """Compare the snapshots stored at two Git refs."""
         return diff_documents(self.document_at(old_ref), self.document_at(new_ref))
+
+    def ladder_diff_refs(
+        self,
+        old_ref: str,
+        new_ref: str,
+        *,
+        old_label: str | None = None,
+        new_label: str | None = None,
+    ) -> LadderDocument:
+        """Build the drawable ladder-diagram diff IR for two refs (visual view)."""
+        old_doc = self.document_at(old_ref)
+        new_doc = self.document_at(new_ref)
+        return build_ladder_document(
+            old_doc,
+            new_doc,
+            old_label=old_label or old_ref,
+            new_label=new_label or new_ref,
+            commit=self.resolve_ref(new_ref),
+        )
 
     def branch_exists(self, name: str) -> bool:
         self._ensure_repo()

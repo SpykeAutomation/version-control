@@ -11,16 +11,26 @@ import shutil
 import tempfile
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Response,
+    UploadFile,
+    status,
+)
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from diff import ChangeSet
+from diff import ChangeSet, LadderDocument
 from vcs import ProjectRepoError
 
 from ..auth import current_user
 from ..db import get_db
 from ..deps import require_member
+from ..diffing import serve_diff
 from ..models import Project, ProjectMember, User
 from ..schemas import (
     BranchIn,
@@ -239,11 +249,28 @@ def diff(
     head: str,
     db: Session = Depends(get_db),
     user: User = Depends(current_user),
-) -> ChangeSet:
-    """Semantic diff between two refs (branches, SHAs, or main~1 etc.)."""
+) -> Response:
+    """Semantic diff between two refs. Cached by the (base, head) commit pair."""
     require_member(project_id, db, user)
-    try:
-        with locked_repo(project_id) as repo:
-            return repo.diff_refs(base, head)
-    except ProjectRepoError as exc:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc))
+    return serve_diff(
+        project_id, "changeset", base, head, lambda r, b, h: r.diff_refs(b, h)
+    )
+
+
+@router.get("/{project_id}/diff/ladder", response_model=LadderDocument)
+def ladder_diff(
+    project_id: int,
+    base: str,
+    head: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+) -> Response:
+    """Drawable ladder-diagram diff between two refs (the visual view)."""
+    require_member(project_id, db, user)
+    return serve_diff(
+        project_id,
+        "ladder",
+        base,
+        head,
+        lambda r, b, h: r.ladder_diff_refs(b, h, old_label=base, new_label=head),
+    )

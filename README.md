@@ -55,11 +55,13 @@ Auth is JWT Bearer. Register or log in, then send `Authorization: Bearer <token>
 | `GET`/`POST` | `/projects/{id}/branches` | List / create branches |
 | `POST` | `/projects/{id}/commits` | Upload an L5X (multipart: `file`, `branch`, `title`, `description`) |
 | `GET`  | `/projects/{id}/commits?branch=` | Commit history |
-| `GET`  | `/projects/{id}/diff?base=&head=` | **Semantic diff** between two refs → `ChangeSet` |
+| `GET`  | `/projects/{id}/diff?base=&head=` | **Semantic diff** between two refs → `ChangeSet` (cached; `X-Cache: HIT/MISS`) |
+| `GET`  | `/projects/{id}/diff/ladder?base=&head=` | **Ladder-diagram diff** between two refs → `LadderDocument` (drawable, cached) |
 | `POST` | `/projects/{id}/pulls` | Open a pull request |
 | `GET`  | `/projects/{id}/pulls` | List pull requests |
 | `GET`  | `/projects/{id}/pulls/{n}` | PR details |
 | `GET`  | `/projects/{id}/pulls/{n}/diff` | PR diff (target → source) → `ChangeSet` |
+| `GET`  | `/projects/{id}/pulls/{n}/diff/ladder` | PR ladder-diagram diff → `LadderDocument` |
 | `POST` | `/projects/{id}/pulls/{n}/merge` | Merge; returns `{status: "merged"}` or `{status: "conflict", message, conflicts[]}` |
 | `GET`/`POST` | `/projects/{id}/pulls/{n}/comments` | List / add comments |
 

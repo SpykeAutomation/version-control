@@ -81,10 +81,22 @@ check("commit on branch", commit(pid, alice, "feature/gate", "Add gate permissiv
 check("commit history on main", len(client.get(
     f"/projects/{pid}/commits?branch=main", headers=auth(alice)).json()) == 1)
 
-diff = client.get(f"/projects/{pid}/diff?base=main&head=feature/gate", headers=auth(alice)).json()
+dresp = client.get(f"/projects/{pid}/diff?base=main&head=feature/gate", headers=auth(alice))
+check("first diff computed (cache MISS)", dresp.headers.get("X-Cache") == "MISS")
+diff = dresp.json()
 check("diff shows MixerProg changed", [p["name"] for p in diff["programs"]] == ["MixerProg"])
 check("diff shows a modified rung",
       diff["programs"][0]["routines"][0]["rungs"][0]["kind"] == "modified")
+check("second identical diff served from cache (HIT)", client.get(
+    f"/projects/{pid}/diff?base=main&head=feature/gate", headers=auth(alice)
+).headers.get("X-Cache") == "HIT")
+
+print("== ladder (visual) diff ==")
+lad = client.get(f"/projects/{pid}/diff/ladder?base=main&head=feature/gate", headers=auth(alice))
+check("ladder diff returns a LadderDocument", "routines" in lad.json())
+check("ladder diff is cached too (HIT on repeat)", client.get(
+    f"/projects/{pid}/diff/ladder?base=main&head=feature/gate", headers=auth(alice)
+).headers.get("X-Cache") == "HIT")
 
 print("== pull request & clean merge ==")
 pr = client.post(f"/projects/{pid}/pulls", json={

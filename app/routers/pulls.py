@@ -5,16 +5,17 @@ failing (#5), and discussion comments from other users (#7).
 """
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from diff import ChangeSet
+from diff import ChangeSet, LadderDocument
 from vcs import MergeConflict, ProjectRepoError
 
 from ..auth import current_user
 from ..db import get_db
 from ..deps import require_member
+from ..diffing import serve_diff
 from ..models import Comment, PullRequest, User
 from ..schemas import (
     CommentIn,
@@ -129,15 +130,38 @@ def pull_diff(
     number: int,
     db: Session = Depends(get_db),
     user: User = Depends(current_user),
-) -> ChangeSet:
-    """What this PR would change: target branch -> source branch."""
+) -> Response:
+    """What this PR would change (target -> source), cached by commit pair."""
     require_member(project_id, db, user)
     pr = _get_pull(db, project_id, number)
-    try:
-        with locked_repo(project_id) as repo:
-            return repo.diff_refs(pr.target_branch, pr.source_branch)
-    except ProjectRepoError as exc:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc))
+    return serve_diff(
+        project_id,
+        "changeset",
+        pr.target_branch,
+        pr.source_branch,
+        lambda r, b, h: r.diff_refs(b, h),
+    )
+
+
+@router.get("/{number}/diff/ladder", response_model=LadderDocument)
+def pull_ladder_diff(
+    project_id: int,
+    number: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+) -> Response:
+    """Drawable ladder-diagram diff for the PR (target -> source)."""
+    require_member(project_id, db, user)
+    pr = _get_pull(db, project_id, number)
+    return serve_diff(
+        project_id,
+        "ladder",
+        pr.target_branch,
+        pr.source_branch,
+        lambda r, b, h: r.ladder_diff_refs(
+            b, h, old_label=pr.target_branch, new_label=pr.source_branch
+        ),
+    )
 
 
 @router.post("/{number}/merge", response_model=MergeResult)
