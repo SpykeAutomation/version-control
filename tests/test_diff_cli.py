@@ -46,6 +46,22 @@ def test_json_output_parses_back(tmp_path, l5x, capsys):
     assert not cs.is_empty()
 
 
+def test_ladder_json_output_writes_cards(tmp_path, l5x, capsys):
+    from diff.ladder_models import LadderDocument
+
+    (tmp_path / "a.xml").write_text(KITCHEN_SINK, encoding="utf-8")
+    (tmp_path / "b.xml").write_text(_changed_xml(), encoding="utf-8")
+    out = tmp_path / "ladder.json"
+    rc = main([
+        str(tmp_path / "a.xml"), str(tmp_path / "b.xml"),
+        "--ladder-json", str(out), "--old-label", "v1", "--new-label", "v2",
+    ])
+    assert rc == 1
+    doc = LadderDocument.model_validate_json(out.read_text(encoding="utf-8"))
+    assert doc.routines and doc.routines[0].old_label == "v1"
+    assert any(r.status == "modified" for r in doc.routines[0].rungs)
+
+
 def test_l5x_file_vs_snapshot_folder_exit_0(tmp_path, l5x, capsys):
     l5x_file = tmp_path / "project.xml"
     l5x_file.write_text(KITCHEN_SINK, encoding="utf-8")
