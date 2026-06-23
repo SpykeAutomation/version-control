@@ -33,3 +33,6 @@ Thumbs.db
 *.l5k
 data/
 fixtures/private/
+
+# Local environment overrides
+.env

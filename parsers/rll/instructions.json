@@ -1,0 +1,1560 @@
+{
+  "_meta": {
+    "source": "Operand labels and glyphs pulled from the Rockwell Automation reference manuals: Logix 5000 Controllers General Instructions (publication 1756-RM003), Advanced Process Control and Drives Instructions (1756-RM006), Motion Instructions (MOTION-RM002), and GuardLogix Safety Instructions (1756-RM095).",
+    "note": "Maps each instruction mnemonic to how it draws in ladder (display + form) and the operand-row labels for box instructions, in ladder operand order. Both legacy and current mnemonics are included where Logix Designer renamed an instruction (e.g. EQU/EQ, MOV/MOVE, LIM/LIMIT). Contacts/coils carry no operand labels (their tag is the label). Function-block/structured-text-only instructions are intentionally excluded (they never appear in a ladder rung). A small number of common instructions whose manual sections use combined headings (e.g. COP/CPS, JMP/LBL, JSR, GSV/SSV) were completed from standard Rockwell ladder operand names. Unknown mnemonics fall back to a generic box with positional, unlabeled operands; user-defined AOI operand names come from the parsed AOI definition, not this file."
+  },
+  "instructions": {
+    "ABL": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Channel",
+        "Serial Port Control",
+        "Character Count"
+      ]
+    },
+    "ABS": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Source",
+        "Dest"
+      ]
+    },
+    "ACB": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Channel",
+        "SerialPortControl",
+        "Character Count"
+      ]
+    },
+    "ACL": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Channel",
+        "Clear Serial Port Read",
+        "Clear Serial Port Write"
+      ]
+    },
+    "ACOS": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Source",
+        "Dest"
+      ]
+    },
+    "ACS": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Source",
+        "Dest"
+      ]
+    },
+    "ADD": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Source A",
+        "Source B",
+        "Dest"
+      ]
+    },
+    "AFI": {
+      "display": "box",
+      "form": null,
+      "operands": []
+    },
+    "AHL": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Channel",
+        "ANDMask",
+        "ORMask",
+        "SerialPortControl",
+        "Channel Status"
+      ]
+    },
+    "ALMA": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "ALMA",
+        "In",
+        "ProgAckAll",
+        "ProgDisable",
+        "ProgEnable"
+      ]
+    },
+    "ALMD": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "ALMD",
+        "ProgAck",
+        "ProgReset",
+        "ProgDisable",
+        "ProgEnable",
+        "MinDurationPRE",
+        "MinDurationACC"
+      ]
+    },
+    "AND": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Source A",
+        "Source B",
+        "Dest"
+      ]
+    },
+    "ARD": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Channel",
+        "Destination",
+        "SerialPortControl",
+        "SerialPortControl Length",
+        "Characters Read"
+      ]
+    },
+    "ARL": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Channel",
+        "Destination",
+        "Serial Port Control",
+        "Serial Port Control Length"
+      ]
+    },
+    "ASIN": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Source",
+        "Dest"
+      ]
+    },
+    "ASN": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Source",
+        "Dest"
+      ]
+    },
+    "ASO": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Alarm Set",
+        "Alarm Set Control",
+        "Operation"
+      ]
+    },
+    "ATAN": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Source",
+        "Dest"
+      ]
+    },
+    "ATN": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Source",
+        "Dest"
+      ]
+    },
+    "AVC": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Feedback Type",
+        "Feedback Reaction Time",
+        "Delay Type",
+        "Delay Time",
+        "Output Follows Actuate"
+      ]
+    },
+    "AVE": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Array",
+        "Dimension to vary",
+        "Destination",
+        "Control",
+        "Length",
+        "Position"
+      ]
+    },
+    "AWA": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Channel",
+        "Source",
+        "Serial Port Control",
+        "Serial Port Control Length",
+        "Characters Sent"
+      ]
+    },
+    "AWT": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Channel",
+        "Source",
+        "Serial Port Control",
+        "Serial Port Control Length",
+        "Characters Sent"
+      ]
+    },
+    "BCD_TO": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Source",
+        "Dest"
+      ]
+    },
+    "BPT": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Format String",
+        "Trace This"
+      ]
+    },
+    "BSL": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Array",
+        "Control",
+        "Source Bit",
+        "Length"
+      ]
+    },
+    "BSR": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Array",
+        "Control",
+        "Source Bit",
+        "Length"
+      ]
+    },
+    "BTD": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Source",
+        "Source bit",
+        "Destination",
+        "Destination bit",
+        "Length"
+      ]
+    },
+    "CBCM": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Ack Type",
+        "Mode"
+      ]
+    },
+    "CLR": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Dest"
+      ]
+    },
+    "CONCAT": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Source A",
+        "Source B",
+        "Destination"
+      ]
+    },
+    "COP": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Source",
+        "Dest",
+        "Length"
+      ]
+    },
+    "COS": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Source",
+        "Dest"
+      ]
+    },
+    "CPS": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Source",
+        "Dest",
+        "Length"
+      ]
+    },
+    "CPT": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Dest",
+        "Expression"
+      ]
+    },
+    "CROUT": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Actuate",
+        "Feedback 1",
+        "Feedback 2",
+        "Input Status",
+        "Output Status"
+      ]
+    },
+    "CTD": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Counter",
+        "Preset",
+        "Accum"
+      ]
+    },
+    "CTU": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Counter",
+        "Preset",
+        "Accum"
+      ]
+    },
+    "DCM": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Safety Function",
+        "Input Type",
+        "Discrepancy Time (ms)"
+      ]
+    },
+    "DCS": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Safety Function",
+        "Input Type",
+        "Discrepancy Time (ms)"
+      ]
+    },
+    "DCSRT": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Safety Function",
+        "Input Type",
+        "Discrepancy Time (ms)"
+      ]
+    },
+    "DCST": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Safety Function",
+        "Input Type",
+        "Discrepancy Time (ms)"
+      ]
+    },
+    "DDT": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Source",
+        "Reference",
+        "Result",
+        "Cmp Control",
+        "Length",
+        "Position",
+        "Result Control",
+        "Length",
+        "Position"
+      ]
+    },
+    "DEG": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Source",
+        "Dest"
+      ]
+    },
+    "DELETE": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Source",
+        "Quantity",
+        "Start",
+        "Destination"
+      ]
+    },
+    "DIV": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Source A",
+        "Source B",
+        "Dest"
+      ]
+    },
+    "DTR": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Source",
+        "Mask",
+        "Reference"
+      ]
+    },
+    "EOT": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "State Bit"
+      ]
+    },
+    "EQ": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Source A",
+        "Source B"
+      ]
+    },
+    "EQU": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Source A",
+        "Source B"
+      ]
+    },
+    "EVENT": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Task"
+      ]
+    },
+    "EXPT": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Source A",
+        "Source B",
+        "Dest"
+      ]
+    },
+    "FAL": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Control",
+        "Length",
+        "Position",
+        "Mode",
+        "Destination",
+        "Expression"
+      ]
+    },
+    "FBC": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Source",
+        "Reference",
+        "Result",
+        "Cmp Control",
+        "Length",
+        "Position",
+        "Result Control",
+        "Length",
+        "Position"
+      ]
+    },
+    "FFL": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Source",
+        "FIFO",
+        "Control",
+        "Length",
+        "Position"
+      ]
+    },
+    "FFU": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "FIFO",
+        "Destination",
+        "Control",
+        "Length",
+        "Position"
+      ]
+    },
+    "FGEN": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "In",
+        "X1",
+        "Y1",
+        "X2",
+        "Y2"
+      ]
+    },
+    "FIND": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Source",
+        "Search",
+        "Start",
+        "Result"
+      ]
+    },
+    "FLL": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Source",
+        "Destination",
+        "Length"
+      ]
+    },
+    "FOR": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Routine name",
+        "Index",
+        "Initial value",
+        "Terminal value",
+        "Step size"
+      ]
+    },
+    "FRD": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Source",
+        "Dest"
+      ]
+    },
+    "FSBM": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Restart Type",
+        "S1-S2 Time",
+        "S2-LC Time"
+      ]
+    },
+    "FSC": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Control",
+        "Length",
+        "Position",
+        "Mode",
+        "Expression"
+      ]
+    },
+    "GE": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Source A",
+        "Source B"
+      ]
+    },
+    "GEQ": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Source A",
+        "Source B"
+      ]
+    },
+    "GRT": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Source A",
+        "Source B"
+      ]
+    },
+    "GSV": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Class Name",
+        "Instance Name",
+        "Attribute Name",
+        "Dest"
+      ]
+    },
+    "GT": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Source A",
+        "Source B"
+      ]
+    },
+    "INSERT": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Source A",
+        "Source B",
+        "Start",
+        "Destination"
+      ]
+    },
+    "JMP": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Label Name"
+      ]
+    },
+    "JSR": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Routine Name"
+      ]
+    },
+    "JXR": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "External routine name",
+        "External routine control",
+        "Parameter",
+        "Return parameter"
+      ]
+    },
+    "LBL": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Label Name"
+      ]
+    },
+    "LE": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Source A",
+        "Source B"
+      ]
+    },
+    "LES": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Source A",
+        "Source B"
+      ]
+    },
+    "LFL": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Source",
+        "LIFO",
+        "Control",
+        "Length",
+        "Position"
+      ]
+    },
+    "LFU": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "LIFO",
+        "Destination",
+        "Control",
+        "Length",
+        "Position"
+      ]
+    },
+    "LIM": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Low Limit",
+        "Test",
+        "High Limit"
+      ]
+    },
+    "LIMIT": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Low Limit",
+        "Test",
+        "High Limit"
+      ]
+    },
+    "LN": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Source",
+        "Dest"
+      ]
+    },
+    "LOG": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Source",
+        "Dest"
+      ]
+    },
+    "LT": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Source A",
+        "Source B"
+      ]
+    },
+    "LV": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Vendor Code",
+        "Product Code"
+      ]
+    },
+    "MAAT": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Axis",
+        "Motion Control"
+      ]
+    },
+    "MAHD": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Axis",
+        "Motion Control",
+        "Diagnostic Test",
+        "Observed Direction"
+      ]
+    },
+    "MCCD": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Coordinate System",
+        "Motion Control",
+        "Motion Type",
+        "Change Speed",
+        "Speed",
+        "Speed Units",
+        "Change Accel",
+        "Accel Rate",
+        "Accel Units",
+        "Change Decel",
+        "Decel Rate",
+        "Decel Units"
+      ]
+    },
+    "MCCM": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Coordinate System",
+        "Motion Control",
+        "Move Type",
+        "Position",
+        "Circle Type",
+        "Via/Center/Radius",
+        "Direction",
+        "Speed",
+        "Speed Units"
+      ]
+    },
+    "MCCP": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Motion Control",
+        "Cam",
+        "Length",
+        "Start Slope",
+        "End Slope",
+        "Cam Profile"
+      ]
+    },
+    "MCLM": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Coordinate System",
+        "Motion Control",
+        "Move Type",
+        "Position",
+        "Speed",
+        "Speed Units",
+        "Accel Rate",
+        "Accel Units",
+        "Decel Rate",
+        "Decel Units"
+      ]
+    },
+    "MCPM": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Coordinate System",
+        "Motion Control",
+        "Path",
+        "Length",
+        "Dynamics",
+        "Lock Position"
+      ]
+    },
+    "MCR": {
+      "display": "box",
+      "form": null,
+      "operands": []
+    },
+    "MCS": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Coordinate System",
+        "Motion Control",
+        "Stop Type",
+        "Change Decel"
+      ]
+    },
+    "MCSD": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Coordinate System",
+        "Motion Control"
+      ]
+    },
+    "MCSR": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Coordinate System",
+        "Motion Control"
+      ]
+    },
+    "MCSV": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Motion Control",
+        "Cam Profile",
+        "Master Value",
+        "Slave Value",
+        "Slope Value",
+        "Slope Derivative"
+      ]
+    },
+    "MCT": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Source System",
+        "Target System",
+        "Motion Control"
+      ]
+    },
+    "MCTO": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Cartesian System",
+        "Robot System",
+        "Motion Control",
+        "Work Frame"
+      ]
+    },
+    "MCTP": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Source System",
+        "Target System",
+        "Motion Control",
+        "Translation"
+      ]
+    },
+    "MCTPO": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Cartesian System",
+        "Robot System",
+        "Motion Control",
+        "Work Frame"
+      ]
+    },
+    "MEQ": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Source",
+        "Mask",
+        "Compare"
+      ]
+    },
+    "MGS": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Group",
+        "Motion Control",
+        "Stop Mode"
+      ]
+    },
+    "MGSD": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Group",
+        "Motion Control"
+      ]
+    },
+    "MGSP": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Group",
+        "Motion Control"
+      ]
+    },
+    "MGSR": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Group",
+        "Motion Control"
+      ]
+    },
+    "MID": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Source",
+        "Quantity",
+        "Start",
+        "Destination"
+      ]
+    },
+    "MOD": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Source A",
+        "Source B",
+        "Dest"
+      ]
+    },
+    "MOV": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Source",
+        "Dest"
+      ]
+    },
+    "MOVE": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Source",
+        "Dest"
+      ]
+    },
+    "MSG": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Message"
+      ]
+    },
+    "MUL": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Source A",
+        "Source B",
+        "Dest"
+      ]
+    },
+    "MVM": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Source",
+        "Mask",
+        "Dest"
+      ]
+    },
+    "NE": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Source A",
+        "Source B"
+      ]
+    },
+    "NEG": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Source",
+        "Dest"
+      ]
+    },
+    "NEQ": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Source A",
+        "Source B"
+      ]
+    },
+    "NOP": {
+      "display": "box",
+      "form": null,
+      "operands": []
+    },
+    "NOT": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Source",
+        "Dest"
+      ]
+    },
+    "ONS": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Storage Bit"
+      ]
+    },
+    "OR": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Source A",
+        "Source B",
+        "Dest"
+      ]
+    },
+    "OSF": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Storage Bit",
+        "Output Bit"
+      ]
+    },
+    "OSR": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Storage Bit",
+        "Output Bit"
+      ]
+    },
+    "OTE": {
+      "display": "coil",
+      "form": "ote",
+      "operands": []
+    },
+    "OTL": {
+      "display": "coil",
+      "form": "otl",
+      "operands": []
+    },
+    "OTU": {
+      "display": "coil",
+      "form": "otu",
+      "operands": []
+    },
+    "PATT": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Phase Name",
+        "Result"
+      ]
+    },
+    "PCLF": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Phase Name"
+      ]
+    },
+    "PDET": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Phase Name"
+      ]
+    },
+    "PFL": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Failure Code"
+      ]
+    },
+    "PID": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "PID",
+        "Process variable",
+        "Tieback",
+        "Control variable",
+        "PID master loop",
+        "Inhold bit",
+        "Inhold value"
+      ]
+    },
+    "POVR": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Phase Name",
+        "Command",
+        "Result"
+      ]
+    },
+    "PXRQ": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Phase Instruction",
+        "External Request",
+        "Data Value"
+      ]
+    },
+    "RAD": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Source",
+        "Dest"
+      ]
+    },
+    "RES": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Structure"
+      ]
+    },
+    "RET": {
+      "display": "box",
+      "form": null,
+      "operands": []
+    },
+    "RTO": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Timer",
+        "Preset",
+        "Accum"
+      ]
+    },
+    "RTOS": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Source",
+        "Destination"
+      ]
+    },
+    "SASI": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Sequence Name",
+        "Sequence Id",
+        "Result"
+      ]
+    },
+    "SATT": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Sequence Name",
+        "Result"
+      ]
+    },
+    "SBR": {
+      "display": "box",
+      "form": null,
+      "operands": []
+    },
+    "SCLF": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Sequence Name",
+        "Result"
+      ]
+    },
+    "SCMD": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Sequence Name",
+        "Command",
+        "Result"
+      ]
+    },
+    "SDET": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Sequence Name"
+      ]
+    },
+    "SFP": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "SFCRoutineName",
+        "TargetState"
+      ]
+    },
+    "SFR": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "SFCRoutineName",
+        "StepName"
+      ]
+    },
+    "SIN": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Source",
+        "Dest"
+      ]
+    },
+    "SIZE": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Source",
+        "Dimension to Vary",
+        "Size"
+      ]
+    },
+    "SMAT": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Restart Type",
+        "Short Circuit Detect Delay Time"
+      ]
+    },
+    "SOVR": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Sequence Name",
+        "Command",
+        "Result"
+      ]
+    },
+    "SQI": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Array",
+        "Mask",
+        "Source",
+        "Control",
+        "Length",
+        "Position"
+      ]
+    },
+    "SQL": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Array",
+        "Source",
+        "Control",
+        "Length",
+        "Position"
+      ]
+    },
+    "SQO": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Array",
+        "Mask",
+        "Destination",
+        "Control",
+        "Length",
+        "Position"
+      ]
+    },
+    "SQR": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Source",
+        "Dest"
+      ]
+    },
+    "SQRT": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Source",
+        "Dest"
+      ]
+    },
+    "SRT": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Array",
+        "Dimension to vary",
+        "Control",
+        "Length",
+        "Position"
+      ]
+    },
+    "SSV": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Class Name",
+        "Instance Name",
+        "Attribute Name",
+        "Source"
+      ]
+    },
+    "STD": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Array",
+        "Dimension to vary",
+        "Destination",
+        "Control",
+        "Length",
+        "Position"
+      ]
+    },
+    "STOD": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Source",
+        "Destination"
+      ]
+    },
+    "STOR": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Source",
+        "Destination"
+      ]
+    },
+    "SUB": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Source A",
+        "Source B",
+        "Dest"
+      ]
+    },
+    "SWPB": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Source",
+        "Order Mode",
+        "Dest"
+      ]
+    },
+    "TAN": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Source",
+        "Dest"
+      ]
+    },
+    "TND": {
+      "display": "box",
+      "form": null,
+      "operands": []
+    },
+    "TOD": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Source",
+        "Dest"
+      ]
+    },
+    "TOF": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Timer",
+        "Preset",
+        "Accum"
+      ]
+    },
+    "TON": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Timer",
+        "Preset",
+        "Accum"
+      ]
+    },
+    "TO_BCD": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Source",
+        "Dest"
+      ]
+    },
+    "TPT": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Format String",
+        "Trace"
+      ]
+    },
+    "TRN": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Source",
+        "Dest"
+      ]
+    },
+    "TRUNC": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Source",
+        "Dest"
+      ]
+    },
+    "UID": {
+      "display": "box",
+      "form": null,
+      "operands": []
+    },
+    "UIE": {
+      "display": "box",
+      "form": null,
+      "operands": []
+    },
+    "UPPER": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Source",
+        "Destination"
+      ]
+    },
+    "XIC": {
+      "display": "contact",
+      "form": "no",
+      "operands": []
+    },
+    "XIO": {
+      "display": "contact",
+      "form": "nc",
+      "operands": []
+    },
+    "XOR": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Source A",
+        "Source B",
+        "Dest"
+      ]
+    },
+    "XPY": {
+      "display": "box",
+      "form": null,
+      "operands": [
+        "Source A",
+        "Source B",
+        "Dest"
+      ]
+    }
+  }
+}

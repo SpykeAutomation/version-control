@@ -1,0 +1,19 @@
+# Render Blueprint: deploy with one click from the GitHub repo.
+# Docs: https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: plc-vcs-api
+    runtime: docker
+    plan: starter            # always-on; free tier sleeps and loses no data but cold-starts
+    healthCheckPath: /health
+    envVars:
+      - key: PLCVC_JWT_SECRET
+        generateValue: true   # Render generates and stores a strong secret
+      - key: PLCVC_DATA_DIR
+        value: /data
+      - key: PLCVC_CORS_ORIGINS
+        value: "*"            # tighten to your frontend's URL before launch
+    disk:
+      name: plc-data
+      mountPath: /data        # persistent: Git repos + SQLite DB live here
+      sizeGB: 1

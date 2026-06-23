@@ -18,6 +18,7 @@ from parsers.l5x.models import L5XDocument
 from snapshot import read_snapshot
 
 from .engine import diff_documents
+from .ladder import build_ladder_document
 from .render import render_text
 
 
@@ -41,10 +42,18 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--json", action="store_true", help="print the result as JSON instead of text"
     )
+    parser.add_argument(
+        "--ladder-json",
+        metavar="FILE",
+        help="write the ladder-diff document (for the visual renderer) to FILE",
+    )
+    parser.add_argument("--old-label", help="version label for the old side (e.g. v14)")
+    parser.add_argument("--new-label", help="version label for the new side (e.g. v15)")
     args = parser.parse_args(argv)
 
     try:
-        changes = diff_documents(_load(args.old), _load(args.new))
+        old_doc = _load(args.old)
+        new_doc = _load(args.new)
     except (OSError, SyntaxError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
@@ -54,6 +63,18 @@ def main(argv: list[str] | None = None) -> int:
         print("error: a file nests elements too deeply to process", file=sys.stderr)
         return 2
 
+    if args.ladder_json:
+        document = build_ladder_document(
+            old_doc,
+            new_doc,
+            old_label=args.old_label or Path(args.old).stem,
+            new_label=args.new_label or Path(args.new).stem,
+        )
+        Path(args.ladder_json).write_text(document.model_dump_json(indent=2) + "\n", encoding="utf-8")
+        print(f"wrote {len(document.routines)} ladder routine card(s) to {args.ladder_json}")
+        return 0 if not document.routines else 1
+
+    changes = diff_documents(old_doc, new_doc)
     print(changes.model_dump_json(indent=2) if args.json else render_text(changes))
     return 0 if changes.is_empty() else 1
 
