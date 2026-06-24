@@ -269,7 +269,7 @@ function ProjectsTable({ rows, total }: { rows: ProjectRow[]; total: number }) {
           {rows.map((p) => (
             <tr key={p.id}>
               <td>
-                <div className="repo-cell">
+                <Link to={`/projects/${p.slug}`} className="repo-cell">
                   <span className="repo-ico">
                     <Box size={18} strokeWidth={2} />
                   </span>
@@ -277,7 +277,7 @@ function ProjectsTable({ rows, total }: { rows: ProjectRow[]; total: number }) {
                     <div className="repo-name">{p.name}</div>
                     <div className="repo-sub">{p.slug}</div>
                   </div>
-                </div>
+                </Link>
               </td>
               <td>
                 {p.controller ? (

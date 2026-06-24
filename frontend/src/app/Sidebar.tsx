@@ -4,7 +4,6 @@ import {
   ArrowLeftRight,
   Book,
   ChevronsLeft,
-  ChevronsRight,
   CirclePlay,
   GitBranch,
   Home,
@@ -50,22 +49,30 @@ export function Sidebar() {
   return (
     <aside className={`sidebar${collapsed ? " collapsed" : ""}`}>
       <div className="sidebar-logo">
-        <span className="sidebar-mark">
-          <Logo size={26} color="#fff" />
-        </span>
-        {!collapsed && <span className="sidebar-word">spyke</span>}
-        <button
-          className="sidebar-collapse"
-          onClick={toggle}
-          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-          aria-pressed={collapsed}
-        >
-          {collapsed ? (
-            <ChevronsRight size={16} strokeWidth={2} />
-          ) : (
-            <ChevronsLeft size={16} strokeWidth={2} />
-          )}
-        </button>
+        {collapsed ? (
+          <button
+            className="sidebar-mark sidebar-mark-btn"
+            onClick={toggle}
+            aria-label="Expand sidebar"
+            title="Expand sidebar"
+          >
+            <Logo size={26} color="#fff" />
+          </button>
+        ) : (
+          <>
+            <span className="sidebar-mark">
+              <Logo size={26} color="#fff" />
+            </span>
+            <span className="sidebar-word">spyke</span>
+            <button
+              className="sidebar-collapse"
+              onClick={toggle}
+              aria-label="Collapse sidebar"
+            >
+              <ChevronsLeft size={16} strokeWidth={2} />
+            </button>
+          </>
+        )}
       </div>
 
       <nav className="sidebar-nav">

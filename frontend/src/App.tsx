@@ -6,6 +6,11 @@ import { SignupPage } from "./pages/SignupPage";
 import { OnboardingPage } from "./pages/OnboardingPage";
 import { DonePage } from "./pages/DonePage";
 import { ProjectsPage } from "./pages/ProjectsPage";
+import { RepositoryPage } from "./pages/RepositoryPage";
+import { FileViewPage } from "./pages/FileViewPage";
+import { BranchViewPage } from "./pages/BranchViewPage";
+import { ComparePage } from "./pages/ComparePage";
+import { MergeRequestPage } from "./pages/MergeRequestPage";
 import { ComingSoon } from "./pages/ComingSoon";
 import { RequireAuth } from "./auth/RequireAuth";
 
@@ -45,8 +50,12 @@ export function App() {
       >
         <Route path="dashboard" element={<ComingSoon title="Dashboard" />} />
         <Route path="projects" element={<ProjectsPage />} />
+        <Route path="projects/:slug" element={<RepositoryPage />} />
+        <Route path="projects/:slug/files/:fileName" element={<FileViewPage />} />
+        <Route path="projects/:slug/tree/:branch" element={<BranchViewPage />} />
+        <Route path="projects/:slug/merge/:mrId" element={<MergeRequestPage />} />
         <Route path="changes" element={<ComingSoon title="Changes" />} />
-        <Route path="compare" element={<ComingSoon title="Compare" />} />
+        <Route path="compare" element={<ComparePage />} />
         <Route path="releases" element={<ComingSoon title="Releases" />} />
         <Route path="commissioning" element={<ComingSoon title="Commissioning" />} />
         <Route path="documentation" element={<ComingSoon title="Documentation" />} />
