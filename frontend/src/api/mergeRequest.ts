@@ -3,7 +3,6 @@
 // the real API it's mapped from the backend pull-request endpoints. Ladder
 // rungs reuse the diff model from ./compare so the panels share one renderer.
 import { apiFetch } from "./client";
-import { DEMO, demoMergeRequest } from "../demo";
 import { listProjects } from "./projects";
 import type { Rung } from "./compare";
 
@@ -204,14 +203,12 @@ function mapPull(mrId: string, pull: PullOut, comments: CommentOut[]): MergeRequ
   };
 }
 
-// Load a merge request for the page. Demo mode returns canned data; otherwise
-// resolve the project by slug, then fetch the pull request and its comments.
+// Load a merge request for the page: resolve the project by slug, then fetch
+// the pull request and its comments.
 export async function getMergeRequest(
   slug: string,
   mrId: string,
 ): Promise<MergeRequest> {
-  if (DEMO) return demoMergeRequest(slug, mrId);
-
   const number = pullNumber(mrId);
   const projects = await listProjects();
   const project = projects.find((p) => p.slug === slug);

@@ -27,8 +27,6 @@ import { listProjects, type ProjectRow } from "../api/projects";
 import { ApiError } from "../api/client";
 import { CR_META, type BranchInfo, type RepositoryDetail } from "../api/repository";
 import { formatDate, timeAgo } from "../lib/time";
-// Preview data — demo-only; replaced by real API data when those endpoints exist.
-import { TEMP_REPO_DETAIL } from "./__tempRepoData";
 
 const TABS = [
   { label: "Overview", icon: LayoutGrid },
@@ -62,8 +60,9 @@ export function RepositoryPage() {
     [projects, slug],
   );
 
-  // Preview data fills the page until the backend supplies it; `null` shows empty states.
-  const detail: RepositoryDetail | null = TEMP_REPO_DETAIL;
+  // The backend doesn't expose this rich detail yet; until it does, the page
+  // renders empty states.
+  const [detail] = useState<RepositoryDetail | null>(null);
 
   const actions = (
     <>

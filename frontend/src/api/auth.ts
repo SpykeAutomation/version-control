@@ -1,5 +1,4 @@
 import { apiFetch, setToken } from "./client";
-import { DEMO, demoUser } from "../demo";
 
 export interface User {
   id: number;
@@ -15,18 +14,12 @@ interface Token {
   token_type: string;
 }
 
-const demoToken: Token = { access_token: "demo", token_type: "bearer" };
-
 export async function register(input: {
   email: string;
   name: string;
   username: string;
   password: string;
 }): Promise<Token> {
-  if (DEMO) {
-    setToken(demoToken.access_token);
-    return demoToken;
-  }
   const token = await apiFetch<Token>("/auth/register", {
     method: "POST",
     json: input,
@@ -37,10 +30,6 @@ export async function register(input: {
 }
 
 export async function login(email: string, password: string): Promise<Token> {
-  if (DEMO) {
-    setToken(demoToken.access_token);
-    return demoToken;
-  }
   // /auth/login is form-encoded with username=email.
   const form = new URLSearchParams({ username: email, password });
   const token = await apiFetch<Token>("/auth/login", {
@@ -53,6 +42,5 @@ export async function login(email: string, password: string): Promise<Token> {
 }
 
 export function me(): Promise<User> {
-  if (DEMO) return Promise.resolve(demoUser);
   return apiFetch<User>("/auth/me");
 }

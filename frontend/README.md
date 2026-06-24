@@ -7,12 +7,21 @@ HTTP API (see `../backend/README.md`) over JWT bearer headers.
 
 ```bash
 npm install
-cp .env.example .env.local   # point VITE_API_URL at your backend
+cp .env.example .env.local
 npm run dev                  # http://localhost:5173
 ```
 
-The dev server runs on port 5173, which the backend lists as a default dev CORS
-origin. Run the backend with `PLCVC_CORS_ORIGINS=http://localhost:5173`.
+By default the dev server proxies API calls to the hosted backend
+(`api.spykeautomation.com`), so `npm run dev` works with no local backend. The
+browser only ever talks to `localhost:5173`; the dev server forwards the API
+paths (`/auth`, `/projects`, `/health`) to the backend, so the hosted CORS
+allow-list (which only permits `app.spykeautomation.com`) doesn't get in the
+way. Leave `VITE_API_URL` empty for this to work — that's what makes the client
+send same-origin relative requests.
+
+To test against a backend running on your own machine instead, set
+`VITE_PROXY_TARGET=http://localhost:8000` in `.env.local` and run the backend
+with `PLCVC_CORS_ORIGINS=http://localhost:5173`.
 
 ## Scripts
 

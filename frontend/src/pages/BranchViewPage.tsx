@@ -14,8 +14,6 @@ import { listProjects, type ProjectRow } from "../api/projects";
 import { ApiError } from "../api/client";
 import type { BranchInfo, RepositoryDetail } from "../api/repository";
 import { timeAgo } from "../lib/time";
-// Preview data — demo-only; replaced by real API data when those endpoints exist.
-import { TEMP_REPO_DETAIL } from "./__tempRepoData";
 
 export function BranchViewPage() {
   const { slug, branch } = useParams();
@@ -36,8 +34,9 @@ export function BranchViewPage() {
     [projects, slug],
   );
 
-  // Preview data fills the page until the backend supplies it; `null` shows empty states.
-  const detail: RepositoryDetail | null = TEMP_REPO_DETAIL;
+  // The backend doesn't expose this rich detail yet; until it does, the page
+  // renders empty states.
+  const [detail] = useState<RepositoryDetail | null>(null);
   const info = useMemo<BranchInfo | null>(
     () => detail?.branches.find((b) => b.name === branchName) ?? null,
     [detail, branchName],

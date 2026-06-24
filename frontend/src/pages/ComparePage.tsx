@@ -28,9 +28,6 @@ import type {
   RoutineSide,
 } from "../api/compare";
 import { timeAgo } from "../lib/time";
-// Preview data — demo-only; replaced by real API data once the comparison
-// endpoint is wired up here.
-import { TEMP_COMPARISON } from "./__tempCompareData";
 
 const ZOOMS = [0.8, 0.9, 1, 1.1, 1.25, 1.5];
 
@@ -40,9 +37,9 @@ function initials(name: string): string {
 }
 
 export function ComparePage() {
-  // Preview data fills the page until the backend supplies it; `null` would
-  // show the empty state.
-  const [comparison] = useState<Comparison | null>(TEMP_COMPARISON);
+  // The backend comparison endpoint isn't wired up here yet; until it is, the
+  // page shows the empty state.
+  const [comparison] = useState<Comparison | null>(null);
 
   const [view, setView] = useState<"ladder" | "text">("ladder");
   const [zoomIdx, setZoomIdx] = useState(2);

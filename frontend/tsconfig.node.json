@@ -1,6 +1,10 @@
 {
   "compilerOptions": {
     "composite": true,
+    // Type-check vite.config.ts only — don't emit vite.config.js. Vite loads
+    // the .ts directly, and a stale emitted .js would shadow it (Vite resolves
+    // .js before .ts) the moment the two drift.
+    "emitDeclarationOnly": true,
     "skipLibCheck": true,
     "module": "ESNext",
     "moduleResolution": "bundler",

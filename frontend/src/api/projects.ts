@@ -1,5 +1,4 @@
 import { apiFetch } from "./client";
-import { DEMO, demoProject, demoProjects } from "../demo";
 
 export interface Project {
   id: number;
@@ -26,11 +25,9 @@ export interface ProjectRow extends Project {
 }
 
 export function createProject(name: string): Promise<Project> {
-  if (DEMO) return Promise.resolve({ ...demoProject, name, slug: name });
   return apiFetch<Project>("/projects", { method: "POST", json: { name } });
 }
 
 export function listProjects(): Promise<ProjectRow[]> {
-  if (DEMO) return Promise.resolve(demoProjects);
   return apiFetch<ProjectRow[]>("/projects");
 }
