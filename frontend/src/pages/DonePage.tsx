@@ -57,8 +57,8 @@ const DOCS: Doc[] = [
 
 export function DonePage() {
   const { state } = useLocation();
-  const { projectId, projectName } = (state as DoneState | null) ?? {};
-  const repoHref = projectId ? `/projects/${projectId}` : "/projects";
+  const { projectName } = (state as DoneState | null) ?? {};
+  const repoHref = "/projects";
 
   return (
     <div className="done">

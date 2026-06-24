@@ -8,7 +8,7 @@ export function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const from = (location.state as { from?: Location })?.from?.pathname ?? "/onboarding";
+  const from = (location.state as { from?: Location })?.from?.pathname ?? "/projects";
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
