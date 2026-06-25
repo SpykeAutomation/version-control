@@ -22,6 +22,12 @@ class Settings(BaseSettings):
     # Login rate limit: max attempts per client IP within the window (seconds).
     login_rate_max: int = 10
     login_rate_window_seconds: int = 60
+    # Invite rate limit: max preview/accept calls per client IP within the
+    # window (seconds). Guards the public invite endpoints against token
+    # enumeration. Roomier than login since a legit accept page makes a couple
+    # of calls (preview + submit, with retries).
+    invite_rate_max: int = 20
+    invite_rate_window_seconds: int = 60
 
     @property
     def repos_dir(self) -> Path:

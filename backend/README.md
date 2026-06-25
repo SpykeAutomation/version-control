@@ -55,7 +55,8 @@ PLCVC_DATA_DIR=./data PLCVC_CORS_ORIGINS=http://localhost:5173 \
   ref / invalid L5X), `401` (missing/expired token), `403` (not a project member
   / registration closed), `404` (not found), `409` (conflict, e.g. duplicate
   email or merging a non-open PR), `422` (validation, e.g. malformed body), and
-  `429` on `/auth/login` (too many attempts — back off, honor `Retry-After`).
+  `429` on `/auth/login` and the public `/invites/{token}` endpoints (too many
+  attempts — back off, honor `Retry-After`).
 - **CORS**: set `PLCVC_CORS_ORIGINS` to the frontend origin(s) (comma-separated),
   e.g. `https://app.spykeautomation.com`. Auth is header-based (no cookies).
 - **Diff caching**: `GET` diff endpoints return an `X-Cache: HIT|MISS` header.
@@ -100,8 +101,8 @@ last_name=..., password=...)`.
 | `POST` | `/auth/login` | form: `username`=email, `password` | `Token` (or `429` if rate-limited) |
 | `GET`  | `/auth/me` | — | `User` |
 | `POST` | `/orgs/{id}/invites` | `{email, role?}` (owner only) | `201` `Invite` (one-time link) |
-| `GET`  | `/invites/{token}` | — | `InvitePreview` |
-| `POST` | `/invites/{token}/accept` | `{email, first_name?, last_name?, password?}` | `AcceptResult` |
+| `GET`  | `/invites/{token}` | — (public, rate-limited) | `InvitePreview` (or `429`) |
+| `POST` | `/invites/{token}/accept` | `{email, first_name?, last_name?, password?}` (public, rate-limited) | `AcceptResult` (or `429`) |
 | `POST` | `/projects` | `{name}` | `201` `Project` |
 | `GET`  | `/projects` | — | `[Project]` |
 | `GET`  | `/projects/{id}` | — | `Project` |
@@ -250,3 +251,5 @@ All settings are `PLCVC_*` environment variables — see [`.env.example`](.env.e
 | `PLCVC_JWT_SECRET` | Signs JWTs — long random string |
 | `PLCVC_JWT_EXPIRE_MINUTES` | Token lifetime (default 1 week) |
 | `PLCVC_CORS_ORIGINS` | Allowed frontend origin(s), comma-separated, or `*` |
+| `PLCVC_LOGIN_RATE_MAX` / `PLCVC_LOGIN_RATE_WINDOW_SECONDS` | Login attempts allowed per client IP per window (default 10 / 60s) |
+| `PLCVC_INVITE_RATE_MAX` / `PLCVC_INVITE_RATE_WINDOW_SECONDS` | Invite preview/accept calls per client IP per window (default 20 / 60s) |

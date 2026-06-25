@@ -18,6 +18,7 @@ from ..invites import (
     get_pending_invite,
 )
 from ..models import Organization, User
+from ..ratelimit import invite_rate_limit
 from ..schemas import AcceptIn, AcceptResult, InviteIn, InviteOut, InvitePreview
 
 router = APIRouter(tags=["organizations"])
@@ -62,7 +63,11 @@ def create_invite(
 
 
 @router.get("/invites/{token}", response_model=InvitePreview)
-def preview_invite(token: str, db: Session = Depends(get_db)) -> InvitePreview:
+def preview_invite(
+    token: str,
+    db: Session = Depends(get_db),
+    _: None = Depends(invite_rate_limit),
+) -> InvitePreview:
     """Public: show what this invitation is for (so the accept page can render)."""
     try:
         invite = get_pending_invite(db, token)
@@ -79,7 +84,10 @@ def preview_invite(token: str, db: Session = Depends(get_db)) -> InvitePreview:
 
 @router.post("/invites/{token}/accept", response_model=AcceptResult)
 def accept_invite(
-    token: str, payload: AcceptIn, db: Session = Depends(get_db)
+    token: str,
+    payload: AcceptIn,
+    db: Session = Depends(get_db),
+    _: None = Depends(invite_rate_limit),
 ) -> AcceptResult:
     """Public: accept by confirming the invited email. New users also set a
     password + name (account created); existing users are just linked."""

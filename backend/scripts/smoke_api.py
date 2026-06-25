@@ -240,4 +240,13 @@ burst = [
 ]
 check("login rate limit returns 429 after the cap", 429 in burst)
 
+print("== invite rate limit ==")
+rl_token = client.post(f"/orgs/{acme_id}/invites", json={"email": "rl@acme.com"},
+                       headers=auth(alice)).json()["token"]
+invite_burst = [
+    client.get(f"/invites/{rl_token}").status_code
+    for _ in range(settings.invite_rate_max + 5)
+]
+check("invite rate limit returns 429 after the cap", 429 in invite_burst)
+
 print(f"\nALL {ok} CHECKS PASSED")
