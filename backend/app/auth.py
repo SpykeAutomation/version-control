@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import re
 
 import bcrypt
 import jwt
@@ -26,6 +27,23 @@ def verify_password(password: str, hashed: str) -> bool:
         return bcrypt.checkpw(password.encode()[:72], hashed.encode())
     except ValueError:
         return False
+
+
+def validate_password_strength(password: str) -> None:
+    """Raise ValueError if the password fails the policy.
+
+    Policy: at least 12 characters, with at least one lowercase letter, one
+    uppercase letter, and one digit. Used by the register schema and by the
+    admin account-creation command, so both enforce the same rule.
+    """
+    if len(password) < 12:
+        raise ValueError("password must be at least 12 characters long")
+    if not re.search(r"[a-z]", password):
+        raise ValueError("password must contain a lowercase letter")
+    if not re.search(r"[A-Z]", password):
+        raise ValueError("password must contain an uppercase letter")
+    if not re.search(r"[0-9]", password):
+        raise ValueError("password must contain a digit")
 
 
 def create_access_token(user_id: int) -> str:

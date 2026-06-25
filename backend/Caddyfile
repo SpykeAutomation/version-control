@@ -11,6 +11,12 @@
 		max_size 25MB
 	}
 
+	# Public self-service registration is closed; accounts are created by an
+	# admin (see README). Block the route at the edge so it is unreachable
+	# from the internet, even though it still exists in the app for admin use.
+	@register path /auth/register
+	respond @register "Registration is closed. Contact us to request access." 403
+
 	reverse_proxy api:8000
 
 	header {

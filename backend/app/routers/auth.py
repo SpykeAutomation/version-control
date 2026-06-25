@@ -1,7 +1,7 @@
 """Account creation and login (requirement #3: user accounts)."""
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -14,6 +14,7 @@ from ..auth import (
 )
 from ..db import get_db
 from ..models import User
+from ..ratelimit import login_rate_limit
 from ..schemas import RegisterIn, TokenOut, UserOut
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -37,7 +38,10 @@ def register(payload: RegisterIn, db: Session = Depends(get_db)) -> TokenOut:
 
 @router.post("/login", response_model=TokenOut)
 def login(
-    form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)
+    request: Request,
+    form: OAuth2PasswordRequestForm = Depends(),
+    db: Session = Depends(get_db),
+    _: None = Depends(login_rate_limit),
 ) -> TokenOut:
     # OAuth2 form uses "username"; we treat it as the email.
     user = db.scalar(select(User).where(User.email == form.username))

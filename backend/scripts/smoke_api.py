@@ -14,9 +14,12 @@ sys.path.insert(0, str(_ROOT / "tests"))
 
 from fastapi.testclient import TestClient  # noqa: E402
 
+from app.config import settings  # noqa: E402
 from app.main import app  # noqa: E402
 from fixtures_l5x import KITCHEN_SINK  # noqa: E402
 
+# A password that satisfies the policy: >=12 chars with upper + lower + digit.
+PW = "Abcdef123456"
 BASE = KITCHEN_SINK
 CHANGE_X = KITCHEN_SINK.replace(
     "XIC(StartPB)OTE(RunLamp);", "XIC(StartPB)XIC(GateOk)OTE(RunLamp);"
@@ -45,7 +48,7 @@ def auth(token: str) -> dict[str, str]:
 
 def register(email: str, name: str) -> str:
     r = client.post(
-        "/auth/register", json={"email": email, "name": name, "password": "pw123456"}
+        "/auth/register", json={"email": email, "name": name, "password": PW}
     )
     assert r.status_code == 201, r.text
     return r.json()["access_token"]
@@ -64,9 +67,11 @@ print("== auth & project ==")
 alice = register("alice@example.com", "Alice")
 check("register returns token", bool(alice))
 check("login works", client.post(
-    "/auth/login", data={"username": "alice@example.com", "password": "pw123456"}
+    "/auth/login", data={"username": "alice@example.com", "password": PW}
 ).status_code == 200)
 check("/auth/me", client.get("/auth/me", headers=auth(alice)).json()["email"] == "alice@example.com")
+check("weak password rejected (422)", client.post("/auth/register", json={
+    "email": "weak@example.com", "name": "Weak", "password": "short"}).status_code == 422)
 
 pid = client.post("/projects", json={"name": "Mixer Line 1"}, headers=auth(alice)).json()["id"]
 check("project created with main branch",
@@ -139,5 +144,14 @@ print("== malformed upload ==")
 bad = commit(pid, alice, "main", "Garbage", "this is not an L5X file")
 check("malformed upload returns 400 (not 500)", bad.status_code == 400)
 check("error message is helpful", "parse" in bad.json()["detail"].lower())
+
+print("== login rate limit ==")
+burst = [
+    client.post(
+        "/auth/login", data={"username": "alice@example.com", "password": "nope"}
+    ).status_code
+    for _ in range(settings.login_rate_max + 5)
+]
+check("login rate limit returns 429 after the cap", 429 in burst)
 
 print(f"\nALL {ok} CHECKS PASSED")

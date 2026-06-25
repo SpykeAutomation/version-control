@@ -45,24 +45,46 @@ PLCVC_DATA_DIR=./data PLCVC_CORS_ORIGINS=http://localhost:5173 \
 ## Conventions
 
 - **Base URL**: the backend origin (e.g. `http://localhost:8000` in dev).
-- **Auth**: JWT Bearer. Get a token from `/auth/register` or `/auth/login`, then
-  send `Authorization: Bearer <token>` on every other request.
+- **Auth**: JWT Bearer. **Public registration is closed** — accounts are created
+  by an admin (see "Creating accounts" below), so the frontend has **no signup
+  form**. Get a token from `/auth/login`, then send `Authorization: Bearer
+  <token>` on every other request.
 - **Bodies**: JSON, **except** `/auth/login` (form-encoded) and
   `/projects/{id}/commits` (multipart file upload).
 - **Errors**: `{"detail": "<message>"}` with status `400` (bad input / unknown
-  ref / invalid L5X), `401` (missing/expired token), `403` (not a project
-  member), `404` (not found), `409` (conflict, e.g. duplicate email or merging a
-  non-open PR).
+  ref / invalid L5X), `401` (missing/expired token), `403` (not a project member
+  / registration closed), `404` (not found), `409` (conflict, e.g. duplicate
+  email or merging a non-open PR), `422` (validation, e.g. malformed body), and
+  `429` on `/auth/login` (too many attempts — back off, honor `Retry-After`).
 - **CORS**: set `PLCVC_CORS_ORIGINS` to the frontend origin(s) (comma-separated),
   e.g. `https://app.spykeautomation.com`. Auth is header-based (no cookies).
 - **Diff caching**: `GET` diff endpoints return an `X-Cache: HIT|MISS` header.
+
+## Creating accounts (admin)
+
+Public signup is disabled (Caddy returns `403` for `/auth/register`). To create
+an account, run this on the server — it reuses the app's own code and enforces
+the password policy (**≥12 chars with an upper- and lower-case letter and a
+digit**):
+
+```bash
+docker compose exec api python -c "
+from app.auth import hash_password, validate_password_strength
+from app.db import SessionLocal
+from app.models import User
+email, name, pw = 'user@company.com', 'Their Name', 'ChangeMe1234'
+validate_password_strength(pw)
+db = SessionLocal(); db.add(User(email=email, name=name, password_hash=hash_password(pw))); db.commit()
+print('created', email)
+"
+```
 
 ## Endpoints
 
 | Method | Path | Body / query | Returns |
 |--------|------|--------------|---------|
-| `POST` | `/auth/register` | `{email, name, password}` | `201` `Token` |
-| `POST` | `/auth/login` | form: `username`=email, `password` | `Token` |
+| `POST` | `/auth/register` | _closed to the public (`403`); admin-created accounts_ | — |
+| `POST` | `/auth/login` | form: `username`=email, `password` | `Token` (or `429` if rate-limited) |
 | `GET`  | `/auth/me` | — | `User` |
 | `POST` | `/projects` | `{name}` | `201` `Project` |
 | `GET`  | `/projects` | — | `[Project]` |

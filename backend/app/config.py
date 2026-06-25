@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     jwt_expire_minutes: int = 60 * 24 * 7  # one week
     # Comma-separated allowed origins, or "*" for any (fine for a pilot).
     cors_origins: str = "*"
+    # Login rate limit: max attempts per client IP within the window (seconds).
+    login_rate_max: int = 10
+    login_rate_window_seconds: int = 60
 
     @property
     def repos_dir(self) -> Path:
