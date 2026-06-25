@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
   ArrowLeft,
@@ -16,11 +16,9 @@ import {
 } from "lucide-react";
 import { TopBar } from "../app/TopBar";
 import { RungView } from "../components/Ladder";
-import { listProjects, type ProjectRow } from "../api/projects";
 import { ApiError } from "../api/client";
 import {
   CHECK_STATE_META,
-  getMergeRequest,
   MR_STATUS_META,
   REVIEW_STATE_META,
   type MergeRequest,
@@ -31,6 +29,7 @@ import {
   type MRLadderSide,
   type MRReviewer,
 } from "../api/mergeRequest";
+import { errorText, useMergeRequest, useProject } from "../api/queries";
 import { formatDate, timeAgo } from "../lib/time";
 
 function initials(name: string): string {
@@ -47,40 +46,22 @@ function hasCode(d: MRCodeDiff): boolean {
 
 export function MergeRequestPage() {
   const { slug, mrId } = useParams();
-  const [projects, setProjects] = useState<ProjectRow[] | null>(null);
-  const [mr, setMr] = useState<MergeRequest | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { project, isPending: projectPending, error: projectError } =
+    useProject(slug);
+  const mrQuery = useMergeRequest(slug, mrId);
   const [showNumbers, setShowNumbers] = useState(true);
 
-  useEffect(() => {
-    let active = true;
-    setLoading(true);
-    setError(null);
-    Promise.all([listProjects(), getMergeRequest(slug ?? "", mrId ?? "")])
-      .then(([ps, m]) => {
-        if (!active) return;
-        setProjects(ps);
-        setMr(m);
-      })
-      .catch((e) => {
-        if (!active) return;
-        if (e instanceof ApiError && e.status === 404) setMr(null);
-        else
-          setError(
-            e instanceof ApiError ? e.message : "Failed to load merge request.",
-          );
-      })
-      .finally(() => active && setLoading(false));
-    return () => {
-      active = false;
-    };
-  }, [slug, mrId]);
-
-  const project = useMemo(
-    () => projects?.find((p) => p.slug === slug) ?? null,
-    [projects, slug],
-  );
+  const mr = mrQuery.data ?? null;
+  const loading = projectPending || mrQuery.isPending;
+  // A 404 means the merge request doesn't exist — show the empty state rather
+  // than an error banner. Any other failure is a real error.
+  const notFound =
+    mrQuery.error instanceof ApiError && mrQuery.error.status === 404;
+  const error = projectError
+    ? errorText(projectError, "Failed to load merge request.")
+    : mrQuery.error && !notFound
+      ? errorText(mrQuery.error, "Failed to load merge request.")
+      : null;
 
   return (
     <>

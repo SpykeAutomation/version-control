@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
   Boxes,
@@ -13,8 +13,7 @@ import {
 } from "lucide-react";
 import { TopBar } from "../app/TopBar";
 import { RungView } from "../components/Ladder";
-import { listProjects, type ProjectRow } from "../api/projects";
-import { ApiError } from "../api/client";
+import { errorText, useProject } from "../api/queries";
 import {
   FILE_KIND_LABEL,
   type FileEntry,
@@ -41,21 +40,7 @@ function initials(name: string): string {
 export function FileViewPage() {
   const { slug, fileName } = useParams();
   const name = fileName ? decodeURIComponent(fileName) : "";
-  const [projects, setProjects] = useState<ProjectRow[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    listProjects()
-      .then(setProjects)
-      .catch((e) =>
-        setError(e instanceof ApiError ? e.message : "Failed to load file."),
-      );
-  }, []);
-
-  const project = useMemo(
-    () => projects?.find((p) => p.slug === slug) ?? null,
-    [projects, slug],
-  );
+  const { isPending, error, project } = useProject(slug);
 
   // The backend doesn't expose this rich detail yet; until it does, the page
   // renders empty states.
@@ -78,9 +63,11 @@ export function FileViewPage() {
       <div className="app-scroll">
         {error ? (
           <div className="page-pad">
-            <div className="panel-msg error">{error}</div>
+            <div className="panel-msg error">
+              {errorText(error, "Failed to load file.")}
+            </div>
           </div>
-        ) : !projects ? (
+        ) : isPending ? (
           <div className="page-pad">
             <div className="panel-msg">Loading file…</div>
           </div>
