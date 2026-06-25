@@ -28,9 +28,10 @@ export class ApiError extends Error {
 }
 
 type Body =
-  | { json: unknown; form?: never }
-  | { form: URLSearchParams; json?: never }
-  | { json?: never; form?: never };
+  | { json: unknown; form?: never; formData?: never }
+  | { form: URLSearchParams; json?: never; formData?: never }
+  | { formData: FormData; json?: never; form?: never }
+  | { json?: never; form?: never; formData?: never };
 
 type RequestOptions = {
   method?: string;
@@ -50,6 +51,9 @@ export async function apiFetch<T>(
   } else if (opts.form !== undefined) {
     headers["Content-Type"] = "application/x-www-form-urlencoded";
     init.body = opts.form.toString();
+  } else if (opts.formData !== undefined) {
+    // Don't set Content-Type: the browser adds the multipart boundary itself.
+    init.body = opts.formData;
   }
 
   if (opts.auth !== false) {
@@ -70,14 +74,40 @@ export async function apiFetch<T>(
   const data = text ? safeJson(text) : null;
 
   if (!res.ok) {
-    const detail =
-      (data && typeof data === "object" && "detail" in data
-        ? String((data as { detail: unknown }).detail)
-        : null) ?? `Request failed (${res.status})`;
-    throw new ApiError(res.status, detail);
+    throw new ApiError(res.status, errorMessage(data, res.status));
   }
 
   return data as T;
+}
+
+// Turn a FastAPI error body into a readable message. `detail` is a string for
+// plain errors (e.g. "Incorrect email or password") but an array of objects
+// for validation errors ([{ loc, msg, type }, ...]); the latter used to render
+// as "[object Object]".
+function errorMessage(data: unknown, status: number): string {
+  const detail =
+    data && typeof data === "object" && "detail" in data
+      ? (data as { detail: unknown }).detail
+      : undefined;
+
+  if (typeof detail === "string") return detail;
+
+  if (Array.isArray(detail)) {
+    const parts = detail
+      .map((item) => {
+        if (!item || typeof item !== "object" || !("msg" in item)) return "";
+        const rec = item as { msg: unknown; loc?: unknown };
+        const field = Array.isArray(rec.loc)
+          ? rec.loc.filter((p) => p !== "body").join(".")
+          : "";
+        const msg = String(rec.msg);
+        return field ? `${field}: ${msg}` : msg;
+      })
+      .filter((s) => s.length > 0);
+    if (parts.length) return parts.join("; ");
+  }
+
+  return `Request failed (${status})`;
 }
 
 function safeJson(text: string): unknown {

@@ -14,6 +14,15 @@ export default defineConfig(({ mode }) => {
     target: env.VITE_PROXY_TARGET || "https://api.spykeautomation.com",
     changeOrigin: true,
     secure: true,
+    // `/projects` is both an API prefix and a client-side route. Only proxy
+    // real API calls (XHR/fetch, which don't ask for HTML); let browser
+    // navigations fall through to the SPA so deep links and refresh work.
+    bypass(req: { headers: Record<string, string | string[] | undefined> }) {
+      const accept = req.headers.accept;
+      if (typeof accept === "string" && accept.indexOf("text/html") !== -1) {
+        return "/index.html";
+      }
+    },
   };
   return {
     plugins: [react()],
