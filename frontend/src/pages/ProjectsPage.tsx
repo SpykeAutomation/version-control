@@ -13,7 +13,6 @@ import {
   Plus,
   Search,
   SlidersHorizontal,
-  Tag,
 } from "lucide-react";
 import { TopBar } from "../app/TopBar";
 import { StatCard } from "../components/StatCard";
@@ -45,6 +44,16 @@ export function ProjectsPage() {
 
   const totalBranches = useMemo(
     () => (projects ?? []).reduce((n, p) => n + (p.branches?.length ?? 0), 0),
+    [projects],
+  );
+
+  const totalControllers = useMemo(
+    () =>
+      new Set(
+        (projects ?? [])
+          .map((p) => p.controller)
+          .filter((c): c is string => Boolean(c)),
+      ).size,
     [projects],
   );
 
@@ -116,7 +125,11 @@ export function ProjectsPage() {
                 value={projects ? totalBranches : "—"}
               />
               <StatCard icon={GitPullRequestArrow} label="Open change requests" value="—" />
-              <StatCard icon={Tag} label="Releases this month" value="—" />
+              <StatCard
+                icon={Cpu}
+                label="Total controllers"
+                value={projects ? totalControllers : "—"}
+              />
             </div>
 
             {error ? (
@@ -259,7 +272,6 @@ function ProjectsTable({ rows, total }: { rows: ProjectRow[]; total: number }) {
             <th>Project</th>
             <th>Controller</th>
             <th>Default branch</th>
-            <th>Latest release</th>
             <th>Last activity</th>
             <th>Status</th>
             <th aria-label="Actions" />
@@ -300,16 +312,6 @@ function ProjectsTable({ rows, total }: { rows: ProjectRow[]; total: number }) {
                   <GitBranch size={14} strokeWidth={2} />
                   {p.branches?.[0] ?? "main"}
                 </span>
-              </td>
-              <td>
-                {p.latest_release ? (
-                  <span className="release-tag">
-                    <Tag size={12} strokeWidth={1.8} />
-                    {p.latest_release}
-                  </span>
-                ) : (
-                  <span className="cell-empty">—</span>
-                )}
               </td>
               <td>
                 <div className="activity-cell">

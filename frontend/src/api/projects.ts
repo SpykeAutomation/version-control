@@ -24,10 +24,21 @@ export interface ProjectRow extends Project {
   activity?: number[];
 }
 
+export interface Member {
+  id: number;
+  email: string;
+  name: string;
+  role: string;
+}
+
 export function createProject(name: string): Promise<Project> {
   return apiFetch<Project>("/projects", { method: "POST", json: { name } });
 }
 
 export function listProjects(): Promise<ProjectRow[]> {
   return apiFetch<ProjectRow[]>("/projects");
+}
+
+export function listMembers(projectId: number): Promise<Member[]> {
+  return apiFetch<Member[]>(`/projects/${projectId}/members`);
 }

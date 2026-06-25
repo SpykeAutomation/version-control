@@ -7,8 +7,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Code2,
-  Eye,
-  FileCode2,
   Filter,
   GitBranch,
   GitCommitHorizontal,
@@ -18,11 +16,11 @@ import {
   Search,
   Settings,
   Tag,
-  UploadCloud,
+  Users,
 } from "lucide-react";
 import { TopBar } from "../app/TopBar";
 import { FilesTable } from "../components/FilesTable";
-import { listProjects, type ProjectRow } from "../api/projects";
+import { listMembers, listProjects, type Member, type ProjectRow } from "../api/projects";
 import { ApiError } from "../api/client";
 import { type BranchInfo, type Commit, type RepositoryDetail } from "../api/repository";
 import { listBranches, listCommits, type BranchSummary } from "../api/commits";
@@ -99,23 +97,19 @@ export function RepositoryPage() {
       .catch(() => setBranches([]));
   }, [project]);
 
-  const actions = (
-    <>
-      <button className="btn btn-outline btn-sm">
-        <Eye size={15} strokeWidth={1.8} />
-        Watch
-        <ChevronDown size={14} strokeWidth={1.8} />
-      </button>
-      <button className="btn btn-primary btn-sm">
-        <Plus size={16} strokeWidth={2} />
-        Create change request
-      </button>
-    </>
-  );
+  // Project members, used for the contributors stat.
+  const [members, setMembers] = useState<Member[] | null>(null);
+  useEffect(() => {
+    if (!project) return;
+    setMembers(null);
+    listMembers(project.id)
+      .then(setMembers)
+      .catch(() => setMembers([]));
+  }, [project]);
 
   return (
     <>
-      <TopBar actions={actions} />
+      <TopBar />
       <div className="app-scroll">
         {error ? (
           <div className="page-pad">
@@ -158,23 +152,18 @@ export function RepositoryPage() {
                 </div>
                 {detail?.description && <p className="repo-head-sub">{detail.description}</p>}
               </div>
-              <div className="repo-head-actions">
-                <Link
-                  to={`/projects/${project.slug}/commit`}
-                  className="btn btn-primary btn-sm"
-                >
-                  <UploadCloud size={15} strokeWidth={2} />
-                  Upload files
-                </Link>
-              </div>
             </header>
 
             {/* stat cards — overview only */}
             {tab === "Overview" && (
               <div className="repo-stats">
-                <RepoStat icon={Tag} label="Latest release" value={detail?.latestRelease} />
                 <RepoStat
                   icon={GitBranch}
+                  label="Branches"
+                  value={branches ? String(branches.length) : undefined}
+                />
+                <RepoStat
+                  icon={GitCommitHorizontal}
                   label="Last commit"
                   value={commits?.[0] ? timeAgo(commits[0].at) : undefined}
                   subRight
@@ -190,12 +179,16 @@ export function RepositoryPage() {
                 <RepoStat
                   icon={GitPullRequestArrow}
                   label="Open change requests"
-                  value={detail ? String(detail.openChangeRequests) : undefined}
+                  value={
+                    crs
+                      ? String(crs.filter((cr) => cr.status !== "merged").length)
+                      : undefined
+                  }
                 />
                 <RepoStat
-                  icon={FileCode2}
-                  label="Files"
-                  value={detail ? detail.files.totalFiles.toLocaleString() : undefined}
+                  icon={Users}
+                  label="Contributors"
+                  value={members ? String(members.length) : undefined}
                 />
               </div>
             )}
@@ -228,9 +221,8 @@ export function RepositoryPage() {
                   <ChangeRequestsCard crs={crs} slug={slug ?? ""} />
                 </div>
                 <aside className="repo-rail">
-                  <DetailsCard detail={detail} project={project} />
+                  <DetailsCard detail={detail} project={project} members={members} />
                   <TagsCard detail={detail} />
-                  <FilesCard detail={detail} />
                 </aside>
               </div>
             )}
@@ -457,12 +449,16 @@ function ChangeRequestsCard({
 function DetailsCard({
   detail,
   project,
+  members,
 }: {
   detail: RepositoryDetail | null;
   project: ProjectRow;
+  members: Member[] | null;
 }) {
+  const owner = members?.find((m) => m.role === "owner");
   const rows = detail?.details ?? [
     { label: "Repository", value: project.slug },
+    { label: "Owner", value: owner?.name ?? "—" },
     { label: "Created", value: formatDate(project.created_at) },
   ];
   return (
@@ -503,33 +499,6 @@ function TagsCard({ detail }: { detail: RepositoryDetail | null }) {
           <button className="tag-add" aria-label="Add tag">
             <Plus size={13} strokeWidth={2} />
           </button>
-        </div>
-      )}
-    </section>
-  );
-}
-
-function FilesCard({ detail }: { detail: RepositoryDetail | null }) {
-  const f = detail?.files;
-  return (
-    <section className="rail-section">
-      <div className="rail-head">
-        <span className="rail-title">Repository files</span>
-        {f && <button className="link-btn">View files</button>}
-      </div>
-      {!f ? (
-        <div className="rail-empty">No files yet.</div>
-      ) : (
-        <div className="files-row">
-          <span className="file-ico">
-            <FileCode2 size={15} strokeWidth={1.8} />
-          </span>
-          <div className="files-stats">
-            <span>
-              <strong>{f.totalFiles.toLocaleString()}</strong> files
-            </span>
-            <span className="files-size">{f.totalSize}</span>
-          </div>
         </div>
       )}
     </section>
