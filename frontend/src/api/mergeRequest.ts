@@ -153,6 +153,51 @@ function pullNumber(mrId: string): number {
   return m ? parseInt(m[0], 10) : NaN;
 }
 
+// A row in a project's change-requests (pull-requests) list.
+export interface ChangeRequestSummary {
+  number: number;
+  title: string;
+  author: string;
+  status: MRStatus;
+  createdAt: string;
+}
+
+// List a project's change requests, newest first.
+export async function listChangeRequests(
+  projectId: number,
+): Promise<ChangeRequestSummary[]> {
+  const pulls = await apiFetch<PullOut[]>(`/projects/${projectId}/pulls`);
+  return pulls.map((p) => ({
+    number: p.number,
+    title: p.title,
+    author: p.author?.name ?? "Unknown",
+    status: PULL_STATUS[p.status] ?? "open",
+    createdAt: p.created_at,
+  }));
+}
+
+// Open a change request from one branch into another. Returns the new
+// request's number so the caller can route to it.
+export async function createChangeRequest(
+  projectId: number,
+  input: {
+    title: string;
+    description?: string;
+    sourceBranch: string;
+    targetBranch?: string;
+  },
+): Promise<{ number: number }> {
+  return apiFetch<PullOut>(`/projects/${projectId}/pulls`, {
+    method: "POST",
+    json: {
+      title: input.title,
+      description: input.description ?? "",
+      source_branch: input.sourceBranch,
+      target_branch: input.targetBranch ?? "main",
+    },
+  });
+}
+
 function emptySide(ref: string, version: string) {
   return { ref, version, rungs: [] as Rung[] };
 }

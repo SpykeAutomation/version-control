@@ -3704,3 +3704,237 @@ a.file-cell:hover .file-cell-name {
     flex-wrap: wrap;
   }
 }
+
+/* ============ Upload & commit page ============ */
+.repo-head-actions {
+  margin-left: auto;
+  align-self: center;
+}
+
+.commit-page {
+  padding: 20px 36px 48px;
+}
+.commit-head {
+  margin: 6px 0 20px;
+}
+.commit-head h1 {
+  font: 700 23px/1.2 var(--sans);
+  color: var(--ink-title);
+  margin: 0 0 5px;
+}
+.commit-head p {
+  font: 400 14px/1.5 var(--sans);
+  color: var(--ink2);
+  margin: 0;
+}
+.commit-branch {
+  max-width: 320px;
+  margin-bottom: 20px;
+}
+.commit-error {
+  margin-bottom: 18px;
+}
+
+.commit-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+.commit-main,
+.commit-mid,
+.commit-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* numbered step header inside a card */
+.step-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 13px 16px;
+  border-bottom: 1px solid var(--line2);
+}
+.step-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  font: 600 12px/1 var(--sans);
+  flex: none;
+}
+.step-title {
+  font: 650 14px/1 var(--sans);
+  color: var(--ink-title);
+}
+.step-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--panel2);
+  color: var(--ink2);
+  font: 600 12px/1 var(--sans);
+}
+
+.rcard-body {
+  padding: 16px;
+}
+
+/* leading icon inside the branch select */
+.select.has-lead {
+  padding-left: 34px;
+}
+.select-lead {
+  position: absolute;
+  left: 12px;
+  top: 13px;
+  color: var(--ink3);
+  pointer-events: none;
+}
+
+/* dropzone */
+.dropzone {
+  margin: 16px;
+  border: 1.5px dashed var(--border);
+  border-radius: var(--r-lg);
+  background: var(--panel2);
+  padding: 30px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  cursor: pointer;
+  transition:
+    border-color 0.12s ease,
+    background 0.12s ease;
+}
+.dropzone:hover {
+  border-color: var(--add-line);
+  background: var(--add-bg);
+}
+.dropzone.drag {
+  border-color: var(--add);
+  background: var(--add-bg);
+}
+.dropzone-cloud {
+  color: var(--add);
+  margin-bottom: 10px;
+}
+.dropzone-title {
+  font: 600 14.5px/1 var(--sans);
+  color: var(--ink-title);
+  margin: 0 0 5px;
+}
+.dropzone-hint {
+  font: 400 12.5px/1 var(--sans);
+  color: var(--ink3);
+  margin: 0 0 14px;
+}
+
+/* selected files table */
+.file-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+}
+.file-ico {
+  color: var(--ink3);
+  flex: none;
+}
+.file-remove-cell {
+  width: 44px;
+  text-align: right;
+}
+.file-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: none;
+  border-radius: var(--r-sm);
+  color: var(--ink3);
+  cursor: pointer;
+}
+.file-remove:hover {
+  background: var(--hover);
+  color: var(--danger);
+}
+.req {
+  color: var(--danger);
+}
+
+/* change summary */
+.summary {
+  padding: 6px 16px 14px;
+  display: flex;
+  flex-direction: column;
+}
+.summary-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+}
+.summary-ico {
+  display: inline-flex;
+  color: var(--ink3);
+  flex: none;
+}
+.summary-value {
+  font: 650 15px/1 var(--sans);
+  color: var(--ink-title);
+  min-width: 44px;
+}
+.summary-label {
+  font: 400 13px/1 var(--sans);
+  color: var(--ink2);
+}
+
+/* action stack */
+.commit-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.commit-actions .btn {
+  height: 42px;
+}
+.commit-actions-hint {
+  font: 400 12px/1.4 var(--sans);
+  color: var(--ink3);
+  margin: -4px 0 2px;
+  text-align: center;
+}
+
+/* tighter widths: collapse three columns down to two, then one */
+@media (max-width: 1240px) {
+  .commit-grid {
+    grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  }
+  .commit-rail {
+    grid-column: 1 / -1;
+  }
+}
+@media (max-width: 880px) {
+  .commit-page {
+    padding: 18px 20px 40px;
+  }
+  .commit-grid {
+    grid-template-columns: 1fr;
+  }
+  .commit-rail {
+    grid-column: auto;
+  }
+}

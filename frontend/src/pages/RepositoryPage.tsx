@@ -1,8 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
-  ArrowDown,
-  ArrowUp,
   Box,
   Check,
   ChevronDown,
@@ -20,12 +18,19 @@ import {
   Search,
   Settings,
   Tag,
+  UploadCloud,
 } from "lucide-react";
 import { TopBar } from "../app/TopBar";
 import { FilesTable } from "../components/FilesTable";
 import { listProjects, type ProjectRow } from "../api/projects";
 import { ApiError } from "../api/client";
-import { CR_META, type BranchInfo, type RepositoryDetail } from "../api/repository";
+import { type BranchInfo, type Commit, type RepositoryDetail } from "../api/repository";
+import { listBranches, listCommits, type BranchSummary } from "../api/commits";
+import {
+  listChangeRequests,
+  MR_STATUS_META,
+  type ChangeRequestSummary,
+} from "../api/mergeRequest";
 import { formatDate, timeAgo } from "../lib/time";
 
 const TABS = [
@@ -63,6 +68,36 @@ export function RepositoryPage() {
   // The backend doesn't expose this rich detail yet; until it does, the page
   // renders empty states.
   const [detail] = useState<RepositoryDetail | null>(null);
+
+  // Change requests come from the real pull-request endpoint.
+  const [crs, setCrs] = useState<ChangeRequestSummary[] | null>(null);
+  useEffect(() => {
+    if (!project) return;
+    setCrs(null);
+    listChangeRequests(project.id)
+      .then(setCrs)
+      .catch(() => setCrs([]));
+  }, [project]);
+
+  // Recent commits come from the real commit-list endpoint.
+  const [commits, setCommits] = useState<Commit[] | null>(null);
+  useEffect(() => {
+    if (!project) return;
+    setCommits(null);
+    listCommits(project.id, project.branches[0] ?? "main")
+      .then(setCommits)
+      .catch(() => setCommits([]));
+  }, [project]);
+
+  // Branches, each enriched with its latest commit.
+  const [branches, setBranches] = useState<BranchSummary[] | null>(null);
+  useEffect(() => {
+    if (!project) return;
+    setBranches(null);
+    listBranches(project.id)
+      .then(setBranches)
+      .catch(() => setBranches([]));
+  }, [project]);
 
   const actions = (
     <>
@@ -123,6 +158,15 @@ export function RepositoryPage() {
                 </div>
                 {detail?.description && <p className="repo-head-sub">{detail.description}</p>}
               </div>
+              <div className="repo-head-actions">
+                <Link
+                  to={`/projects/${project.slug}/commit`}
+                  className="btn btn-primary btn-sm"
+                >
+                  <UploadCloud size={15} strokeWidth={2} />
+                  Upload files
+                </Link>
+              </div>
             </header>
 
             {/* stat cards — overview only */}
@@ -132,13 +176,13 @@ export function RepositoryPage() {
                 <RepoStat
                   icon={GitBranch}
                   label="Last commit"
-                  value={detail ? timeAgo(detail.lastCommitAt) : undefined}
+                  value={commits?.[0] ? timeAgo(commits[0].at) : undefined}
                   subRight
                   sub={
-                    detail && (
+                    commits?.[0] && (
                       <span className="author">
-                        <span className="author-av">{initials(detail.lastCommitAuthor)}</span>
-                        {detail.lastCommitAuthor}
+                        <span className="author-av">{initials(commits[0].author)}</span>
+                        {commits[0].author}
                       </span>
                     )
                   }
@@ -172,14 +216,16 @@ export function RepositoryPage() {
 
             {tab === "Code" ? (
               <CodeView detail={detail} slug={slug ?? ""} />
+            ) : tab === "Change requests" ? (
+              <ChangeRequestsCard crs={crs} slug={slug ?? ""} />
             ) : tab !== "Overview" ? (
               <div className="panel-msg">{tab} isn't built yet.</div>
             ) : (
               <div className="repo-grid">
                 <div className="repo-col">
-                  <CommitsCard detail={detail} />
-                  <BranchesCard detail={detail} project={project} />
-                  <ChangeRequestsCard detail={detail} slug={slug ?? ""} />
+                  <CommitsCard commits={commits} />
+                  <BranchesCard branches={branches} project={project} />
+                  <ChangeRequestsCard crs={crs} slug={slug ?? ""} />
                 </div>
                 <aside className="repo-rail">
                   <DetailsCard detail={detail} project={project} />
@@ -244,14 +290,11 @@ function CardHead({ title, action }: { title: string; action?: React.ReactNode }
   );
 }
 
-function CommitsCard({ detail }: { detail: RepositoryDetail | null }) {
+function CommitsCard({ commits }: { commits: Commit[] | null }) {
   return (
     <div className="rcard">
-      <CardHead
-        title="Recent commits"
-        action={detail && <button className="link-btn">View all commits</button>}
-      />
-      {!detail || detail.commits.length === 0 ? (
+      <CardHead title="Recent commits" />
+      {!commits || commits.length === 0 ? (
         <div className="rcard-empty">No commits yet.</div>
       ) : (
         <table className="dtable">
@@ -265,7 +308,7 @@ function CommitsCard({ detail }: { detail: RepositoryDetail | null }) {
             </tr>
           </thead>
           <tbody>
-            {detail.commits.map((c) => (
+            {commits.slice(0, 8).map((c) => (
               <tr key={c.hash}>
                 <td>
                   <span className="hash">{c.hash}</span>
@@ -294,20 +337,18 @@ function CommitsCard({ detail }: { detail: RepositoryDetail | null }) {
 }
 
 function BranchesCard({
-  detail,
+  branches,
   project,
 }: {
-  detail: RepositoryDetail | null;
+  branches: BranchSummary[] | null;
   project: ProjectRow;
 }) {
-  const branches = detail?.branches ?? [];
   return (
     <div className="rcard">
-      <CardHead
-        title="Branches"
-        action={detail && <button className="link-btn">View all branches</button>}
-      />
-      {branches.length === 0 ? (
+      <CardHead title="Branches" />
+      {!branches ? (
+        <div className="rcard-empty">Loading branches…</div>
+      ) : branches.length === 0 ? (
         <div className="rcard-empty">
           {project.branches?.length
             ? project.branches.join(", ")
@@ -319,8 +360,7 @@ function BranchesCard({
             <tr>
               <th>Branch</th>
               <th>Latest commit</th>
-              <th>Latest activity</th>
-              <th>Ahead / Behind</th>
+              <th>Updated</th>
             </tr>
           </thead>
           <tbody>
@@ -334,21 +374,17 @@ function BranchesCard({
                   </span>
                 </td>
                 <td>
-                  <span className="hash">{b.lastCommitHash}</span>
-                  <span className="branch-msg">{b.lastCommitMessage}</span>
+                  {b.lastCommitHash ? (
+                    <>
+                      <span className="hash">{b.lastCommitHash}</span>{" "}
+                      <span className="branch-msg">{b.lastCommitMessage}</span>
+                    </>
+                  ) : (
+                    <span className="muted-cell">No commits</span>
+                  )}
                 </td>
-                <td className="muted-cell">{timeAgo(b.at)}</td>
-                <td>
-                  <span className="ab">
-                    <span className="ab-up">
-                      <ArrowUp size={12} strokeWidth={2} />
-                      {b.ahead}
-                    </span>
-                    <span className="ab-down">
-                      <ArrowDown size={12} strokeWidth={2} />
-                      {b.behind}
-                    </span>
-                  </span>
+                <td className="muted-cell">
+                  {b.lastCommitAt ? timeAgo(b.lastCommitAt) : "—"}
                 </td>
               </tr>
             ))}
@@ -360,19 +396,16 @@ function BranchesCard({
 }
 
 function ChangeRequestsCard({
-  detail,
+  crs,
   slug,
 }: {
-  detail: RepositoryDetail | null;
+  crs: ChangeRequestSummary[] | null;
   slug: string;
 }) {
   return (
     <div className="rcard">
-      <CardHead
-        title="Change requests"
-        action={detail && <button className="link-btn">View all change requests</button>}
-      />
-      {!detail || detail.changeRequests.length === 0 ? (
+      <CardHead title="Change requests" />
+      {!crs || crs.length === 0 ? (
         <div className="rcard-empty">No change requests yet.</div>
       ) : (
         <table className="dtable">
@@ -382,21 +415,22 @@ function ChangeRequestsCard({
               <th>Title</th>
               <th>Author</th>
               <th>Status</th>
-              <th>Updated</th>
+              <th>Created</th>
             </tr>
           </thead>
           <tbody>
-            {detail.changeRequests.map((cr) => {
-              const m = CR_META[cr.status];
+            {crs.map((cr) => {
+              const m = MR_STATUS_META[cr.status];
+              const href = `/projects/${slug}/merge/${cr.number}`;
               return (
-                <tr key={cr.id}>
+                <tr key={cr.number}>
                   <td>
-                    <Link to={`/projects/${slug}/merge/${cr.id}`} className="hash crlink">
-                      {cr.id}
+                    <Link to={href} className="hash crlink">
+                      #{cr.number}
                     </Link>
                   </td>
                   <td className="cell-strong">
-                    <Link to={`/projects/${slug}/merge/${cr.id}`} className="crtitle">
+                    <Link to={href} className="crtitle">
                       {cr.title}
                     </Link>
                   </td>
@@ -409,7 +443,7 @@ function ChangeRequestsCard({
                   <td>
                     <span className={`badge ${m.tone}`}>{m.label}</span>
                   </td>
-                  <td className="muted-cell">{timeAgo(cr.at)}</td>
+                  <td className="muted-cell">{timeAgo(cr.createdAt)}</td>
                 </tr>
               );
             })}
