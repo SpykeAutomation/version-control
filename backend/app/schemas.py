@@ -21,6 +21,41 @@ class TokenOut(BaseModel):
     token_type: str = "bearer"
 
 
+# --- organizations & invitations ---
+class InviteIn(BaseModel):
+    email: EmailStr
+    role: str = "member"
+
+
+class InviteOut(BaseModel):
+    email: EmailStr
+    role: str
+    organization: str
+    status: str
+    expires_at: datetime
+    token: str  # raw token, shown once; put it in the link you share
+    accept_path: str
+
+
+class InvitePreview(BaseModel):
+    organization: str
+    email: EmailStr
+    role: str
+    status: str
+
+
+class AcceptIn(BaseModel):
+    email: EmailStr
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    password: Optional[str] = None  # required only for a brand-new account
+
+
+class AcceptResult(BaseModel):
+    status: str
+    access_token: Optional[str] = None  # set only when a new account was created
+
+
 # --- projects ---
 class ProjectIn(BaseModel):
     name: str

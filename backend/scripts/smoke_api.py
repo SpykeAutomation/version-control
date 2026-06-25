@@ -14,10 +14,12 @@ sys.path.insert(0, str(_ROOT / "tests"))
 
 from fastapi.testclient import TestClient  # noqa: E402
 
-from app.auth import create_user  # noqa: E402
+from app.auth import create_org_with_owner, create_user  # noqa: E402
 from app.config import settings  # noqa: E402
 from app.db import SessionLocal  # noqa: E402
+from app.invites import create_invitation  # noqa: E402
 from app.main import app  # noqa: E402
+from app.models import Organization, User  # noqa: E402
 from fixtures_l5x import KITCHEN_SINK  # noqa: E402
 
 # A password that satisfies the policy: >=12 chars with upper + lower + digit.
@@ -48,19 +50,34 @@ def auth(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
-def make_user(email: str, first: str, last: str, org: str | None = None) -> str:
-    """Create an account directly (registration is closed), then log in."""
-    db = SessionLocal()
-    try:
-        create_user(
-            db, email=email, first_name=first, last_name=last, password=PW,
-            organization=org,
-        )
-    finally:
-        db.close()
+def login(email: str) -> str:
     r = client.post("/auth/login", data={"username": email, "password": PW})
     assert r.status_code == 200, r.text
     return r.json()["access_token"]
+
+
+def make_owner(email: str, first: str, last: str, org_name: str) -> tuple[str, int]:
+    """Bootstrap an org + its owner (admin path), then log in. Returns (token, org_id)."""
+    db = SessionLocal()
+    try:
+        org, _owner = create_org_with_owner(
+            db, name=org_name, owner_email=email,
+            owner_first=first, owner_last=last, owner_password=PW,
+        )
+        org_id = org.id
+    finally:
+        db.close()
+    return login(email), org_id
+
+
+def make_user(email: str, first: str, last: str) -> str:
+    """Create a plain account (no org), then log in."""
+    db = SessionLocal()
+    try:
+        create_user(db, email=email, first_name=first, last_name=last, password=PW)
+    finally:
+        db.close()
+    return login(email)
 
 
 def _weak_password_rejected() -> bool:
@@ -85,12 +102,12 @@ def commit(pid: int, token: str, branch: str, title: str, text: str):
 
 
 print("== auth & accounts ==")
-alice = make_user("alice@example.com", "Alice", "Anderson", org="Acme Mfg")
-check("create user + login returns token", bool(alice))
+alice, acme_id = make_owner("alice@example.com", "Alice", "Anderson", "Acme Mfg")
+check("owner can log in", bool(alice))
 me_data = client.get("/auth/me", headers=auth(alice)).json()
 check("/auth/me returns first + last name",
       me_data["first_name"] == "Alice" and me_data["last_name"] == "Anderson")
-check("user is mapped to its organization", me_data["organization"] == "Acme Mfg")
+check("owner is mapped to its organization", me_data["organization"] == "Acme Mfg")
 check("weak password is rejected", _weak_password_rejected())
 
 pid = client.post("/projects", json={"name": "Mixer Line 1"}, headers=auth(alice)).json()["id"]
@@ -161,6 +178,53 @@ c = client.post(f"/projects/{pid2}/pulls/2/comments",
 check("other user can comment", c.status_code == 201 and c.json()["author"]["first_name"] == "Bob")
 check("comments list shows the comment", len(client.get(
     f"/projects/{pid2}/pulls/2/comments", headers=auth(alice)).json()) == 1)
+
+print("== organization invites ==")
+check("non-owner cannot invite", client.post(
+    f"/orgs/{acme_id}/invites", json={"email": "x@acme.com"}, headers=auth(bob)
+).status_code == 403)
+
+invite = client.post(f"/orgs/{acme_id}/invites", json={"email": "carol@acme.com"},
+                     headers=auth(alice))
+check("owner can create an invite", invite.status_code == 201)
+token = invite.json()["token"]
+
+check("accept with the wrong email is rejected", client.post(
+    f"/invites/{token}/accept",
+    json={"email": "intruder@acme.com", "first_name": "I", "last_name": "I", "password": PW},
+).status_code == 400)
+
+accepted = client.post(f"/invites/{token}/accept", json={
+    "email": "carol@acme.com", "first_name": "Carol", "last_name": "Cruz", "password": PW})
+check("new user accepts and is issued a token",
+      accepted.status_code == 200 and accepted.json()["access_token"])
+carol = accepted.json()["access_token"]
+check("invited user is mapped to the org",
+      client.get("/auth/me", headers=auth(carol)).json()["organization"] == "Acme Mfg")
+
+check("the same link cannot be reused", client.post(f"/invites/{token}/accept", json={
+    "email": "carol@acme.com", "first_name": "Carol", "last_name": "Cruz", "password": PW}
+).status_code == 400)
+
+invite2 = client.post(f"/orgs/{acme_id}/invites", json={"email": "bob@example.com"},
+                      headers=auth(alice)).json()
+check("existing user accepts with just their email", client.post(
+    f"/invites/{invite2['token']}/accept", json={"email": "bob@example.com"}
+).status_code == 200)
+check("existing user now shows the org",
+      client.get("/auth/me", headers=auth(bob)).json()["organization"] == "Acme Mfg")
+
+_db = SessionLocal()
+try:
+    _org = _db.get(Organization, acme_id)
+    _owner = _db.get(User, _org.owner_id)
+    expired_token, _ = create_invitation(
+        _db, organization=_org, email="dan@acme.com", invited_by=_owner, ttl_days=-1)
+finally:
+    _db.close()
+check("an expired invite is rejected", client.post(f"/invites/{expired_token}/accept", json={
+    "email": "dan@acme.com", "first_name": "D", "last_name": "D", "password": PW}
+).status_code == 400)
 
 print("== malformed upload ==")
 bad = commit(pid, alice, "main", "Garbage", "this is not an L5X file")

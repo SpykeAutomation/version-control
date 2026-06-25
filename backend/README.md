@@ -60,24 +60,37 @@ PLCVC_DATA_DIR=./data PLCVC_CORS_ORIGINS=http://localhost:5173 \
   e.g. `https://app.spykeautomation.com`. Auth is header-based (no cookies).
 - **Diff caching**: `GET` diff endpoints return an `X-Cache: HIT|MISS` header.
 
-## Creating accounts (admin)
+## Accounts & organizations
 
-Public signup is removed from the app (and also blocked at the Caddy edge as a
-second layer). To create an account, run this on the server — `create_user`
+Public signup is removed from the app (and blocked at the Caddy edge as a second
+layer). Accounts come from two places:
+
+**1. Bootstrap a company + its owner** (admin, on the server). `create_user`
 enforces the password policy (**≥12 chars with an upper- and lower-case letter
-and a digit**) and optionally links the user to an organization (created if it's
-new; omit `organization` for none):
+and a digit**):
 
 ```bash
 docker compose exec api python -c "
-from app.auth import create_user
+from app.auth import create_org_with_owner
 from app.db import SessionLocal
 db = SessionLocal()
-create_user(db, email='user@company.com', first_name='Their', last_name='Name',
-            password='ChangeMe1234', organization='Acme Mfg')
-print('created')
+org, owner = create_org_with_owner(db, name='Acme Mfg',
+    owner_email='owner@acme.com', owner_first='Owner', owner_last='Name',
+    owner_password='ChangeMe1234')
+print('org', org.id, 'owner', owner.id)
 "
 ```
+
+**2. The owner invites teammates** through the API (the `/orgs` + `/invites`
+endpoints). A person joins an org **only** by accepting an owner's invitation —
+never by naming one. Each invite is a one-time, expiring link
+(`secrets.token_urlsafe`, stored only as a SHA-256 hash); accepting needs the
+link **and** the invited email — a new email sets a password + name (account
+created), an existing email is just linked. *(For the pilot the owner shares the
+returned link directly; email delivery can be added later without other changes.)*
+
+A plain user with no org: `create_user(db, email=..., first_name=...,
+last_name=..., password=...)`.
 
 ## Endpoints
 
@@ -86,6 +99,9 @@ print('created')
 | `POST` | `/auth/register` | _removed; accounts are admin-created (also `403` at the edge)_ | — |
 | `POST` | `/auth/login` | form: `username`=email, `password` | `Token` (or `429` if rate-limited) |
 | `GET`  | `/auth/me` | — | `User` |
+| `POST` | `/orgs/{id}/invites` | `{email, role?}` (owner only) | `201` `Invite` (one-time link) |
+| `GET`  | `/invites/{token}` | — | `InvitePreview` |
+| `POST` | `/invites/{token}/accept` | `{email, first_name?, last_name?, password?}` | `AcceptResult` |
 | `POST` | `/projects` | `{name}` | `201` `Project` |
 | `GET`  | `/projects` | — | `[Project]` |
 | `GET`  | `/projects/{id}` | — | `Project` |
@@ -112,6 +128,10 @@ print('created')
 
 ```jsonc
 Token   = { "access_token": string, "token_type": "bearer" }
+Invite        = { "email": string, "role": string, "organization": string, "status": string,
+                  "expires_at": datetime, "token": string, "accept_path": string }
+InvitePreview = { "organization": string, "email": string, "role": string, "status": string }
+AcceptResult  = { "status": "accepted", "access_token": string|null }
 User    = { "id": int, "email": string, "first_name": string, "last_name": string,
             "organization": string|null }
 Project = { "id": int, "name": string, "slug": string, "owner_id": int,

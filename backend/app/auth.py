@@ -54,26 +54,19 @@ def create_user(
     first_name: str,
     last_name: str,
     password: str,
-    organization: str | None = None,
+    organization_id: int | None = None,
 ) -> User:
-    """Create an account (admin path; public registration is closed).
+    """Create an account (admin / invite-acceptance path).
 
-    Enforces the password policy and optionally links the user to an
-    organization by name, creating that organization if it does not exist.
-    Raises ValueError on a weak password or a duplicate email.
+    Enforces the password policy. Organization membership is set by id (None for
+    none); it is never derived from a user-supplied name — a user joins an org
+    only by accepting an owner's invitation (app.invites) or via
+    create_org_with_owner for bootstrapping. Raises ValueError on a weak
+    password or a duplicate email.
     """
     validate_password_strength(password)
     if db.scalar(select(User).where(User.email == email)) is not None:
         raise ValueError(f"email already registered: {email}")
-
-    organization_id = None
-    if organization:
-        org = db.scalar(select(Organization).where(Organization.name == organization))
-        if org is None:
-            org = Organization(name=organization)
-            db.add(org)
-            db.flush()
-        organization_id = org.id
 
     user = User(
         email=email,
@@ -86,6 +79,34 @@ def create_user(
     db.commit()
     db.refresh(user)
     return user
+
+
+def create_org_with_owner(
+    db: Session,
+    *,
+    name: str,
+    owner_email: str,
+    owner_first: str,
+    owner_last: str,
+    owner_password: str,
+) -> tuple[Organization, User]:
+    """Bootstrap a company: create its owner account and the organization they
+    own, and map the owner into it. Admin path; members then join by invitation
+    only."""
+    if db.scalar(select(Organization).where(Organization.name == name)) is not None:
+        raise ValueError(f"organization already exists: {name}")
+    owner = create_user(
+        db, email=owner_email, first_name=owner_first,
+        last_name=owner_last, password=owner_password,
+    )
+    org = Organization(name=name, owner_id=owner.id)
+    db.add(org)
+    db.flush()
+    owner.organization_id = org.id
+    db.commit()
+    db.refresh(org)
+    db.refresh(owner)
+    return org, owner
 
 
 def create_access_token(user_id: int) -> str:

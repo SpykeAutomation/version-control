@@ -23,6 +23,9 @@ class Organization(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(200), unique=True, index=True)
+    # The user who owns/administers the org. Plain column (not a FK) to avoid a
+    # circular foreign key with users.organization_id.
+    owner_id: Mapped[int] = mapped_column(Integer)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
 
 
@@ -88,3 +91,27 @@ class Comment(Base):
     author_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     body: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+
+class Invitation(Base):
+    """An owner's invitation for someone to join their organization.
+
+    The raw token is never stored — only its SHA-256 hash. One-time use is
+    enforced by `status`, time limit by `expires_at`.
+    """
+
+    __tablename__ = "invitations"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    organization_id: Mapped[int] = mapped_column(
+        ForeignKey("organizations.id"), index=True
+    )
+    email: Mapped[str] = mapped_column(String(255), index=True)
+    role: Mapped[str] = mapped_column(String(20), default="member")
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    status: Mapped[str] = mapped_column(String(20), default="pending")  # pending|accepted
+    invited_by: Mapped[int] = mapped_column(Integer)  # references users.id
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+    expires_at: Mapped[datetime] = mapped_column(DateTime)
+    accepted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    accepted_user_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
