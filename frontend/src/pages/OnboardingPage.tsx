@@ -1,8 +1,8 @@
 import { useMemo, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { FileText, Globe, Lock } from "lucide-react";
-import { createProject } from "../api/projects";
 import { ApiError } from "../api/client";
+import { useCreateProject } from "../api/queries";
 import { useAuth } from "../auth/AuthContext";
 
 const README_SECTIONS = [
@@ -35,6 +35,7 @@ export function OnboardingPage() {
   const [readme, setReadme] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const createProjectMut = useCreateProject();
 
   const slug = useMemo(() => slugify(name), [name]);
 
@@ -44,7 +45,7 @@ export function OnboardingPage() {
     setError(null);
     setSubmitting(true);
     try {
-      const project = await createProject(name.trim());
+      const project = await createProjectMut.mutateAsync(name.trim());
       navigate("/done", {
         replace: true,
         state: { projectId: project.id, projectName: project.name },

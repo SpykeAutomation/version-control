@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Box,
   ChevronDown,
@@ -15,10 +16,10 @@ import {
   X,
 } from "lucide-react";
 import { TopBar } from "../app/TopBar";
-import { listProjects, type ProjectRow } from "../api/projects";
 import { commitFiles } from "../api/commits";
 import { createChangeRequest } from "../api/mergeRequest";
 import { ApiError } from "../api/client";
+import { errorText, queryKeys, useProject } from "../api/queries";
 
 // L5X is the PLC export the engine reads; anything else rides along as a
 // supporting file and is shown neutrally.
@@ -39,19 +40,9 @@ export function CommitPage() {
   const { slug } = useParams();
   const navigate = useNavigate();
 
-  const [projects, setProjects] = useState<ProjectRow[] | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  useEffect(() => {
-    listProjects()
-      .then(setProjects)
-      .catch((e) =>
-        setLoadError(e instanceof ApiError ? e.message : "Failed to load project."),
-      );
-  }, []);
-  const project = useMemo(
-    () => projects?.find((p) => p.slug === slug) ?? null,
-    [projects, slug],
-  );
+  const { isPending, error: loadErr, project } = useProject(slug);
+  const loadError = loadErr ? errorText(loadErr, "Failed to load project.") : null;
+  const qc = useQueryClient();
 
   const [files, setFiles] = useState<File[]>([]);
   const [branch, setBranch] = useState("");
@@ -96,6 +87,10 @@ export function CommitPage() {
         description: description.trim(),
         files,
       });
+      // The commit (and any change request) just changed this project's data;
+      // drop the cached queries so the next page shows the new state.
+      qc.invalidateQueries({ queryKey: ["projects", project.id] });
+      qc.invalidateQueries({ queryKey: queryKeys.projects });
       if (kind === "request") {
         const pr = await createChangeRequest(project.id, {
           title: message.trim(),
@@ -123,7 +118,7 @@ export function CommitPage() {
           <div className="page-pad">
             <div className="panel-msg error">{loadError}</div>
           </div>
-        ) : !projects ? (
+        ) : isPending ? (
           <div className="page-pad">
             <div className="panel-msg">Loading…</div>
           </div>

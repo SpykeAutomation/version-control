@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
   ArrowDown,
@@ -10,29 +10,14 @@ import {
 } from "lucide-react";
 import { TopBar } from "../app/TopBar";
 import { FilesTable, initials } from "../components/FilesTable";
-import { listProjects, type ProjectRow } from "../api/projects";
-import { ApiError } from "../api/client";
+import { errorText, useProject } from "../api/queries";
 import type { BranchInfo, RepositoryDetail } from "../api/repository";
 import { timeAgo } from "../lib/time";
 
 export function BranchViewPage() {
   const { slug, branch } = useParams();
   const branchName = branch ? decodeURIComponent(branch) : "";
-  const [projects, setProjects] = useState<ProjectRow[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    listProjects()
-      .then(setProjects)
-      .catch((e) =>
-        setError(e instanceof ApiError ? e.message : "Failed to load branch."),
-      );
-  }, []);
-
-  const project = useMemo(
-    () => projects?.find((p) => p.slug === slug) ?? null,
-    [projects, slug],
-  );
+  const { isPending, error, project } = useProject(slug);
 
   // The backend doesn't expose this rich detail yet; until it does, the page
   // renders empty states.
@@ -49,9 +34,11 @@ export function BranchViewPage() {
       <div className="app-scroll">
         {error ? (
           <div className="page-pad">
-            <div className="panel-msg error">{error}</div>
+            <div className="panel-msg error">
+              {errorText(error, "Failed to load branch.")}
+            </div>
           </div>
-        ) : !projects ? (
+        ) : isPending ? (
           <div className="page-pad">
             <div className="panel-msg">Loading branch…</div>
           </div>

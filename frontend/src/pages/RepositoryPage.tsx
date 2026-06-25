@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
   Box,
@@ -20,15 +20,18 @@ import {
 } from "lucide-react";
 import { TopBar } from "../app/TopBar";
 import { FilesTable } from "../components/FilesTable";
-import { listMembers, listProjects, type Member, type ProjectRow } from "../api/projects";
-import { ApiError } from "../api/client";
+import { type Member, type ProjectRow } from "../api/projects";
 import { type BranchInfo, type Commit, type RepositoryDetail } from "../api/repository";
-import { listBranches, listCommits, type BranchSummary } from "../api/commits";
+import { type BranchSummary } from "../api/commits";
+import { MR_STATUS_META, type ChangeRequestSummary } from "../api/mergeRequest";
 import {
-  listChangeRequests,
-  MR_STATUS_META,
-  type ChangeRequestSummary,
-} from "../api/mergeRequest";
+  errorText,
+  useBranches,
+  useChangeRequests,
+  useCommits,
+  useMembers,
+  useProject,
+} from "../api/queries";
 import { formatDate, timeAgo } from "../lib/time";
 
 const TABS = [
@@ -46,66 +49,21 @@ function initials(name: string): string {
 
 export function RepositoryPage() {
   const { slug } = useParams();
-  const [projects, setProjects] = useState<ProjectRow[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { isPending, error, project } = useProject(slug);
   const [tab, setTab] = useState<Tab>("Overview");
-
-  useEffect(() => {
-    listProjects()
-      .then(setProjects)
-      .catch((e) =>
-        setError(e instanceof ApiError ? e.message : "Failed to load repository."),
-      );
-  }, []);
-
-  const project = useMemo(
-    () => projects?.find((p) => p.slug === slug) ?? null,
-    [projects, slug],
-  );
 
   // The backend doesn't expose this rich detail yet; until it does, the page
   // renders empty states.
   const [detail] = useState<RepositoryDetail | null>(null);
 
-  // Change requests come from the real pull-request endpoint.
-  const [crs, setCrs] = useState<ChangeRequestSummary[] | null>(null);
-  useEffect(() => {
-    if (!project) return;
-    setCrs(null);
-    listChangeRequests(project.id)
-      .then(setCrs)
-      .catch(() => setCrs([]));
-  }, [project]);
-
-  // Recent commits come from the real commit-list endpoint.
-  const [commits, setCommits] = useState<Commit[] | null>(null);
-  useEffect(() => {
-    if (!project) return;
-    setCommits(null);
-    listCommits(project.id, project.branches[0] ?? "main")
-      .then(setCommits)
-      .catch(() => setCommits([]));
-  }, [project]);
-
-  // Branches, each enriched with its latest commit.
-  const [branches, setBranches] = useState<BranchSummary[] | null>(null);
-  useEffect(() => {
-    if (!project) return;
-    setBranches(null);
-    listBranches(project.id)
-      .then(setBranches)
-      .catch(() => setBranches([]));
-  }, [project]);
-
-  // Project members, used for the contributors stat.
-  const [members, setMembers] = useState<Member[] | null>(null);
-  useEffect(() => {
-    if (!project) return;
-    setMembers(null);
-    listMembers(project.id)
-      .then(setMembers)
-      .catch(() => setMembers([]));
-  }, [project]);
+  // Change requests, commits, branches and members all come from the real
+  // endpoints, keyed off the resolved project. Each stays disabled until the
+  // project is known, then loads (and caches) on its own.
+  const crs = useChangeRequests(project?.id).data ?? null;
+  const commits =
+    useCommits(project?.id, project?.branches[0] ?? "main").data ?? null;
+  const branches = useBranches(project?.id).data ?? null;
+  const members = useMembers(project?.id).data ?? null;
 
   return (
     <>
@@ -113,9 +71,11 @@ export function RepositoryPage() {
       <div className="app-scroll">
         {error ? (
           <div className="page-pad">
-            <div className="panel-msg error">{error}</div>
+            <div className="panel-msg error">
+              {errorText(error, "Failed to load repository.")}
+            </div>
           </div>
-        ) : !projects ? (
+        ) : isPending ? (
           <div className="page-pad">
             <div className="panel-msg">Loading repository…</div>
           </div>

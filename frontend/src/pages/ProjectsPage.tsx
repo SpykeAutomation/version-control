@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   ArrowLeftRight,
@@ -18,8 +18,8 @@ import { TopBar } from "../app/TopBar";
 import { StatCard } from "../components/StatCard";
 import { StatusBadge } from "../components/StatusBadge";
 import { RailSection } from "../components/RailSection";
-import { listProjects, type ProjectRow, type RepoStatus } from "../api/projects";
-import { ApiError } from "../api/client";
+import { type ProjectRow, type RepoStatus } from "../api/projects";
+import { errorText, useProjects } from "../api/queries";
 import { timeAgo } from "../lib/time";
 
 type SortKey = "updated" | "name" | "created";
@@ -28,19 +28,10 @@ type StatusFilter = "all" | RepoStatus;
 const lastActivity = (p: ProjectRow): string => p.updated_at ?? p.created_at;
 
 export function ProjectsPage() {
-  const [projects, setProjects] = useState<ProjectRow[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { data: projects, isPending, error } = useProjects();
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortKey>("updated");
   const [status, setStatus] = useState<StatusFilter>("all");
-
-  useEffect(() => {
-    listProjects()
-      .then(setProjects)
-      .catch((e) =>
-        setError(e instanceof ApiError ? e.message : "Failed to load projects."),
-      );
-  }, []);
 
   const totalBranches = useMemo(
     () => (projects ?? []).reduce((n, p) => n + (p.branches?.length ?? 0), 0),
@@ -133,10 +124,12 @@ export function ProjectsPage() {
             </div>
 
             {error ? (
-              <div className="panel-msg error">{error}</div>
-            ) : !projects ? (
+              <div className="panel-msg error">
+                {errorText(error, "Failed to load projects.")}
+              </div>
+            ) : isPending ? (
               <div className="panel-msg">Loading projects…</div>
-            ) : projects.length === 0 ? (
+            ) : (projects ?? []).length === 0 ? (
               <EmptyProjects />
             ) : (
               <>
@@ -175,7 +168,7 @@ export function ProjectsPage() {
                 {visible.length === 0 ? (
                   <div className="panel-msg">No projects match these filters.</div>
                 ) : (
-                  <ProjectsTable rows={visible} total={projects.length} />
+                  <ProjectsTable rows={visible} total={projects?.length ?? 0} />
                 )}
               </>
             )}
