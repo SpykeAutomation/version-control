@@ -25,6 +25,7 @@ from ..schemas import (
     PullOut,
     UserOut,
 )
+from ..serialize import user_out
 from ..storage import locked_repo
 
 router = APIRouter(prefix="/projects/{project_id}/pulls", tags=["pull requests"])
@@ -32,7 +33,7 @@ router = APIRouter(prefix="/projects/{project_id}/pulls", tags=["pull requests"]
 
 def _user_out(db: Session, user_id: int) -> UserOut:
     user = db.get(User, user_id)
-    return UserOut.model_validate(user)
+    return user_out(db, user)
 
 
 def _pull_out(db: Session, pr: PullRequest) -> PullOut:

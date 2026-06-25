@@ -118,7 +118,11 @@ def list_members(
         .where(ProjectMember.project_id == project_id)
     ).all()
     return [
-        MemberOut(id=u.id, email=u.email, name=u.name, role=role) for u, role in rows
+        MemberOut(
+            id=u.id, email=u.email, first_name=u.first_name,
+            last_name=u.last_name, role=role,
+        )
+        for u, role in rows
     ]
 
 
@@ -155,7 +159,10 @@ def add_member(
         )
         db.commit()
     role = payload.role if existing is None else existing.role
-    return MemberOut(id=invitee.id, email=invitee.email, name=invitee.name, role=role)
+    return MemberOut(
+        id=invitee.id, email=invitee.email, first_name=invitee.first_name,
+        last_name=invitee.last_name, role=role,
+    )
 
 
 @router.get("/{project_id}/branches", response_model=list[str])

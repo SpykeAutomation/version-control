@@ -8,11 +8,12 @@ import bcrypt
 import jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .config import settings
 from .db import get_db
-from .models import User
+from .models import Organization, User
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
@@ -44,6 +45,47 @@ def validate_password_strength(password: str) -> None:
         raise ValueError("password must contain an uppercase letter")
     if not re.search(r"[0-9]", password):
         raise ValueError("password must contain a digit")
+
+
+def create_user(
+    db: Session,
+    *,
+    email: str,
+    first_name: str,
+    last_name: str,
+    password: str,
+    organization: str | None = None,
+) -> User:
+    """Create an account (admin path; public registration is closed).
+
+    Enforces the password policy and optionally links the user to an
+    organization by name, creating that organization if it does not exist.
+    Raises ValueError on a weak password or a duplicate email.
+    """
+    validate_password_strength(password)
+    if db.scalar(select(User).where(User.email == email)) is not None:
+        raise ValueError(f"email already registered: {email}")
+
+    organization_id = None
+    if organization:
+        org = db.scalar(select(Organization).where(Organization.name == organization))
+        if org is None:
+            org = Organization(name=organization)
+            db.add(org)
+            db.flush()
+        organization_id = org.id
+
+    user = User(
+        email=email,
+        first_name=first_name,
+        last_name=last_name,
+        password_hash=hash_password(password),
+        organization_id=organization_id,
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
 
 
 def create_access_token(user_id: int) -> str:

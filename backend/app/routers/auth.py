@@ -1,4 +1,9 @@
-"""Account creation and login (requirement #3: user accounts)."""
+"""Login and the current-user endpoint.
+
+Public self-service registration is intentionally not exposed. Accounts are
+created by an admin via app.auth.create_user (see README); the route is also
+blocked at the Caddy edge as a second layer.
+"""
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -6,34 +11,14 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..auth import (
-    create_access_token,
-    current_user,
-    hash_password,
-    verify_password,
-)
+from ..auth import create_access_token, current_user, verify_password
 from ..db import get_db
 from ..models import User
 from ..ratelimit import login_rate_limit
-from ..schemas import RegisterIn, TokenOut, UserOut
+from ..schemas import TokenOut, UserOut
+from ..serialize import user_out
 
 router = APIRouter(prefix="/auth", tags=["auth"])
-
-
-@router.post("/register", response_model=TokenOut, status_code=status.HTTP_201_CREATED)
-def register(payload: RegisterIn, db: Session = Depends(get_db)) -> TokenOut:
-    existing = db.scalar(select(User).where(User.email == payload.email))
-    if existing is not None:
-        raise HTTPException(status.HTTP_409_CONFLICT, "Email already registered")
-    user = User(
-        email=payload.email,
-        name=payload.name,
-        password_hash=hash_password(payload.password),
-    )
-    db.add(user)
-    db.commit()
-    db.refresh(user)
-    return TokenOut(access_token=create_access_token(user.id))
 
 
 @router.post("/login", response_model=TokenOut)
@@ -51,5 +36,7 @@ def login(
 
 
 @router.get("/me", response_model=UserOut)
-def me(user: User = Depends(current_user)) -> User:
-    return user
+def me(
+    user: User = Depends(current_user), db: Session = Depends(get_db)
+) -> UserOut:
+    return user_out(db, user)

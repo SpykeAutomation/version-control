@@ -18,13 +18,26 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+class Organization(Base):
+    __tablename__ = "organizations"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(200), unique=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+
 class User(Base):
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
-    name: Mapped[str] = mapped_column(String(120))
+    first_name: Mapped[str] = mapped_column(String(120))
+    last_name: Mapped[str] = mapped_column(String(120))
     password_hash: Mapped[str] = mapped_column(String(255))
+    # A user may belong to one organization, or none (can/cannot be mapped).
+    organization_id: Mapped[int | None] = mapped_column(
+        ForeignKey("organizations.id"), nullable=True, index=True
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
 
 

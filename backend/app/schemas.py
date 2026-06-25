@@ -4,30 +4,16 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal, Optional
 
-from pydantic import BaseModel, EmailStr, field_validator
-
-from .auth import validate_password_strength
+from pydantic import BaseModel, EmailStr
 
 
 # --- auth ---
-class RegisterIn(BaseModel):
-    email: EmailStr
-    name: str
-    password: str
-
-    @field_validator("password")
-    @classmethod
-    def _strong_password(cls, value: str) -> str:
-        validate_password_strength(value)  # raises ValueError -> 422
-        return value
-
-
 class UserOut(BaseModel):
     id: int
     email: EmailStr
-    name: str
-
-    model_config = {"from_attributes": True}
+    first_name: str
+    last_name: str
+    organization: Optional[str] = None
 
 
 class TokenOut(BaseModel):
@@ -59,7 +45,8 @@ class MemberIn(BaseModel):
 class MemberOut(BaseModel):
     id: int
     email: EmailStr
-    name: str
+    first_name: str
+    last_name: str
     role: str
 
 

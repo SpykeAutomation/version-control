@@ -14,7 +14,9 @@ sys.path.insert(0, str(_ROOT / "tests"))
 
 from fastapi.testclient import TestClient  # noqa: E402
 
+from app.auth import create_user  # noqa: E402
 from app.config import settings  # noqa: E402
+from app.db import SessionLocal  # noqa: E402
 from app.main import app  # noqa: E402
 from fixtures_l5x import KITCHEN_SINK  # noqa: E402
 
@@ -46,12 +48,31 @@ def auth(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
-def register(email: str, name: str) -> str:
-    r = client.post(
-        "/auth/register", json={"email": email, "name": name, "password": PW}
-    )
-    assert r.status_code == 201, r.text
+def make_user(email: str, first: str, last: str, org: str | None = None) -> str:
+    """Create an account directly (registration is closed), then log in."""
+    db = SessionLocal()
+    try:
+        create_user(
+            db, email=email, first_name=first, last_name=last, password=PW,
+            organization=org,
+        )
+    finally:
+        db.close()
+    r = client.post("/auth/login", data={"username": email, "password": PW})
+    assert r.status_code == 200, r.text
     return r.json()["access_token"]
+
+
+def _weak_password_rejected() -> bool:
+    db = SessionLocal()
+    try:
+        create_user(db, email="weak@example.com", first_name="W", last_name="K",
+                    password="short")
+        return False
+    except ValueError:
+        return True
+    finally:
+        db.close()
 
 
 def commit(pid: int, token: str, branch: str, title: str, text: str):
@@ -63,15 +84,14 @@ def commit(pid: int, token: str, branch: str, title: str, text: str):
     )
 
 
-print("== auth & project ==")
-alice = register("alice@example.com", "Alice")
-check("register returns token", bool(alice))
-check("login works", client.post(
-    "/auth/login", data={"username": "alice@example.com", "password": PW}
-).status_code == 200)
-check("/auth/me", client.get("/auth/me", headers=auth(alice)).json()["email"] == "alice@example.com")
-check("weak password rejected (422)", client.post("/auth/register", json={
-    "email": "weak@example.com", "name": "Weak", "password": "short"}).status_code == 422)
+print("== auth & accounts ==")
+alice = make_user("alice@example.com", "Alice", "Anderson", org="Acme Mfg")
+check("create user + login returns token", bool(alice))
+me_data = client.get("/auth/me", headers=auth(alice)).json()
+check("/auth/me returns first + last name",
+      me_data["first_name"] == "Alice" and me_data["last_name"] == "Anderson")
+check("user is mapped to its organization", me_data["organization"] == "Acme Mfg")
+check("weak password is rejected", _weak_password_rejected())
 
 pid = client.post("/projects", json={"name": "Mixer Line 1"}, headers=auth(alice)).json()["id"]
 check("project created with main branch",
@@ -128,7 +148,9 @@ conflict = client.post(f"/projects/{pid2}/pulls/2/merge", headers=auth(alice)).j
 check("second PR reports conflict (not error)", conflict["status"] == "conflict")
 check("conflict message is human-readable", "resolve" in conflict["message"].lower())
 
-bob = register("bob@example.com", "Bob")
+bob = make_user("bob@example.com", "Bob", "Brown")
+check("user without an organization shows null",
+      client.get("/auth/me", headers=auth(bob)).json()["organization"] is None)
 check("non-member is forbidden",
       client.get(f"/projects/{pid2}/pulls", headers=auth(bob)).status_code == 403)
 client.post(f"/projects/{pid2}/members", json={"email": "bob@example.com"}, headers=auth(alice))
@@ -136,7 +158,7 @@ check("added member can now view", client.get(
     f"/projects/{pid2}/pulls", headers=auth(bob)).status_code == 200)
 c = client.post(f"/projects/{pid2}/pulls/2/comments",
                 json={"body": "Please rebase onto main."}, headers=auth(bob))
-check("other user can comment", c.status_code == 201 and c.json()["author"]["name"] == "Bob")
+check("other user can comment", c.status_code == 201 and c.json()["author"]["first_name"] == "Bob")
 check("comments list shows the comment", len(client.get(
     f"/projects/{pid2}/pulls/2/comments", headers=auth(alice)).json()) == 1)
 

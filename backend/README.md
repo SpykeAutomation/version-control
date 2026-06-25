@@ -62,20 +62,20 @@ PLCVC_DATA_DIR=./data PLCVC_CORS_ORIGINS=http://localhost:5173 \
 
 ## Creating accounts (admin)
 
-Public signup is disabled (Caddy returns `403` for `/auth/register`). To create
-an account, run this on the server — it reuses the app's own code and enforces
-the password policy (**≥12 chars with an upper- and lower-case letter and a
-digit**):
+Public signup is removed from the app (and also blocked at the Caddy edge as a
+second layer). To create an account, run this on the server — `create_user`
+enforces the password policy (**≥12 chars with an upper- and lower-case letter
+and a digit**) and optionally links the user to an organization (created if it's
+new; omit `organization` for none):
 
 ```bash
 docker compose exec api python -c "
-from app.auth import hash_password, validate_password_strength
+from app.auth import create_user
 from app.db import SessionLocal
-from app.models import User
-email, name, pw = 'user@company.com', 'Their Name', 'ChangeMe1234'
-validate_password_strength(pw)
-db = SessionLocal(); db.add(User(email=email, name=name, password_hash=hash_password(pw))); db.commit()
-print('created', email)
+db = SessionLocal()
+create_user(db, email='user@company.com', first_name='Their', last_name='Name',
+            password='ChangeMe1234', organization='Acme Mfg')
+print('created')
 "
 ```
 
@@ -83,7 +83,7 @@ print('created', email)
 
 | Method | Path | Body / query | Returns |
 |--------|------|--------------|---------|
-| `POST` | `/auth/register` | _closed to the public (`403`); admin-created accounts_ | — |
+| `POST` | `/auth/register` | _removed; accounts are admin-created (also `403` at the edge)_ | — |
 | `POST` | `/auth/login` | form: `username`=email, `password` | `Token` (or `429` if rate-limited) |
 | `GET`  | `/auth/me` | — | `User` |
 | `POST` | `/projects` | `{name}` | `201` `Project` |
@@ -112,10 +112,12 @@ print('created', email)
 
 ```jsonc
 Token   = { "access_token": string, "token_type": "bearer" }
-User    = { "id": int, "email": string, "name": string }
+User    = { "id": int, "email": string, "first_name": string, "last_name": string,
+            "organization": string|null }
 Project = { "id": int, "name": string, "slug": string, "owner_id": int,
             "created_at": datetime, "branches": [string] }
-Member  = { "id": int, "email": string, "name": string, "role": "owner"|"member" }
+Member  = { "id": int, "email": string, "first_name": string, "last_name": string,
+            "role": "owner"|"member" }
 CommitResult = { "sha": string, "branch": string, "title": string }
 Commit  = { "sha": string, "title": string, "description": string,
             "author": string, "date": string /* ISO-8601 */ }
