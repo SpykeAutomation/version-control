@@ -345,8 +345,6 @@ function Tabs({ mr }: { mr: MergeRequest }) {
     { key: "changes", label: "Changes" },
     { key: "commits", label: "Commits", count: mr.sourceCommits },
     { key: "files", label: "Files", count: mr.files.length },
-    { key: "checks", label: "Checks" },
-    { key: "activity", label: "Activity" },
   ];
   return (
     <nav className="pr-tabs">
