@@ -3714,6 +3714,9 @@ a.file-cell:hover .file-cell-name {
   }
   .commit-tree-diff {
     grid-template-columns: minmax(0, 1fr);
+    /* Stacked single column: drop the row floor so the tree doesn't carry a
+       forced gap above the stage. */
+    min-height: 0;
   }
   .tree-rail {
     position: static;
@@ -4325,6 +4328,10 @@ a.file-cell:hover .file-cell-name {
   gap: 20px;
   align-items: stretch;
   margin-bottom: 18px;
+  /* The tree fills the row height (its content is absolutely positioned), so the
+     row height comes from the stage. Give it a floor so a short stage (an
+     unchanged-routine placeholder) can't collapse the tree to a sliver. */
+  min-height: 420px;
 }
 .commit-tree-diff > .commit-diff-stage {
   /* Let wide rungs scroll inside this column instead of stretching the grid. */
@@ -4333,6 +4340,11 @@ a.file-cell:hover .file-cell-name {
      column's box and leave the tree (no margin) stretching lower. The row's
      own margin-bottom provides the spacing below. */
   margin-bottom: 0;
+  /* Card chrome so the stage reads as a pair with the bordered tree rail. */
+  background: var(--panel);
+  border: 1px solid var(--line2);
+  border-radius: 12px;
+  overflow: hidden;
 }
 .tree-rail {
   position: relative;
@@ -4766,7 +4778,8 @@ a.file-cell:hover .file-cell-name {
 /* The rung is one wrapping flex line. A busy rung wraps onto more rows instead
    of overflowing the panel; the rails sit inline (first/last items) so the left
    rail leads the first row and the right rail closes the last. */
-.ladder-diff-card .rung-net {
+.ladder-diff-card .rung-net,
+.ladder-full-card .rung-net {
   width: 100%;
   min-width: 0;
   padding: 4px 0;
@@ -4820,7 +4833,8 @@ a.file-cell:hover .file-cell-name {
   transform: translate(-100%, -50%);
   pointer-events: none;
 }
-.ladder-diff-card .rail {
+.ladder-diff-card .rail,
+.ladder-full-card .rail {
   background: var(--wire);
   opacity: 0.85;
 }
@@ -5173,5 +5187,301 @@ a.file-cell:hover .file-cell-name {
 @media (max-width: 880px) {
   .drow {
     grid-template-columns: 1fr;
+  }
+}
+
+/* ============ Commit review page ============ */
+/* Header: "Commit <sha>  <title>" with a subtitle line. */
+.cm-commit-word {
+  font: 650 24px/1.15 var(--sans);
+  letter-spacing: -0.02em;
+  color: var(--ink-title);
+}
+.cm-commit-sha {
+  font: 650 24px/1.15 var(--mono);
+  letter-spacing: -0.01em;
+  color: var(--ink-title);
+}
+.cm-branch-text {
+  font-weight: 400;
+  color: var(--ink2);
+}
+/* Commit glyph sits in a pale, rounded boxed badge (not a bare accent icon). */
+.cm-glyph {
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  color: var(--ink2);
+}
+/* Author meta cell uses a small initials avatar in the label-icon slot. */
+.mr-meta-av {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: inline-grid;
+  place-items: center;
+  background: var(--ink-title);
+  color: #fff;
+  font: 600 9px/1 var(--sans);
+}
+
+/* Meta row: six cards (override the 5-col PR variant); mono hashes. */
+.cm-meta {
+  grid-template-columns: repeat(6, 1fr);
+}
+.cm-meta .mr-meta-mono {
+  font-family: var(--mono);
+}
+.cm-link {
+  color: var(--accent);
+}
+.cm-diffstat .t-add {
+  color: var(--add);
+  font-weight: 600;
+}
+.cm-diffstat .t-rem {
+  color: var(--danger);
+  font-weight: 600;
+}
+.cm-hash-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.cm-copy {
+  display: inline-flex;
+  border: none;
+  background: none;
+  padding: 2px;
+  border-radius: 5px;
+  color: var(--ink3);
+  cursor: pointer;
+}
+.cm-copy:hover {
+  background: var(--panel2);
+  color: var(--ink);
+}
+
+/* Overview card: commit message | summary | stats strip. */
+.cm-overview {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr;
+  gap: 40px;
+  align-items: start;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--panel);
+  padding: 18px 20px;
+}
+.cm-ov-label {
+  font: 500 11.5px/1 var(--sans);
+  color: var(--ink3);
+  margin-bottom: 10px;
+}
+.cm-ov-message {
+  margin: 0;
+  font: 600 14px/1.4 var(--sans);
+  color: var(--ink-title);
+}
+.cm-ov-message.muted {
+  font-weight: 400;
+  color: var(--ink3);
+}
+.cm-ov-list {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.cm-ov-list li {
+  font: 400 13px/1.5 var(--sans);
+  color: var(--ink2);
+}
+
+/* Ladder + structured-text diffs reuse the merge-request page's visuals
+   (.mr-ladderwrap / .mr-sxs) so the two pages stay consistent. */
+
+/* Full (non-diff) routine views in the Files tab: a single column under one
+   dark header, reusing the diff renderer's rung/element styling. */
+.ladder-full-card .lad-col-head {
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
+}
+.ladder-full-body {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-top: none;
+  border-radius: 0 0 var(--r-lg) var(--r-lg);
+  overflow: hidden;
+}
+.ladfull-cell {
+  background: var(--panel);
+}
+.ladfull-cell + .ladfull-cell {
+  border-top: 1px solid var(--line2);
+}
+.cmfull {
+  padding: 14px;
+}
+.cmfull-head {
+  background: #1f242b;
+  padding: 11px 16px;
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
+}
+.cmfull-body {
+  border: 1px solid var(--line);
+  border-top: none;
+  border-radius: 0 0 var(--r-lg) var(--r-lg);
+  background: var(--panel);
+  padding: 8px 14px;
+  overflow-x: auto;
+}
+
+/* Files tab drops the right rail and runs the content full-width so the routine
+   viewer has more room. */
+.cm-grid-full {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* Right rail: stacked cards. */
+.cm-rail {
+  gap: 16px;
+}
+/* The "About commits" rail card reuses the .about-* pattern; the rail-section
+   already pads, so drop the about-body's own padding. */
+.rail-section .about-body {
+  padding: 0;
+}
+/* "Go to docs" link at the foot of an About card, aligned to the right. */
+.about-docs {
+  align-self: flex-end;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font: 600 12.5px/1 var(--sans);
+  color: var(--accent);
+  text-decoration: none;
+}
+.about-docs:hover {
+  text-decoration: underline;
+}
+
+/* Files-changed card: file name + green/red line tally. */
+.cm-files {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.cm-file-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.cm-file-ico {
+  color: var(--ink3);
+  flex: none;
+}
+.cm-file-name {
+  flex: 1;
+  min-width: 0;
+  font: 500 12.5px/1.3 var(--mono);
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cm-file-stat {
+  flex: none;
+  font: 500 12px/1 var(--mono);
+  white-space: nowrap;
+  color: var(--ink3);
+}
+.cm-file-stat .t-add {
+  color: var(--add);
+}
+.cm-file-stat .t-rem {
+  color: var(--danger);
+}
+.cm-viewall {
+  margin-top: 14px;
+}
+
+/* Actions card: stacked buttons (icon + label left-aligned), danger revert. */
+.cm-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.cm-actions .rail-head {
+  margin-bottom: 2px;
+}
+.cm-actions .btn {
+  justify-content: flex-start;
+  gap: 10px;
+  padding-left: 14px;
+}
+.cm-revert {
+  background: var(--panel);
+  border: 1px solid #f0c6c3;
+  color: var(--danger);
+}
+.cm-revert:hover {
+  background: var(--danger-bg);
+}
+
+/* Zoom label inside the section toolbar. */
+.zoom-word {
+  font: 500 12.5px/1 var(--sans);
+  color: var(--ink3);
+  margin-right: 4px;
+}
+/* Commit-page zoom: discrete outlined −/+ boxes with plain text between them
+   (not one grouped pill), so it reads as three elements after "Zoom:". */
+.cm-zoom {
+  margin-left: 0;
+  border: none;
+  background: none;
+  padding: 0;
+  gap: 6px;
+}
+.cm-zoom .zoom-btn {
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  border-radius: var(--r-md);
+  color: var(--ink2);
+}
+.cm-zoom .zoom-btn:hover {
+  background: var(--panel2);
+  color: var(--ink);
+}
+.cm-zoom .zoom-val {
+  min-width: 40px;
+}
+
+/* Commit-page tabs: the count renders as a filled gray pill. */
+.cm-tabs .pr-tab-count {
+  background: var(--panel2);
+  border-radius: 999px;
+  padding: 2px 8px;
+  color: var(--ink3);
+}
+
+@media (max-width: 1080px) {
+  .cm-overview {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+}
+@media (max-width: 980px) {
+  .cm-meta {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+@media (max-width: 720px) {
+  .cm-meta {
+    grid-template-columns: repeat(2, 1fr);
   }
 }

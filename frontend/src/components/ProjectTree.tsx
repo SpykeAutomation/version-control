@@ -22,6 +22,9 @@ export interface RoutineSelection {
   controller: string;
   program: string;
   routine: string;
+  // The routine's language ("rll" | "st" | …), used by callers to pick the
+  // matching diff when a routine has more than one kind of change.
+  routineType?: string | null;
 }
 
 interface ProjectTreeProps {
@@ -96,9 +99,10 @@ export function ProjectTree({
         toggle(node.key);
       } else if (isRoutine) {
         onSelectRoutine({
-          controller: node.controller!,
-          program: node.program!,
+          controller: node.controller ?? "",
+          program: node.program ?? "",
           routine: node.routine!,
+          routineType: node.routine_type,
         });
       } else if (hasChildren) {
         toggle(node.key);

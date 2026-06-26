@@ -34,6 +34,12 @@ import {
   type ChangeRequestSummary,
   type MergeRequest,
 } from "./mergeRequest";
+import {
+  getCommit,
+  getRoutineContent,
+  type CommitDetail,
+  type RoutineFull,
+} from "./commit";
 import type { Commit } from "./repository";
 
 // Cache keys. Everything for a project is nested under ["projects", id] so a
@@ -61,6 +67,9 @@ export const queryKeys = {
     ["projects", projectId, "pulls"] as const,
   mergeRequest: (slug: string, mrId: string) =>
     ["merge-request", slug, mrId] as const,
+  commit: (slug: string, sha: string) => ["commit-detail", slug, sha] as const,
+  routineContent: (projectId: number, sha: string, program: string, routine: string) =>
+    ["projects", projectId, "commit-routine", sha, program, routine] as const,
 };
 
 // Turn a query error into a message, falling back when it isn't an ApiError.
@@ -201,6 +210,43 @@ export function useMergeRequest(
     queryKey: queryKeys.mergeRequest(slug ?? "", mrId ?? ""),
     queryFn: () => getMergeRequest(slug!, mrId!),
     enabled: !!slug && !!mrId,
+  });
+}
+
+// One commit's review detail (meta, grouped diffs, discussion). Falls back to
+// demo data inside getCommit when the backend is unreachable.
+export function useCommit(
+  slug: string | undefined,
+  sha: string | undefined,
+) {
+  return useQuery<CommitDetail>({
+    queryKey: queryKeys.commit(slug ?? "", sha ?? ""),
+    queryFn: () => getCommit(slug!, sha!),
+    enabled: !!slug && !!sha,
+  });
+}
+
+// One routine's full content at a commit, for the Files tab. Disabled unless
+// all keys are known and `enabled` is set (the caller skips it when the content
+// is already available from demo data). No retry: a missing backend endpoint
+// should fall back to the placeholder quickly, not hammer.
+export function useRoutineContent(
+  projectId: number | undefined,
+  sha: string | undefined,
+  program: string | undefined,
+  routine: string | undefined,
+  enabled: boolean,
+) {
+  return useQuery<RoutineFull>({
+    queryKey: queryKeys.routineContent(
+      projectId ?? -1,
+      sha ?? "",
+      program ?? "",
+      routine ?? "",
+    ),
+    queryFn: () => getRoutineContent(projectId!, sha!, program!, routine!),
+    enabled: enabled && projectId != null && !!sha && !!program && !!routine,
+    retry: false,
   });
 }
 
