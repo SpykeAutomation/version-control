@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
   AlertTriangle,
+  ArrowRight,
   CheckCircle2,
   ChevronDown,
   Circle,
@@ -151,6 +152,7 @@ function MergeRequestView({
         </div>
 
         <aside className="repo-rail mr-rail">
+          <AboutMergeRequestsCard />
           <ReviewersCard reviewers={mr.reviewers} />
           <MergeDetails mr={mr} />
           <MergeActions targetBranch={mr.targetBranch} />
@@ -771,6 +773,50 @@ function MergeActions({ targetBranch }: { targetBranch: string }) {
         <GitPullRequestArrow size={16} strokeWidth={1.9} />
         Request changes
       </button>
+    </section>
+  );
+}
+
+function AboutMergeRequestsCard() {
+  return (
+    <section className="rail-section">
+      <div className="rail-head">
+        <span className="rail-title">About merge requests</span>
+      </div>
+      <div className="about-body">
+        <p className="about-intro">
+          A merge request proposes bringing one branch's changes into another,
+          with review before they land.
+        </p>
+        <div className="about-item">
+          <span className="about-ico">
+            <GitPullRequestArrow size={16} strokeWidth={1.9} />
+          </span>
+          <div>
+            <div className="about-item-title">Review</div>
+            <div className="about-item-desc">
+              Reviewers compare the changes and discuss them, then approve or
+              request changes before anything merges.
+            </div>
+          </div>
+        </div>
+        <div className="about-item">
+          <span className="about-ico">
+            <GitMerge size={16} strokeWidth={1.9} />
+          </span>
+          <div>
+            <div className="about-item-title">Merging</div>
+            <div className="about-item-desc">
+              Once approved and merged, the source branch's changes become part
+              of the target branch.
+            </div>
+          </div>
+        </div>
+        <Link to="/documentation" className="about-docs">
+          Go to docs
+          <ArrowRight size={14} strokeWidth={2} />
+        </Link>
+      </div>
     </section>
   );
 }

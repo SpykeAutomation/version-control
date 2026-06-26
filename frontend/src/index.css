@@ -5353,6 +5353,19 @@ a.file-cell:hover .file-cell-name {
 .rail-section .about-body {
   padding: 0;
 }
+/* "Go to docs" link at the foot of an About card, aligned to the right. */
+.about-docs {
+  align-self: flex-end;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font: 600 12.5px/1 var(--sans);
+  color: var(--accent);
+  text-decoration: none;
+}
+.about-docs:hover {
+  text-decoration: underline;
+}
 
 /* Files-changed card: file name + green/red line tally. */
 .cm-files {

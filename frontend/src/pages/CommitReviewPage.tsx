@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
+  ArrowRight,
   Clock,
   Copy,
   FileCode2,
@@ -988,6 +989,10 @@ function AboutCommitsCard() {
             </div>
           </div>
         </div>
+        <Link to="/documentation" className="about-docs">
+          Go to docs
+          <ArrowRight size={14} strokeWidth={2} />
+        </Link>
       </div>
     </section>
   );
