@@ -201,7 +201,11 @@ export function CommitDetailPage() {
                 <>
                   <SummaryCards s={changeView.summary} />
 
-                  <FilesCard files={changeView?.files ?? []} />
+                  {/* A commit is one L5X file (one controller), so the file
+                      affected is the controller, not the programs inside it. */}
+                  <FilesCard
+                    files={treeQuery.data ? [treeQuery.data.root.label] : []}
+                  />
 
                   {filterName && (
                     <div className="tree-filter-note">
