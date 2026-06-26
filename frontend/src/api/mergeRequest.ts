@@ -103,6 +103,19 @@ export interface PRFile {
   changes: PRRoutineChange[];
 }
 
+// One commit on the source branch, as listed under the Commits tab. Mirrors the
+// repository commit row: a full sha for the detail link, a short hash to show.
+export interface MRCommitRow {
+  sha: string; // full hash, used for the commit-detail link
+  hash: string; // short hash for display
+  message: string; // commit subject
+  author: string;
+  at: string; // ISO
+  filesChanged?: number;
+  additions?: number;
+  deletions?: number;
+}
+
 export interface MergeRequest {
   id: string; // e.g. "MR-027"
   title: string;
@@ -126,6 +139,8 @@ export interface MergeRequest {
   // Changes grouped by file. Each file carries its own ladder / structured-text
   // routine diffs.
   files: PRFile[];
+  // The commits on the source branch that this request would merge, newest first.
+  commits: MRCommitRow[];
   comments: MRComment[];
   checks: MRCheck[];
   impactedTags: string[];
@@ -277,6 +292,7 @@ function mapPull(mrId: string, pull: PullOut, comments: CommentOut[]): MergeRequ
     commentCount: comments.length,
     safetyReview: false,
     files: [],
+    commits: [],
     comments: comments.map((c) => ({
       author: c.author.name,
       role: c.author.id === pull.author.id ? "Author" : "Reviewer",
@@ -529,6 +545,58 @@ export function demoPull(mrId: string): MergeRequest {
             ]),
           },
         ],
+      },
+    ],
+    commits: [
+      {
+        sha: "a1bc3d4e9f02",
+        hash: "a1bc3d4",
+        message: "Add reject photoeye interlock",
+        author: "Jamie Wilson",
+        at: ago(120),
+        filesChanged: 1,
+        additions: 18,
+        deletions: 2,
+      },
+      {
+        sha: "7e2f9a16b3c8",
+        hash: "7e2f9a1",
+        message: "Increase reject delay to 3000 ms",
+        author: "Jamie Wilson",
+        at: ago(160),
+        filesChanged: 1,
+        additions: 4,
+        deletions: 2,
+      },
+      {
+        sha: "c4d8b60a1e57",
+        hash: "c4d8b60",
+        message: "Add E_Stop_OK safety interlock before Motor_Run",
+        author: "Jamie Wilson",
+        at: ago(210),
+        filesChanged: 1,
+        additions: 6,
+        deletions: 1,
+      },
+      {
+        sha: "f10a2c5d7b94",
+        hash: "f10a2c5",
+        message: "Add guard-closed check to SafetyMonitor",
+        author: "Jamie Wilson",
+        at: ago(1490),
+        filesChanged: 1,
+        additions: 3,
+        deletions: 0,
+      },
+      {
+        sha: "9b3e7d2c08af",
+        hash: "9b3e7d2",
+        message: "Scaffold reject station routine",
+        author: "Jamie Wilson",
+        at: ago(1550),
+        filesChanged: 2,
+        additions: 40,
+        deletions: 0,
       },
     ],
     comments: [

@@ -10,6 +10,7 @@ import {
   Eye,
   FileCode2,
   GitBranch,
+  GitCommitHorizontal,
   GitFork,
   GitMerge,
   GitPullRequestArrow,
@@ -31,6 +32,7 @@ import {
   type MergeRequest,
   type MRCodeDiff,
   type MRComment,
+  type MRCommitRow,
   type MRReviewer,
   type PRFile,
   type PRRoutineChange,
@@ -114,6 +116,7 @@ function MergeRequestView({
   mrId?: string;
 }) {
   const [showNumbers, setShowNumbers] = useState(true);
+  const [tab, setTab] = useState<MrTab>("changes");
   return (
     <div className="mr-page">
       <nav className="crumb">
@@ -134,20 +137,28 @@ function MergeRequestView({
 
       <div className="repo-grid mr-grid">
         <div className="repo-col">
-          <Tabs mr={mr} />
-          <ChangesToolbar
-            count={mr.files.length}
-            showNumbers={showNumbers}
-            onToggle={() => setShowNumbers((v) => !v)}
-          />
-          {mr.files.map((file, i) => (
-            <FileSection
-              key={i}
-              index={i + 1}
-              file={file}
-              showNumbers={showNumbers}
-            />
-          ))}
+          <Tabs mr={mr} tab={tab} onSelect={setTab} />
+          {tab === "changes" ? (
+            <>
+              <ChangesToolbar
+                count={mr.files.length}
+                showNumbers={showNumbers}
+                onToggle={() => setShowNumbers((v) => !v)}
+              />
+              {mr.files.map((file, i) => (
+                <FileSection
+                  key={i}
+                  index={i + 1}
+                  file={file}
+                  showNumbers={showNumbers}
+                />
+              ))}
+            </>
+          ) : tab === "commits" ? (
+            <CommitsList commits={mr.commits} slug={slug} />
+          ) : (
+            <FilesOverview files={mr.files} onOpenChanges={() => setTab("changes")} />
+          )}
           <Discussion comments={mr.comments} slug={slug} mrId={mrId} />
         </div>
 
@@ -339,11 +350,20 @@ function Sstat({
 }
 
 // ---- Tabs ----
-function Tabs({ mr }: { mr: MergeRequest }) {
-  // Visual tab strip; "Changes" is the active view rendered below.
-  const tabs: { key: string; label: string; count?: number }[] = [
+type MrTab = "changes" | "commits" | "files";
+
+function Tabs({
+  mr,
+  tab,
+  onSelect,
+}: {
+  mr: MergeRequest;
+  tab: MrTab;
+  onSelect: (t: MrTab) => void;
+}) {
+  const tabs: { key: MrTab; label: string; count?: number }[] = [
     { key: "changes", label: "Changes" },
-    { key: "commits", label: "Commits", count: mr.sourceCommits },
+    { key: "commits", label: "Commits", count: mr.commits.length || mr.sourceCommits },
     { key: "files", label: "Files", count: mr.files.length },
   ];
   return (
@@ -351,14 +371,163 @@ function Tabs({ mr }: { mr: MergeRequest }) {
       {tabs.map((t) => (
         <button
           key={t.key}
-          className={`pr-tab${t.key === "changes" ? " active" : ""}`}
+          className={`pr-tab${t.key === tab ? " active" : ""}`}
           type="button"
+          onClick={() => onSelect(t.key)}
         >
           {t.label}
           {t.count != null && <span className="pr-tab-count">{t.count}</span>}
         </button>
       ))}
     </nav>
+  );
+}
+
+// ---- Commits tab ----
+// The commits on the source branch, newest first, grouped by calendar day. Each
+// row links to that commit's review page.
+function CommitsList({
+  commits,
+  slug,
+}: {
+  commits: MRCommitRow[];
+  slug?: string;
+}) {
+  if (commits.length === 0) {
+    return (
+      <section className="mr-section">
+        <div className="mr-empty">No commits on this branch yet.</div>
+      </section>
+    );
+  }
+
+  // Group consecutive commits by the day they were authored. Commits arrive
+  // newest-first, so the groups come out newest-first too.
+  const groups: { day: string; items: MRCommitRow[] }[] = [];
+  for (const c of commits) {
+    const day = new Date(c.at).toDateString();
+    const last = groups[groups.length - 1];
+    if (last && last.day === day) last.items.push(c);
+    else groups.push({ day, items: [c] });
+  }
+
+  return (
+    <section className="mr-section mr-commits">
+      {groups.map((g) => (
+        <div className="mr-commits-day" key={g.day}>
+          <div className="mr-commits-daylabel">
+            <GitCommitHorizontal size={14} strokeWidth={1.9} />
+            Commits on {formatDate(g.items[0].at)}
+          </div>
+          <ul className="mr-commits-rows">
+            {g.items.map((c) => (
+              <CommitRow key={c.sha} commit={c} slug={slug} />
+            ))}
+          </ul>
+        </div>
+      ))}
+    </section>
+  );
+}
+
+function CommitRow({ commit, slug }: { commit: MRCommitRow; slug?: string }) {
+  const stat =
+    commit.additions != null || commit.deletions != null ? (
+      <span className="mr-commit-diffstat">
+        {commit.additions != null && (
+          <span className="dadd">+{commit.additions}</span>
+        )}
+        {commit.deletions != null && (
+          <span className="ddel">−{commit.deletions}</span>
+        )}
+      </span>
+    ) : null;
+
+  const inner = (
+    <>
+      <span className="mr-commit-main">
+        <span className="mr-commit-msg">{commit.message}</span>
+        <span className="mr-commit-meta">
+          <span className="author">
+            <span className="author-av">{initials(commit.author)}</span>
+            {commit.author}
+          </span>
+          <span className="mr-commit-dot">·</span>
+          <span className="mr-commit-time">{timeAgo(commit.at)}</span>
+        </span>
+      </span>
+      <span className="mr-commit-right">
+        {stat}
+        <span className="mr-commit-sha">{commit.hash}</span>
+      </span>
+    </>
+  );
+
+  return (
+    <li>
+      {slug ? (
+        <Link className="mr-commit-row" to={`/projects/${slug}/commit/${commit.sha}`}>
+          {inner}
+        </Link>
+      ) : (
+        <div className="mr-commit-row">{inner}</div>
+      )}
+    </li>
+  );
+}
+
+// ---- Files tab ----
+// A compact list of the changed files — names and per-file change counts — for a
+// quick "what's touched" overview. Selecting a file jumps to its full diff in
+// the Changes view.
+function FilesOverview({
+  files,
+  onOpenChanges,
+}: {
+  files: PRFile[];
+  onOpenChanges: () => void;
+}) {
+  if (files.length === 0) {
+    return (
+      <section className="mr-section">
+        <div className="mr-empty">No files changed.</div>
+      </section>
+    );
+  }
+  return (
+    <section className="mr-section mr-files">
+      <ul className="mr-files-rows">
+        {files.map((f) => {
+          const bits: string[] = [];
+          bits.push(
+            `${f.changes.length} ${f.changes.length === 1 ? "routine" : "routines"}`,
+          );
+          if (f.rungsChanged)
+            bits.push(
+              `${f.rungsChanged} ${f.rungsChanged === 1 ? "rung" : "rungs"}`,
+            );
+          if (f.linesChanged)
+            bits.push(
+              `${f.linesChanged} ${f.linesChanged === 1 ? "line" : "lines"}`,
+            );
+          return (
+            <li key={f.name}>
+              <button
+                type="button"
+                className="mr-file-row"
+                onClick={onOpenChanges}
+              >
+                <span className="pr-file-ico">
+                  <FileCode2 size={15} strokeWidth={1.8} />
+                </span>
+                <span className="mr-file-name">{f.name}</span>
+                <span className="mr-file-stat">{bits.join(" · ")}</span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }
 
