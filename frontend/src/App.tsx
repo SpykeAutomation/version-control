@@ -5,7 +5,7 @@ import { LoginPage } from "./pages/LoginPage";
 import { SignupPage } from "./pages/SignupPage";
 import { OnboardingPage } from "./pages/OnboardingPage";
 import { DonePage } from "./pages/DonePage";
-import { ProjectsPage } from "./pages/ProjectsPage";
+import { ProjectsPage, ProjectsPreview } from "./pages/ProjectsPage";
 import { RepositoryPage } from "./pages/RepositoryPage";
 import { CommitPage } from "./pages/CommitPage";
 import { CommitReviewPage, CommitReviewPreview } from "./pages/CommitReviewPage";
@@ -71,6 +71,7 @@ export function App() {
         <Route element={<AppLayout />}>
           <Route path="preview/merge-request" element={<MergeRequestPreview />} />
           <Route path="preview/commit" element={<CommitReviewPreview />} />
+          <Route path="preview/repositories" element={<ProjectsPreview />} />
         </Route>
       )}
 
