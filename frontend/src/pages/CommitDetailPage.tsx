@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   ArrowLeftRight,
@@ -9,15 +9,11 @@ import {
   FileCode2,
   GitBranch,
   GitCommitHorizontal,
-  Minus,
-  Pencil,
-  Plus,
   X,
 } from "lucide-react";
 import { TopBar } from "../app/TopBar";
 import { LadderDiffView } from "../components/LadderDiff";
 import { ProjectTree, type RoutineSelection } from "../components/ProjectTree";
-import type { TreeNode } from "../api/tree";
 import {
   errorText,
   useCommitDiff,
@@ -30,12 +26,7 @@ import {
   useProject,
 } from "../api/queries";
 import type { Commit } from "../api/repository";
-import {
-  deriveChangeView,
-  type ChangeRow,
-  type ChangeRowKind,
-  type ChangeSummary,
-} from "../lib/changeset";
+import { deriveChangeView, type ChangeSummary } from "../lib/changeset";
 import { formatDate } from "../lib/time";
 
 // Element scale is controlled intrinsically in CSS (font/box sizes), not with a
@@ -78,30 +69,13 @@ export function CommitDetailPage() {
   // other changed node focuses its change-summary rows. They are mutually
   // exclusive — picking one clears the other.
   const [routineSel, setRoutineSel] = useState<RoutineSelection | null>(null);
-  const [entitySel, setEntitySel] = useState<TreeNode | null>(null);
-  const tableRef = useRef<HTMLDivElement>(null);
   // Switching commits should drop any prior selection.
   useEffect(() => {
     setRoutineSel(null);
-    setEntitySel(null);
   }, [sha, explicitBase]);
-  // A non-routine pick has no ladder card, so bring its change rows into view.
-  useEffect(() => {
-    if (entitySel) tableRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }, [entitySel]);
 
-  const selectRoutine = (sel: RoutineSelection) => {
-    setEntitySel(null);
-    setRoutineSel(sel);
-  };
-  const selectEntity = (node: TreeNode) => {
-    setRoutineSel(null);
-    setEntitySel(node);
-  };
-  const clearSelection = () => {
-    setRoutineSel(null);
-    setEntitySel(null);
-  };
+  const selectRoutine = (sel: RoutineSelection) => setRoutineSel(sel);
+  const clearSelection = () => setRoutineSel(null);
 
   // The commit's message/author/date aren't on the diff endpoints, so we look
   // them up in the branch's commit list and match on the full sha.
@@ -112,9 +86,7 @@ export function CommitDetailPage() {
 
   const changeView = diffQuery.data ? deriveChangeView(diffQuery.data) : null;
 
-  // Apply the tree selection to the ladder cards and the change rows. A routine
-  // pick narrows both to that routine; an entity pick narrows the table to that
-  // name; no pick shows everything.
+  // A routine pick narrows the ladder to just that routine; no pick shows all.
   const allRoutines = ladderQuery.data?.routines ?? [];
   const visibleRoutines = routineSel
     ? allRoutines.filter(
@@ -124,11 +96,7 @@ export function CommitDetailPage() {
           r.routine === routineSel.routine,
       )
     : allRoutines;
-  const filterName = routineSel?.routine ?? entitySel?.label ?? null;
-  const visibleRows =
-    changeView && filterName
-      ? changeView.rows.filter((r) => r.name === filterName)
-      : (changeView?.rows ?? []);
+  const filterName = routineSel?.routine ?? null;
 
   // The list is newest first, so the entry after the head is its parent (the
   // default base); commits older than the head are the valid base options.
@@ -183,20 +151,7 @@ export function CommitDetailPage() {
             </div>
           </div>
         ) : (
-          <div className="page-grid compare-grid commit-grid-tree">
-            {treeQuery.data ? (
-              <aside className="tree-rail">
-                <ProjectTree
-                  root={treeQuery.data.root}
-                  selected={routineSel}
-                  onSelectRoutine={selectRoutine}
-                  onSelectEntity={selectEntity}
-                  onClear={clearSelection}
-                />
-              </aside>
-            ) : (
-              <div />
-            )}
+          <div className="page-grid compare-grid commit-grid">
             <div className="page-main">
               <nav className="crumb">
                 <Link to="/projects">Projects</Link>
@@ -263,27 +218,35 @@ export function CommitDetailPage() {
                     </div>
                   )}
 
-                  <div className="commit-diff-stage">
-                    {visibleRoutines.length > 0 ? (
-                      <LadderDiffView
-                        doc={{ ...ladderQuery.data!, routines: visibleRoutines }}
-                        showNumbers
-                      />
-                    ) : routineSel ? (
-                      <div className="rcard-empty">
-                        <strong>{routineSel.routine}</strong> has no ladder logic to
-                        diff. See the change summary below.
-                      </div>
-                    ) : (
-                      <div className="rcard-empty">
-                        No ladder logic changed in this commit. See the change
-                        summary below.
-                      </div>
+                  <div className="commit-tree-diff">
+                    {treeQuery.data && (
+                      <aside className="tree-rail">
+                        <ProjectTree
+                          root={treeQuery.data.root}
+                          selected={routineSel}
+                          onSelectRoutine={selectRoutine}
+                          onClear={clearSelection}
+                        />
+                      </aside>
                     )}
-                  </div>
-
-                  <div ref={tableRef}>
-                    <ChangeTable rows={visibleRows} />
+                    <div className="commit-diff-stage">
+                      {visibleRoutines.length > 0 ? (
+                        <LadderDiffView
+                          doc={{ ...ladderQuery.data!, routines: visibleRoutines }}
+                          showNumbers
+                        />
+                      ) : routineSel ? (
+                        <div className="rcard-empty">
+                          <strong>{routineSel.routine}</strong> has no ladder logic to
+                          diff. See the change summary below.
+                        </div>
+                      ) : (
+                        <div className="rcard-empty">
+                          No ladder logic changed in this commit. See the change
+                          summary below.
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </>
               )}
@@ -443,60 +406,6 @@ function SummaryCards({ s }: { s: ChangeSummary }) {
           </div>
         </div>
       </div>
-    </div>
-  );
-}
-
-// ---- Change table ----
-const KIND_META: Record<
-  ChangeRowKind,
-  { cls: string; label: string; Icon: typeof Plus }
-> = {
-  added: { cls: "add", label: "Added", Icon: Plus },
-  modified: { cls: "mod", label: "Modified", Icon: Pencil },
-  removed: { cls: "rem", label: "Removed", Icon: Minus },
-};
-
-function ChangeTable({ rows }: { rows: ChangeRow[] }) {
-  return (
-    <div className="table-wrap cmp-table">
-      <div className="cmp-table-head">
-        <span className="cmp-table-title">
-          Change summary <span className="cmp-table-count">{rows.length}</span>
-        </span>
-      </div>
-      <table className="dtable">
-        <thead>
-          <tr>
-            <th>Type</th>
-            <th>Location</th>
-            <th>Name</th>
-            <th>Change</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r, i) => {
-            const k = KIND_META[r.kind];
-            return (
-              <tr key={i}>
-                <td>
-                  <span className={`type-tag ${k.cls}`}>
-                    <span className="type-ico">
-                      <k.Icon size={12} strokeWidth={2.4} />
-                    </span>
-                    {k.label}
-                  </span>
-                </td>
-                <td className="muted-cell">{r.breadcrumb}</td>
-                <td>
-                  <span className="cmp-change">{r.name}</span>
-                </td>
-                <td className="cmp-desc">{r.description}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
     </div>
   );
 }

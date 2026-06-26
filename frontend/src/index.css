@@ -3712,13 +3712,17 @@ a.file-cell:hover .file-cell-name {
   .page-rail {
     display: none;
   }
-  .commit-grid-tree {
+  .commit-tree-diff {
     grid-template-columns: minmax(0, 1fr);
   }
   .tree-rail {
     position: static;
-    max-height: 320px;
-    margin-bottom: 16px;
+  }
+  /* Single column: the tree stacks above the diff, so it can't borrow the
+     diff's height — cap it directly and scroll inside. */
+  .tree-rail > .project-tree {
+    position: static;
+    max-height: 340px;
   }
   .repo-grid {
     grid-template-columns: minmax(0, 1fr);
@@ -3805,21 +3809,40 @@ a.file-cell:hover .file-cell-name {
 /* With the organizer tree, the commit page runs a fixed left sidebar plus the
    diff. The diff column stays minmax(0,1fr) so wide rungs scroll inside it
    rather than stretching the grid. */
-.commit-grid-tree {
+/* ---- Project organizer tree + diff (commit page) ---- */
+/* The tree and the diff sit side by side, below the full-width header, stats,
+   and files. The row stretches both columns to the same height; the tree
+   contributes no intrinsic height (its content is absolutely positioned), so
+   the row height is the diff visual's and a long organizer scrolls inside the
+   tree card rather than making it taller than the diff. */
+.commit-tree-diff {
+  display: grid;
   grid-template-columns: 264px minmax(0, 1fr);
+  gap: 20px;
+  align-items: stretch;
+  margin-bottom: 18px;
 }
-
-/* ---- Project organizer tree (commit sidebar) ---- */
+.commit-tree-diff > .commit-diff-stage {
+  /* Let wide rungs scroll inside this column instead of stretching the grid. */
+  min-width: 0;
+  /* Drop the standalone bottom margin: as a grid item it would shrink this
+     column's box and leave the tree (no margin) stretching lower. The row's
+     own margin-bottom provides the spacing below. */
+  margin-bottom: 0;
+}
 .tree-rail {
-  position: sticky;
-  top: 16px;
-  align-self: start;
-  max-height: calc(100vh - 48px);
-  overflow: auto;
-  padding: 10px 8px;
+  position: relative;
+  align-self: stretch;
+  overflow: hidden;
   background: var(--panel);
   border: 1px solid var(--line2);
   border-radius: 12px;
+}
+.tree-rail > .project-tree {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+  padding: 10px 8px;
 }
 .project-tree {
   font: 400 13px/1.4 var(--sans);
@@ -3877,35 +3900,15 @@ a.file-cell:hover .file-cell-name {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* The small status pill on a changed node: + added, − removed, ~ modified. */
-.tree-badge {
-  flex: none;
-  width: 15px;
-  height: 15px;
-  border-radius: 999px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font: 800 10px/1 var(--sans);
-  color: #fff;
-}
-.tree-badge-added {
-  background: var(--add);
-}
-.tree-badge-removed {
-  background: var(--danger);
-}
-.tree-badge-modified {
-  background: var(--mod);
-}
-/* A collapsed container hiding a change downstream gets a quiet dot. */
-.tree-rollup-dot {
+/* One small black dot marks a change — on a changed node, or on a collapsed
+   container hiding a change below it. */
+.tree-dot {
   flex: none;
   width: 6px;
   height: 6px;
   margin-right: 4px;
   border-radius: 999px;
-  background: var(--mod);
+  background: var(--black);
 }
 /* Banner above the diff when the tree has narrowed it to one routine/entity. */
 .tree-filter-note {

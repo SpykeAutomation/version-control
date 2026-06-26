@@ -16,7 +16,7 @@ import {
   ListTree,
   Tag,
 } from "lucide-react";
-import type { TreeNode, TreeNodeKind, TreeStatus } from "../api/tree";
+import type { TreeNode, TreeNodeKind } from "../api/tree";
 
 export interface RoutineSelection {
   controller: string;
@@ -28,7 +28,7 @@ interface ProjectTreeProps {
   root: TreeNode;
   selected: RoutineSelection | null;
   onSelectRoutine: (sel: RoutineSelection) => void;
-  onSelectEntity: (node: TreeNode) => void;
+  onSelectEntity?: (node: TreeNode) => void;
   onClear: () => void;
 }
 
@@ -58,12 +58,6 @@ const KIND_ICON: Record<TreeNodeKind, typeof Folder> = {
   module: HardDrive,
   task: ListTree,
 };
-
-function StatusBadge({ status }: { status: TreeStatus }) {
-  if (status === "unchanged") return null;
-  const sign = status === "added" ? "+" : status === "removed" ? "-" : "~";
-  return <span className={`tree-badge tree-badge-${status}`}>{sign}</span>;
-}
 
 export function ProjectTree({
   root,
@@ -109,7 +103,7 @@ export function ProjectTree({
       } else if (hasChildren) {
         toggle(node.key);
       } else {
-        onSelectEntity(node);
+        onSelectEntity?.(node);
       }
     };
 
@@ -137,11 +131,11 @@ export function ProjectTree({
             <Icon size={15} strokeWidth={1.7} />
           </span>
           <span className="tree-label">{node.label}</span>
-          {node.status === "unchanged" && node.descendant_changed && !open ? (
-            <span className="tree-rollup-dot" />
-          ) : (
-            <StatusBadge status={node.status} />
-          )}
+          {/* One small black dot marks a change: on a changed node, or on a
+             collapsed container hiding a change below it. */}
+          {node.status !== "unchanged" || (node.descendant_changed && !open) ? (
+            <span className="tree-dot" />
+          ) : null}
         </button>
         {hasChildren && open ? (
           <div className="tree-children">
