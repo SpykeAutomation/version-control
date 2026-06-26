@@ -30,6 +30,7 @@ from vcs import ProjectRepoError
 from ..auth import current_user
 from ..db import get_db
 from ..deps import require_member
+from ..tree import ProjectTree, build_project_tree
 from .. import diff_cache
 from ..diffing import serve_diff
 from ..models import Project, ProjectMember, User
@@ -419,5 +420,63 @@ def commit_ladder_diff(
 
     try:
         return _root_diff_response(project_id, "commit-ladder", resolved, build)
+    except ProjectRepoError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc))
+
+
+# ---------------------------------------------------------------------------
+# Project organizer tree: the full structure at a commit, with change status.
+# ---------------------------------------------------------------------------
+
+
+def _build_tree(r, b, h) -> ProjectTree:
+    """Compute closure for serve_diff: head structure overlaid with the diff."""
+    return build_project_tree(r.document_at(h), r.diff_refs(b, h))
+
+
+@router.get("/{project_id}/tree", response_model=ProjectTree)
+def project_tree(
+    project_id: int,
+    base: str,
+    head: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+) -> Response:
+    """Organizer tree at `head`, tagged by the diff against `base`.
+
+    Lets the commit page track a custom base (the page's ?base= re-base).
+    """
+    require_member(project_id, db, user)
+    return serve_diff(project_id, "tree", base, head, _build_tree)
+
+
+@router.get("/{project_id}/commits/{sha}/tree", response_model=ProjectTree)
+def commit_tree(
+    project_id: int,
+    sha: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+) -> Response:
+    """Organizer tree of one commit, tagged by the diff against its parent.
+
+    A root commit (no parent) reads as everything added.
+    """
+    require_member(project_id, db, user)
+    repo = repo_for(project_id)
+    try:
+        resolved, parent = _resolve_parent(repo, sha)
+    except ProjectRepoError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc))
+
+    if parent is not None:
+        return serve_diff(project_id, "tree", parent, resolved, _build_tree)
+
+    # Root commit: tag the structure against an empty version of itself.
+    def build() -> ProjectTree:
+        new_doc = repo.document_at(resolved)
+        return build_project_tree(new_doc, diff_documents(_empty_like(new_doc), new_doc))
+
+    try:
+        return _root_diff_response(project_id, "tree", resolved, build)
     except ProjectRepoError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc))

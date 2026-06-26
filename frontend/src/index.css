@@ -3712,6 +3712,14 @@ a.file-cell:hover .file-cell-name {
   .page-rail {
     display: none;
   }
+  .commit-grid-tree {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .tree-rail {
+    position: static;
+    max-height: 320px;
+    margin-bottom: 16px;
+  }
   .repo-grid {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -3792,6 +3800,139 @@ a.file-cell:hover .file-cell-name {
    page width, so this layout drops the right rail and runs a single column. */
 .commit-grid {
   grid-template-columns: minmax(0, 1fr);
+}
+
+/* With the organizer tree, the commit page runs a fixed left sidebar plus the
+   diff. The diff column stays minmax(0,1fr) so wide rungs scroll inside it
+   rather than stretching the grid. */
+.commit-grid-tree {
+  grid-template-columns: 264px minmax(0, 1fr);
+}
+
+/* ---- Project organizer tree (commit sidebar) ---- */
+.tree-rail {
+  position: sticky;
+  top: 16px;
+  align-self: start;
+  max-height: calc(100vh - 48px);
+  overflow: auto;
+  padding: 10px 8px;
+  background: var(--panel);
+  border: 1px solid var(--line2);
+  border-radius: 12px;
+}
+.project-tree {
+  font: 400 13px/1.4 var(--sans);
+}
+.tree-children {
+  display: flex;
+  flex-direction: column;
+}
+.tree-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 4px 8px 4px 8px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  text-align: left;
+  color: var(--ink2);
+  cursor: pointer;
+}
+.tree-row:hover {
+  background: var(--gray-bg);
+}
+.tree-row-active {
+  background: var(--accent-weak);
+  color: var(--ink-title);
+  font-weight: 600;
+}
+.tree-toggle {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink3);
+}
+.tree-ico {
+  flex: none;
+  display: flex;
+  align-items: center;
+  color: var(--ink3);
+}
+.tree-ico-controller {
+  color: var(--accent);
+}
+.tree-ico-routine {
+  color: var(--blue);
+}
+.tree-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* The small status pill on a changed node: + added, − removed, ~ modified. */
+.tree-badge {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font: 800 10px/1 var(--sans);
+  color: #fff;
+}
+.tree-badge-added {
+  background: var(--add);
+}
+.tree-badge-removed {
+  background: var(--danger);
+}
+.tree-badge-modified {
+  background: var(--mod);
+}
+/* A collapsed container hiding a change downstream gets a quiet dot. */
+.tree-rollup-dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  margin-right: 4px;
+  border-radius: 999px;
+  background: var(--mod);
+}
+/* Banner above the diff when the tree has narrowed it to one routine/entity. */
+.tree-filter-note {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding: 8px 14px;
+  border: 1px solid var(--accent-line, var(--line2));
+  border-radius: 9px;
+  background: var(--accent-weak);
+  font: 400 13px/1.4 var(--sans);
+  color: var(--ink2);
+}
+.tree-filter-clear {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: 600 13px/1 var(--sans);
+  cursor: pointer;
+}
+.tree-filter-clear:hover {
+  text-decoration: underline;
 }
 
 /* numbered step header inside a card */

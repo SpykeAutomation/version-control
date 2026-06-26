@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   ArrowLeftRight,
@@ -11,16 +12,21 @@ import {
   Minus,
   Pencil,
   Plus,
+  X,
 } from "lucide-react";
 import { TopBar } from "../app/TopBar";
 import { LadderDiffView } from "../components/LadderDiff";
+import { ProjectTree, type RoutineSelection } from "../components/ProjectTree";
+import type { TreeNode } from "../api/tree";
 import {
   errorText,
   useCommitDiff,
   useCommitLadderDiff,
   useCommits,
+  useCommitTree,
   useDiff,
   useLadderDiff,
+  useTree,
   useProject,
 } from "../api/queries";
 import type { Commit } from "../api/repository";
@@ -60,10 +66,42 @@ export function CommitDetailPage() {
   // base switches to a generic base→head diff.
   const cvpDiff = useCommitDiff(project?.id, explicitBase ? undefined : sha);
   const cvpLadder = useCommitLadderDiff(project?.id, explicitBase ? undefined : sha);
+  const cvpTree = useCommitTree(project?.id, explicitBase ? undefined : sha);
   const genDiff = useDiff(project?.id, genBase, explicitBase ? shortSha : undefined);
   const genLadder = useLadderDiff(project?.id, genBase, explicitBase ? shortSha : undefined);
+  const genTree = useTree(project?.id, genBase, explicitBase ? shortSha : undefined);
   const diffQuery = explicitBase ? genDiff : cvpDiff;
   const ladderQuery = explicitBase ? genLadder : cvpLadder;
+  const treeQuery = explicitBase ? genTree : cvpTree;
+
+  // Tree selection. A routine filters the ladder diff to just that routine; any
+  // other changed node focuses its change-summary rows. They are mutually
+  // exclusive — picking one clears the other.
+  const [routineSel, setRoutineSel] = useState<RoutineSelection | null>(null);
+  const [entitySel, setEntitySel] = useState<TreeNode | null>(null);
+  const tableRef = useRef<HTMLDivElement>(null);
+  // Switching commits should drop any prior selection.
+  useEffect(() => {
+    setRoutineSel(null);
+    setEntitySel(null);
+  }, [sha, explicitBase]);
+  // A non-routine pick has no ladder card, so bring its change rows into view.
+  useEffect(() => {
+    if (entitySel) tableRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [entitySel]);
+
+  const selectRoutine = (sel: RoutineSelection) => {
+    setEntitySel(null);
+    setRoutineSel(sel);
+  };
+  const selectEntity = (node: TreeNode) => {
+    setRoutineSel(null);
+    setEntitySel(node);
+  };
+  const clearSelection = () => {
+    setRoutineSel(null);
+    setEntitySel(null);
+  };
 
   // The commit's message/author/date aren't on the diff endpoints, so we look
   // them up in the branch's commit list and match on the full sha.
@@ -73,6 +111,24 @@ export function CommitDetailPage() {
   const meta = commits?.find((c) => c.sha === sha) ?? null;
 
   const changeView = diffQuery.data ? deriveChangeView(diffQuery.data) : null;
+
+  // Apply the tree selection to the ladder cards and the change rows. A routine
+  // pick narrows both to that routine; an entity pick narrows the table to that
+  // name; no pick shows everything.
+  const allRoutines = ladderQuery.data?.routines ?? [];
+  const visibleRoutines = routineSel
+    ? allRoutines.filter(
+        (r) =>
+          r.controller === routineSel.controller &&
+          r.program === routineSel.program &&
+          r.routine === routineSel.routine,
+      )
+    : allRoutines;
+  const filterName = routineSel?.routine ?? entitySel?.label ?? null;
+  const visibleRows =
+    changeView && filterName
+      ? changeView.rows.filter((r) => r.name === filterName)
+      : (changeView?.rows ?? []);
 
   // The list is newest first, so the entry after the head is its parent (the
   // default base); commits older than the head are the valid base options.
@@ -89,14 +145,17 @@ export function CommitDetailPage() {
   // instead of falling through to the not-found state.
   const loading =
     projectPending ||
-    (project != null && (diffQuery.isPending || ladderQuery.isPending));
+    (project != null &&
+      (diffQuery.isPending || ladderQuery.isPending || treeQuery.isPending));
   const error = projectError
     ? errorText(projectError, "Failed to load commit.")
     : diffQuery.error
       ? errorText(diffQuery.error, "Failed to load commit.")
       : ladderQuery.error
         ? errorText(ladderQuery.error, "Failed to load commit.")
-        : null;
+        : treeQuery.error
+          ? errorText(treeQuery.error, "Failed to load commit.")
+          : null;
 
   return (
     <>
@@ -124,7 +183,20 @@ export function CommitDetailPage() {
             </div>
           </div>
         ) : (
-          <div className="page-grid compare-grid commit-grid">
+          <div className="page-grid compare-grid commit-grid-tree">
+            {treeQuery.data ? (
+              <aside className="tree-rail">
+                <ProjectTree
+                  root={treeQuery.data.root}
+                  selected={routineSel}
+                  onSelectRoutine={selectRoutine}
+                  onSelectEntity={selectEntity}
+                  onClear={clearSelection}
+                />
+              </aside>
+            ) : (
+              <div />
+            )}
             <div className="page-main">
               <nav className="crumb">
                 <Link to="/projects">Projects</Link>
@@ -176,9 +248,32 @@ export function CommitDetailPage() {
 
                   <FilesCard files={changeView?.files ?? []} />
 
+                  {filterName && (
+                    <div className="tree-filter-note">
+                      <span>
+                        Filtered to <strong>{filterName}</strong>
+                      </span>
+                      <button
+                        type="button"
+                        className="tree-filter-clear"
+                        onClick={clearSelection}
+                      >
+                        <X size={13} strokeWidth={2} /> Show all
+                      </button>
+                    </div>
+                  )}
+
                   <div className="commit-diff-stage">
-                    {ladderQuery.data && ladderQuery.data.routines.length > 0 ? (
-                      <LadderDiffView doc={ladderQuery.data} showNumbers />
+                    {visibleRoutines.length > 0 ? (
+                      <LadderDiffView
+                        doc={{ ...ladderQuery.data!, routines: visibleRoutines }}
+                        showNumbers
+                      />
+                    ) : routineSel ? (
+                      <div className="rcard-empty">
+                        <strong>{routineSel.routine}</strong> has no ladder logic to
+                        diff. See the change summary below.
+                      </div>
                     ) : (
                       <div className="rcard-empty">
                         No ladder logic changed in this commit. See the change
@@ -187,7 +282,9 @@ export function CommitDetailPage() {
                     )}
                   </div>
 
-                  <ChangeTable rows={changeView.rows} />
+                  <div ref={tableRef}>
+                    <ChangeTable rows={visibleRows} />
+                  </div>
                 </>
               )}
             </div>

@@ -23,6 +23,11 @@ import {
   type LadderDiffDoc,
 } from "./diff";
 import {
+  getCommitTree,
+  getTree,
+  type ProjectTree,
+} from "./tree";
+import {
   getMergeRequest,
   listChangeRequests,
   type ChangeRequestSummary,
@@ -47,6 +52,10 @@ export const queryKeys = {
     ["projects", projectId, "diff", base, head] as const,
   ladderDiff: (projectId: number, base: string, head: string) =>
     ["projects", projectId, "ladder-diff", base, head] as const,
+  commitTree: (projectId: number, sha: string) =>
+    ["projects", projectId, "commit-tree", sha] as const,
+  tree: (projectId: number, base: string, head: string) =>
+    ["projects", projectId, "tree", base, head] as const,
   changeRequests: (projectId: number) =>
     ["projects", projectId, "pulls"] as const,
   mergeRequest: (slug: string, mrId: string) =>
@@ -144,6 +153,33 @@ export function useLadderDiff(
   return useQuery<LadderDiffDoc>({
     queryKey: queryKeys.ladderDiff(projectId ?? -1, base ?? "", head ?? ""),
     queryFn: () => getLadderDiff(projectId!, base!, head!),
+    enabled: projectId != null && !!base && !!head,
+  });
+}
+
+// The organizer tree for one commit (full structure + change status). Mirrors
+// useCommitDiff's gating: disabled until both the project and sha are known.
+export function useCommitTree(
+  projectId: number | undefined,
+  sha: string | undefined,
+) {
+  return useQuery<ProjectTree>({
+    queryKey: queryKeys.commitTree(projectId ?? -1, sha ?? ""),
+    queryFn: () => getCommitTree(projectId!, sha!),
+    enabled: projectId != null && !!sha,
+  });
+}
+
+// The organizer tree at a custom base, used when the commit page compares
+// against a base other than the parent. Disabled until both refs are known.
+export function useTree(
+  projectId: number | undefined,
+  base: string | undefined,
+  head: string | undefined,
+) {
+  return useQuery<ProjectTree>({
+    queryKey: queryKeys.tree(projectId ?? -1, base ?? "", head ?? ""),
+    queryFn: () => getTree(projectId!, base!, head!),
     enabled: projectId != null && !!base && !!head,
   });
 }
