@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
   Clock,
@@ -14,12 +14,19 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { TopBar } from "../app/TopBar";
-import { RoutineLadderDiffView } from "../components/LadderDiff";
+import {
+  RoutineLadderDiffView,
+  RoutineLadderFullView,
+} from "../components/LadderDiff";
+import { ProjectTree, type RoutineSelection } from "../components/ProjectTree";
 import { ApiError } from "../api/client";
+import type { ProjectTree as ProjectTreeData, TreeNode } from "../api/tree";
 import {
   demoCommit,
+  routineKey,
   type CommitDetail,
   type CommitFileStat,
+  type RoutineFull,
 } from "../api/commit";
 import type {
   MRCodeDiff,
@@ -27,7 +34,12 @@ import type {
   PRFile,
   PRRoutineChange,
 } from "../api/mergeRequest";
-import { errorText, useCommit, useProject } from "../api/queries";
+import {
+  errorText,
+  useCommit,
+  useProject,
+  useRoutineContent,
+} from "../api/queries";
 import { useAuth } from "../auth/AuthContext";
 import { formatDate, timeAgo } from "../lib/time";
 
@@ -74,7 +86,12 @@ export function CommitReviewPage() {
             <EmptyCommit slug={slug} />
           </div>
         ) : (
-          <CommitReviewView commit={commit} projectName={project?.name} slug={slug} />
+          <CommitReviewView
+            commit={commit}
+            projectName={project?.name}
+            slug={slug}
+            projectId={project?.id}
+          />
         )}
       </div>
     </>
@@ -87,17 +104,41 @@ function CommitReviewView({
   commit,
   projectName,
   slug,
+  projectId,
 }: {
   commit: CommitDetail;
   projectName?: string;
   slug?: string;
+  projectId?: number;
 }) {
   const [showNumbers, setShowNumbers] = useState(true);
+  // The tab strip switches the main view: "changes" shows the per-file diffs;
+  // "files" shows the whole-project tree with a routine viewer.
+  const [tab, setTab] = useState<"changes" | "files">("changes");
   // Locally-added comments. There's no commit-comments backend endpoint yet, so
   // new comments live in component state and reset when the commit changes.
   const [added, setAdded] = useState<MRComment[]>([]);
   useEffect(() => setAdded([]), [commit.sha]);
   const comments = [...commit.comments, ...added];
+
+  // The "Comments" tab scrolls down to the discussion rather than switching view.
+  const discussionRef = useRef<HTMLElement>(null);
+  const scrollToDiscussion = () =>
+    discussionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+
+  // Files-tab selection lives here (not inside FilesBrowser) so it survives
+  // switching to the Changes tab and back. Resets to the first changed routine
+  // when the commit changes.
+  const firstChanged = useMemo(
+    () => firstChangedRoutine(commit.tree.root),
+    [commit.tree],
+  );
+  const [filesSel, setFilesSel] = useState<RoutineSelection | null>(firstChanged);
+  const [filesEntity, setFilesEntity] = useState<TreeNode | null>(null);
+  useEffect(() => {
+    setFilesSel(firstChanged);
+    setFilesEntity(null);
+  }, [firstChanged]);
 
   return (
     <div className="mr-page">
@@ -116,36 +157,73 @@ function CommitReviewView({
       <CommitHeader commit={commit} />
       <MetaRow commit={commit} />
 
-      <div className="repo-grid mr-grid">
+      <div className={`repo-grid mr-grid${tab === "files" ? " cm-grid-full" : ""}`}>
         <div className="repo-col">
           <OverviewCard commit={commit} />
-          <Tabs commit={commit} />
-
-          <ChangesToolbar
-            count={commit.files.length}
-            showNumbers={showNumbers}
-            onToggle={() => setShowNumbers((v) => !v)}
+          <Tabs
+            commit={commit}
+            activeTab={tab}
+            onChangesClick={() => setTab("changes")}
+            onFilesClick={() => setTab("files")}
+            onCommentsClick={scrollToDiscussion}
           />
-          {commit.files.map((file, i) => (
-            <FileSection
-              key={i}
-              index={i + 1}
-              file={file}
+
+          {tab === "changes" ? (
+            <>
+              <ChangesToolbar
+                count={commit.files.length}
+                showNumbers={showNumbers}
+                onToggle={() => setShowNumbers((v) => !v)}
+              />
+              {commit.files.map((file, i) => (
+                <FileSection
+                  key={i}
+                  index={i + 1}
+                  file={file}
+                  showNumbers={showNumbers}
+                />
+              ))}
+            </>
+          ) : (
+            <FilesBrowser
+              tree={commit.tree}
+              files={commit.files}
+              fullContent={commit.fullContent}
+              projectId={projectId}
+              sha={commit.sha}
               showNumbers={showNumbers}
+              onToggleNumbers={() => setShowNumbers((v) => !v)}
+              selected={filesSel}
+              entity={filesEntity}
+              onSelectRoutine={(s) => {
+                setFilesEntity(null);
+                setFilesSel(s);
+              }}
+              onSelectEntity={(n) => {
+                setFilesSel(null);
+                setFilesEntity(n);
+              }}
+              onClear={() => {
+                setFilesSel(null);
+                setFilesEntity(null);
+              }}
             />
-          ))}
+          )}
 
           <Discussion
+            sectionRef={discussionRef}
             comments={comments}
             onAdd={(c) => setAdded((prev) => [...prev, c])}
           />
         </div>
 
-        <aside className="repo-rail cm-rail">
-          <CommitDetailsCard commit={commit} />
-          <FilesChangedCard files={commit.fileStats} />
-          <ActionsCard />
-        </aside>
+        {tab !== "files" && (
+          <aside className="repo-rail cm-rail">
+            <CommitDetailsCard commit={commit} />
+            <FilesChangedCard files={commit.fileStats} />
+            <ActionsCard />
+          </aside>
+        )}
       </div>
     </div>
   );
@@ -286,26 +364,292 @@ function OverviewCard({ commit }: { commit: CommitDetail }) {
 }
 
 // ---- Tabs ----
-function Tabs({ commit }: { commit: CommitDetail }) {
+function Tabs({
+  commit,
+  activeTab,
+  onChangesClick,
+  onFilesClick,
+  onCommentsClick,
+}: {
+  commit: CommitDetail;
+  activeTab: "changes" | "files";
+  onChangesClick: () => void;
+  onFilesClick: () => void;
+  onCommentsClick: () => void;
+}) {
   const tabs: { key: string; label: string; count?: number }[] = [
     { key: "changes", label: "Changes" },
     { key: "files", label: "Files" },
     { key: "comments", label: "Comments", count: commit.comments.length },
-    { key: "activity", label: "Activity" },
   ];
+  // "Changes" / "Files" switch the view; "Comments" scrolls to the discussion.
+  const handlers: Record<string, (() => void) | undefined> = {
+    changes: onChangesClick,
+    files: onFilesClick,
+    comments: onCommentsClick,
+  };
   return (
     <nav className="pr-tabs cm-tabs">
       {tabs.map((t) => (
         <button
           key={t.key}
-          className={`pr-tab${t.key === "changes" ? " active" : ""}`}
+          className={`pr-tab${t.key === activeTab ? " active" : ""}`}
           type="button"
+          onClick={handlers[t.key]}
         >
           {t.label}
           {t.count != null && <span className="pr-tab-count">{t.count}</span>}
         </button>
       ))}
     </nav>
+  );
+}
+
+// ---- Files tab: project tree + routine viewer ----
+// The first changed routine in the tree, used as the default selection so the
+// viewer opens on something meaningful rather than empty.
+function firstChangedRoutine(node: TreeNode): RoutineSelection | null {
+  if (node.kind === "routine" && node.status !== "unchanged" && node.routine) {
+    return {
+      controller: node.controller ?? "",
+      program: node.program ?? "",
+      routine: node.routine,
+      routineType: node.routine_type,
+    };
+  }
+  for (const child of node.children) {
+    const found = firstChangedRoutine(child);
+    if (found) return found;
+  }
+  return null;
+}
+
+// Find the tree node for a selection, so the viewer can read the routine's real
+// change status (added / removed / modified / unchanged).
+function findRoutineNode(node: TreeNode, sel: RoutineSelection): TreeNode | null {
+  if (
+    node.kind === "routine" &&
+    node.routine === sel.routine &&
+    (node.program ?? "") === (sel.program ?? "") &&
+    (node.controller ?? "") === (sel.controller ?? "")
+  ) {
+    return node;
+  }
+  for (const child of node.children) {
+    const found = findRoutineNode(child, sel);
+    if (found) return found;
+  }
+  return null;
+}
+
+// Placeholder text for a selected routine that has no renderable diff: an
+// unchanged routine, or (against a real backend) a changed routine whose diff
+// isn't carried in this view yet.
+function routinePlaceholder(name: string, status?: TreeNode["status"]) {
+  const strong = <strong>{name}</strong>;
+  if (status === "added") {
+    return <>{strong} was added in this commit. A full routine view isn't available here yet.</>;
+  }
+  if (status === "removed") {
+    return <>{strong} was removed in this commit.</>;
+  }
+  if (status === "modified") {
+    return <>{strong} changed in this commit, but its diff isn't available in this view yet.</>;
+  }
+  return (
+    <>
+      {strong} is unchanged in this commit. This view shows changed routines; full
+      routine viewing isn't available yet.
+    </>
+  );
+}
+
+function FilesBrowser({
+  tree,
+  files,
+  fullContent,
+  projectId,
+  sha,
+  showNumbers,
+  onToggleNumbers,
+  selected,
+  entity,
+  onSelectRoutine,
+  onSelectEntity,
+  onClear,
+}: {
+  tree: ProjectTreeData;
+  files: PRFile[];
+  fullContent: Record<string, RoutineFull>;
+  projectId?: number;
+  sha: string;
+  showNumbers: boolean;
+  onToggleNumbers: () => void;
+  selected: RoutineSelection | null;
+  entity: TreeNode | null;
+  onSelectRoutine: (sel: RoutineSelection) => void;
+  onSelectEntity: (node: TreeNode) => void;
+  onClear: () => void;
+}) {
+  const selNode = selected ? findRoutineNode(tree.root, selected) : null;
+
+  // Resolve the diff to render by full identity (controller + program + routine),
+  // not name alone, so same-named routines in different programs don't collide.
+  // When a routine carries more than one kind of change, prefer the one matching
+  // the tree node's language.
+  const byName = selected
+    ? files.flatMap((f) => f.changes).filter((c) => c.routine === selected.routine)
+    : [];
+  // Prefer changes whose program/controller exactly match the selection. Only
+  // fall back to name-only matches when the selection itself has no program —
+  // otherwise a change with a null program would wrongly claim a same-named
+  // routine in another program.
+  const exact = selected
+    ? byName.filter(
+        (c) =>
+          (c.program ?? null) === (selected.program || null) &&
+          (c.controller ?? null) === (selected.controller || null),
+      )
+    : [];
+  const pool = exact.length ? exact : selected?.program ? [] : byName;
+  const wantKind =
+    selected?.routineType === "st"
+      ? "structured"
+      : selected?.routineType === "rll"
+        ? "ladder"
+        : undefined;
+  const change =
+    (wantKind ? pool.find((c) => c.kind === wantKind) : undefined) ?? pool[0];
+
+  return (
+    <>
+      <div className="pr-changes-bar">
+        <span className="pr-changes-title">Project files</span>
+        <label className="mr-toggle">
+          <input type="checkbox" checked={showNumbers} onChange={onToggleNumbers} />
+          Show rung numbers
+        </label>
+      </div>
+      <div className="commit-tree-diff">
+        <aside className="tree-rail">
+          <ProjectTree
+            root={tree.root}
+            selected={selected}
+            onSelectRoutine={onSelectRoutine}
+            onSelectEntity={onSelectEntity}
+            onClear={onClear}
+          />
+        </aside>
+        <div className="commit-diff-stage">
+          {entity && !selected ? (
+            <div className="rcard-empty">
+              <strong>{entity.label}</strong>{" "}
+              {entity.status === "unchanged"
+                ? "is unchanged in this commit."
+                : "changed in this commit."}{" "}
+              Detail for non-routine items isn't shown in this view.
+            </div>
+          ) : !selected ? (
+            <div className="rcard-empty">
+              Select a routine from the tree to view it.
+            </div>
+          ) : change?.kind === "ladder" && change.ladder ? (
+            <div className="mr-ladderwrap">
+              <RoutineLadderDiffView
+                routine={change.ladder}
+                showNumbers={showNumbers}
+              />
+            </div>
+          ) : change?.code ? (
+            <CodeDiffBody diff={change.code} />
+          ) : (
+            <FullRoutineViewer
+              projectId={projectId}
+              sha={sha}
+              selection={selected}
+              embedded={fullContent[routineKey(selected.program, selected.routine)]}
+              status={selNode?.status}
+              showNumbers={showNumbers}
+            />
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
+// Renders a routine in full when it has no diff to show: uses the pre-loaded
+// demo content when present, otherwise fetches it from the backend.
+// Falls back to a status-aware placeholder while loading or when no content is
+// available (e.g. the backend endpoint isn't there yet).
+function FullRoutineViewer({
+  projectId,
+  sha,
+  selection,
+  embedded,
+  status,
+  showNumbers,
+}: {
+  projectId?: number;
+  sha: string;
+  selection: RoutineSelection;
+  embedded?: RoutineFull;
+  status?: TreeNode["status"];
+  showNumbers: boolean;
+}) {
+  // Only hit the backend when the content isn't already available from demo data.
+  const query = useRoutineContent(
+    projectId,
+    sha,
+    selection.program,
+    selection.routine,
+    !embedded,
+  );
+  const content = embedded ?? query.data;
+
+  if (content) {
+    return content.kind === "ladder" ? (
+      <div className="mr-ladderwrap">
+        <RoutineLadderFullView routine={content.ladder} showNumbers={showNumbers} />
+      </div>
+    ) : (
+      <RoutineCodeFullView refLabel={content.ref} lines={content.lines} />
+    );
+  }
+  // isFetching (not isPending) — a disabled query stays "pending" in v5, which
+  // would otherwise leave this stuck on "Loading…" and never fall through.
+  if (query.isFetching) {
+    return <div className="rcard-empty">Loading {selection.routine}…</div>;
+  }
+  return (
+    <div className="rcard-empty">
+      {routinePlaceholder(selection.routine, status)}
+    </div>
+  );
+}
+
+// A whole structured-text routine, read-only (single column, no diff markers).
+function RoutineCodeFullView({
+  refLabel,
+  lines,
+}: {
+  refLabel: string;
+  lines: { ln: number; text: string }[];
+}) {
+  return (
+    <div className="cmfull">
+      <div className="cmfull-head">
+        <span className="sxs-head-ver">{refLabel}</span>
+      </div>
+      <div className="cmfull-body">
+        {lines.map((l, i) => (
+          <div className="cd-line" key={i}>
+            <span className="cd-num">{l.ln}</span>
+            <span className="cd-code">{highlightST(l.text, "right")}</span>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -516,12 +860,14 @@ function CodeDiffBody({ diff }: { diff: MRCodeDiff }) {
 function Discussion({
   comments,
   onAdd,
+  sectionRef,
 }: {
   comments: MRComment[];
   onAdd: (comment: MRComment) => void;
+  sectionRef?: React.Ref<HTMLElement>;
 }) {
   return (
-    <section className="mr-section">
+    <section className="mr-section" ref={sectionRef} style={{ scrollMarginTop: 12 }}>
       <div className="mr-section-head">
         <div className="mr-section-title">
           Discussion

@@ -515,6 +515,34 @@ export function RoutineLadderDiffView({
   );
 }
 
+// Draws a routine in full as a single column (no before/after), for read-only
+// viewing of an unchanged routine. Reuses the same per-rung rendering as the
+// diff view; each rung shows its "after" side with neutral (unchanged) styling.
+export function RoutineLadderFullView({
+  routine,
+  showNumbers,
+}: {
+  routine: IRRoutineLadderDiff;
+  showNumbers?: boolean;
+}) {
+  return (
+    <section className="ladder-full-card">
+      <div className="lad-col-head">
+        <span className="lad-col-ver">
+          {routine.new_label ?? routine.old_label ?? "Current"}
+        </span>
+      </div>
+      <div className="ladder-full-body">
+        {routine.rungs.map((rung, i) => (
+          <div className="ladfull-cell" key={i}>
+            <RungLine rung={rung} isBefore={false} showNumbers={showNumbers} />
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 // Thin helper: draw every routine in a whole diff document.
 export function LadderDiffView({
   doc,

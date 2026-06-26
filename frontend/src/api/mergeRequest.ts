@@ -88,6 +88,10 @@ export type RoutineDiffKind = "ladder" | "structured";
 export interface PRRoutineChange {
   routine: string;
   kind: RoutineDiffKind;
+  // Full identity, so a routine can be matched unambiguously even when two
+  // programs hold routines of the same name. Optional: not every caller sets them.
+  controller?: string;
+  program?: string;
   ladder?: IRRoutineLadderDiff; // present when kind === "ladder"
   code?: MRCodeDiff; // present when kind === "structured"
 }

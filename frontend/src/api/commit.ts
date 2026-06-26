@@ -4,7 +4,7 @@
 // reuse the IR model from ./diff so the panels share the LadderDiff renderer,
 // and the file/routine grouping reuses the shapes from ./mergeRequest so the two
 // review pages stay structurally aligned.
-import { ApiError } from "./client";
+import { apiFetch, ApiError } from "./client";
 import { listProjects } from "./projects";
 import { listCommits } from "./commits";
 import { getCommitDiff, getCommitLadderDiff } from "./diff";
@@ -14,6 +14,8 @@ import type {
   IRRoutineLadderDiff,
   IRRungDiff,
 } from "./diff";
+import { getCommitTree } from "./tree";
+import type { ProjectTree, TreeNode } from "./tree";
 import type { MRCodeDiff, MRComment, PRFile, PRRoutineChange } from "./mergeRequest";
 import { deriveChangeView, summarizeChangeSet } from "../lib/changeset";
 
@@ -22,6 +24,24 @@ export interface CommitFileStat {
   name: string;
   additions: number;
   deletions: number;
+}
+
+// The full, read-only content of one routine at a commit. Lets the Files tab
+// open any routine, including unchanged ones, not just the ones that changed.
+export interface RoutineFullLadder {
+  kind: "ladder";
+  ladder: IRRoutineLadderDiff; // all rungs status "unchanged"; rendered single-column
+}
+export interface RoutineFullCode {
+  kind: "structured";
+  ref: string; // header label, e.g. "Current (a7f3c9d)"
+  lines: { ln: number; text: string }[];
+}
+export type RoutineFull = RoutineFullLadder | RoutineFullCode;
+
+// Key a routine's full content by "program/routine".
+export function routineKey(program: string, routine: string): string {
+  return `${program}/${routine}`;
 }
 
 export interface CommitDetail {
@@ -46,6 +66,13 @@ export interface CommitDetail {
   comments: MRComment[];
   impactedTags: string[];
   fileStats: CommitFileStat[]; // per-file +/- tallies for the rail
+  // The full project-organizer tree at this commit, with each node tagged by
+  // what changed. Drives the Files tab's navigation.
+  tree: ProjectTree;
+  // Pre-loaded full routine content, keyed by routineKey(program, routine).
+  // Populated for demo data so the preview can open unchanged routines without a
+  // backend; empty for real commits, which fetch on demand via getRoutineContent.
+  fullContent: Record<string, RoutineFull>;
 }
 
 // --- Backend wiring ---
@@ -70,6 +97,18 @@ const EMPTY_CHANGESET: ChangeSet = {
   tasks: [],
 };
 
+const emptyTree = (label: string): ProjectTree => ({
+  schema_version: 1,
+  root: {
+    key: "root",
+    label,
+    kind: "controller",
+    status: "unchanged",
+    descendant_changed: false,
+    children: [],
+  },
+});
+
 // Map a real commit (meta + ladder diff + semantic change-set) onto the page's
 // view model. The summary bullets, impacted tags and headline counts are derived
 // from the change-set (the semantic diff), so they reflect the actual commit.
@@ -82,6 +121,7 @@ function mapCommit(
   commits: CommitOut[],
   ladder: IRRoutineLadderDiff[],
   changeSet: ChangeSet,
+  tree: ProjectTree,
 ): CommitDetail {
   const idx = commits.findIndex((c) => c.sha === sha || shortSha(c.sha) === sha);
   const meta = idx >= 0 ? commits[idx] : null;
@@ -98,6 +138,8 @@ function mapCommit(
             changes: ladder.map<PRRoutineChange>((r) => ({
               routine: r.routine ?? "Routine",
               kind: "ladder",
+              controller: r.controller ?? undefined,
+              program: r.program ?? undefined,
               ladder: r,
             })),
           },
@@ -125,7 +167,24 @@ function mapCommit(
     comments: [],
     impactedTags: view.symbols,
     fileStats: [],
+    tree,
+    // Real commits fetch full routine content on demand via getRoutineContent.
+    fullContent: {},
   };
+}
+
+// Fetch one routine's full content at a commit. The backend endpoint
+// is read-only and returns the whole routine, not a diff. Until it exists this
+// rejects (404) and the Files tab falls back to a placeholder; the demo path
+// serves content from CommitDetail.fullContent instead of calling this.
+export async function getRoutineContent(
+  projectId: number,
+  sha: string,
+  program: string,
+  routine: string,
+): Promise<RoutineFull> {
+  const q = `?program=${encodeURIComponent(program)}&routine=${encodeURIComponent(routine)}`;
+  return apiFetch<RoutineFull>(`/projects/${projectId}/commits/${sha}/routine${q}`);
 }
 
 // Load a commit for the review page: resolve the project by slug, then fetch the
@@ -138,14 +197,15 @@ export async function getCommit(slug: string, sha: string): Promise<CommitDetail
     const project = projects.find((p) => p.slug === slug);
     if (!project) throw new Error("Project not found");
     const branch = project.branches[0] ?? "main";
-    const [commits, ladder, changeSet] = await Promise.all([
+    const [commits, ladder, changeSet, tree] = await Promise.all([
       listCommits(project.id, branch).catch(() => [] as CommitOut[]),
       getCommitLadderDiff(project.id, sha)
         .then((d) => d.routines)
         .catch(() => [] as IRRoutineLadderDiff[]),
       getCommitDiff(project.id, sha).catch(() => EMPTY_CHANGESET),
+      getCommitTree(project.id, sha).catch(() => emptyTree("Controller")),
     ]);
-    return mapCommit(sha, branch, commits as CommitOut[], ladder, changeSet);
+    return mapCommit(sha, branch, commits as CommitOut[], ladder, changeSet, tree);
   } catch (err) {
     // A status-0 ApiError means the server is unreachable (e.g. no backend in
     // local dev) — show the demo commit rather than an error banner.
@@ -174,7 +234,7 @@ function coil(label: string, status: ElStatus = "unchanged"): IRElement {
 }
 
 // A timer box. The before/after sides carry a status so the box paints
-// red-on-the-left, green-on-the-right like a modified element in the mockup.
+// red on the left and green on the right, like a modified element.
 function tonBox(timer: string, preset: string, status: ElStatus): IRElement {
   return {
     kind: "box",
@@ -198,10 +258,41 @@ function modRung(number: number, before: IRElement[], after: IRElement[]): IRRun
   };
 }
 
+// An unchanged rung for a full-routine view: both sides identical, no status.
+function fullRung(n: number, els: IRElement[]): IRRungDiff {
+  return { status: "unchanged", old_number: n, new_number: n, before: els, after: els };
+}
+
+// A whole routine rendered for read-only viewing (all rungs unchanged). The
+// single label reads "Current (<sha>)" since there's no before/after.
+function fullLadder(
+  routine: string,
+  label: string,
+  rungs: IRRungDiff[],
+): IRRoutineLadderDiff {
+  return {
+    routine,
+    controller: "Main.ap16",
+    program: "MainProgram",
+    routine_type: "rll",
+    old_label: label,
+    new_label: label,
+    summary: {
+      rungs_modified: 0,
+      rungs_added: 0,
+      rungs_removed: 0,
+      additions: 0,
+      removals: 0,
+    },
+    rungs,
+  };
+}
+
 function ladderRoutine(routine: string, rungs: IRRungDiff[]): IRRoutineLadderDiff {
   return {
     routine,
     controller: "Main.ap16",
+    program: "MainProgram",
     routine_type: "rll",
     old_label: "Previous (c2b91aa)",
     new_label: "Current (a7f3c9d)",
@@ -347,6 +438,130 @@ export function demoCommit(sha: string): CommitDetail {
     ],
   };
 
+  // The full organizer tree at this commit. Changed routines are badged; the
+  // unchanged ones are still listed so they can be opened from the Files tab.
+  const mkRoutine = (
+    name: string,
+    status: TreeNode["status"],
+    routineType: string,
+  ): TreeNode => ({
+    key: `MainProgram/${name}`,
+    label: name,
+    kind: "routine",
+    status,
+    descendant_changed: false,
+    routine_type: routineType,
+    controller: "Main.ap16",
+    program: "MainProgram",
+    routine: name,
+    children: [],
+  });
+  const demoTree: ProjectTree = {
+    schema_version: 1,
+    root: {
+      key: "controller",
+      label: "Main.ap16",
+      kind: "controller",
+      status: "modified",
+      descendant_changed: true,
+      children: [
+        {
+          key: "tasks",
+          label: "Tasks",
+          kind: "folder",
+          status: "unchanged",
+          descendant_changed: true,
+          children: [
+            {
+              key: "MainTask",
+              label: "MainTask",
+              kind: "task",
+              status: "unchanged",
+              descendant_changed: true,
+              children: [
+                {
+                  key: "MainProgram",
+                  label: "MainProgram",
+                  kind: "program",
+                  status: "unchanged",
+                  descendant_changed: true,
+                  children: [
+                    mkRoutine("ConveyorStart", "modified", "rll"),
+                    mkRoutine("JamDetect", "modified", "st"),
+                    mkRoutine("AlarmHandler", "unchanged", "rll"),
+                    mkRoutine("Diagnostics", "unchanged", "st"),
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+        {
+          key: "ctags",
+          label: "Controller Tags",
+          kind: "folder",
+          status: "unchanged",
+          descendant_changed: true,
+          children: impactedTags.map((t) => ({
+            key: `tag/${t}`,
+            label: t,
+            kind: "tag" as const,
+            status: "modified" as const,
+            descendant_changed: false,
+            children: [],
+          })),
+        },
+        {
+          key: "dtypes",
+          label: "Data Types",
+          kind: "folder",
+          status: "unchanged",
+          descendant_changed: false,
+          children: [
+            {
+              key: "dt/ConveyorState",
+              label: "ConveyorState",
+              kind: "datatype",
+              status: "unchanged",
+              descendant_changed: false,
+              children: [],
+            },
+          ],
+        },
+      ],
+    },
+  };
+
+  // Full content for the unchanged routines, so the Files tab can open them in
+  // full on the no-backend preview route.
+  const fullLabel = `Current (${short})`;
+  const fullContent: Record<string, RoutineFull> = {
+    [routineKey("MainProgram", "AlarmHandler")]: {
+      kind: "ladder",
+      ladder: fullLadder("AlarmHandler", fullLabel, [
+        fullRung(0, [contact("Alarm_Active", "no"), coil("Alarm_Horn")]),
+        fullRung(1, [contact("Ack_PB", "no"), coil("Alarm_Ack")]),
+        fullRung(2, [
+          contact("Fault_Active", "no"),
+          contact("Alarm_Ack", "nc"),
+          coil("Alarm_Latch"),
+        ]),
+      ]),
+    },
+    [routineKey("MainProgram", "Diagnostics")]: {
+      kind: "structured",
+      ref: fullLabel,
+      lines: [
+        { ln: 1, text: "IF Heartbeat_Timer.DN THEN" },
+        { ln: 2, text: "    Heartbeat := NOT Heartbeat;" },
+        { ln: 3, text: "    Heartbeat_Timer(IN := FALSE);" },
+        { ln: 4, text: "END_IF;" },
+        { ln: 5, text: "Scan_Count := Scan_Count + 1;" },
+        { ln: 6, text: "Diag_OK := Comms_OK AND NOT Fault_Active;" },
+      ],
+    },
+  };
+
   return {
     sha: short,
     title: "Add jam detection timer",
@@ -367,8 +582,20 @@ export function demoCommit(sha: string): CommitDetail {
       {
         name: "Main.ap16",
         changes: [
-          { routine: "ConveyorStart", kind: "ladder", ladder: conveyorStart },
-          { routine: "JamDetect", kind: "structured", code: jamLogic },
+          {
+            routine: "ConveyorStart",
+            kind: "ladder",
+            controller: "Main.ap16",
+            program: "MainProgram",
+            ladder: conveyorStart,
+          },
+          {
+            routine: "JamDetect",
+            kind: "structured",
+            controller: "Main.ap16",
+            program: "MainProgram",
+            code: jamLogic,
+          },
         ],
       },
     ],
@@ -397,6 +624,8 @@ export function demoCommit(sha: string): CommitDetail {
       },
     ],
     impactedTags,
+    tree: demoTree,
+    fullContent,
     fileStats: [
       { name: "Main.ap16", additions: 64, deletions: 18 },
       { name: "RejectControl.st", additions: 22, deletions: 10 },
