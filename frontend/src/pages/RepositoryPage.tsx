@@ -2,28 +2,45 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
   Box,
+  Boxes,
   Check,
   ChevronDown,
-  ChevronLeft,
-  ChevronRight,
   Code2,
-  Filter,
+  Droplet,
+  FileText,
+  Flame,
   GitBranch,
   GitCommitHorizontal,
   GitPullRequestArrow,
+  History,
+  Info,
   LayoutGrid,
+  type LucideIcon,
+  MoreHorizontal,
   Plus,
   Search,
   Settings,
-  Tag,
-  Users,
+  Workflow,
 } from "lucide-react";
 import { TopBar } from "../app/TopBar";
 import { FilesTable } from "../components/FilesTable";
-import { type Member, type ProjectRow } from "../api/projects";
-import { type BranchInfo, type Commit, type RepositoryDetail } from "../api/repository";
+import { StatusBadge } from "../components/StatusBadge";
+import {
+  demoProjects,
+  type Member,
+  type ProjectRow,
+} from "../api/projects";
+import {
+  CR_META,
+  demoRepositoryDetail,
+  type BranchInfo,
+  type ChangeRequestRow,
+  type Commit,
+  type RepositoryDetail,
+} from "../api/repository";
 import { type BranchSummary } from "../api/commits";
 import { MR_STATUS_META, type ChangeRequestSummary } from "../api/mergeRequest";
+import { ApiError } from "../api/client";
 import {
   errorText,
   useBranches,
@@ -31,13 +48,14 @@ import {
   useCommits,
   useMembers,
   useProject,
+  useRepository,
 } from "../api/queries";
 import { formatDate, timeAgo } from "../lib/time";
 
 const TABS = [
   { label: "Overview", icon: LayoutGrid },
-  { label: "Code", icon: Code2 },
-  { label: "Change requests", icon: GitPullRequestArrow },
+  { label: "Explorer", icon: FileText },
+  { label: "Merge requests", icon: GitPullRequestArrow },
   { label: "Settings", icon: Settings },
 ] as const;
 type Tab = (typeof TABS)[number]["label"];
@@ -47,32 +65,67 @@ function initials(name: string): string {
   return ((p[0]?.[0] ?? "") + (p[1]?.[0] ?? "")).toUpperCase() || "?";
 }
 
+// A repository's icon and colour tone, derived from the slug so each repository
+// reads distinctly without depending on a backend category field. Tones map to
+// the shared status palette.
+const REPO_VISUALS: { Icon: LucideIcon; tone: string }[] = [
+  { Icon: Boxes, tone: "blue" },
+  { Icon: Workflow, tone: "green" },
+  { Icon: Droplet, tone: "violet" },
+  { Icon: Flame, tone: "amber" },
+  { Icon: Box, tone: "slate" },
+];
+
+function repoVisual(slug: string): { Icon: LucideIcon; tone: string } {
+  let h = 0;
+  for (let i = 0; i < slug.length; i += 1) h = (h * 31 + slug.charCodeAt(i)) >>> 0;
+  return REPO_VISUALS[h % REPO_VISUALS.length];
+}
+
+function RepoIcon({
+  slug,
+  size,
+  className,
+}: {
+  slug: string;
+  size: number;
+  className: string;
+}) {
+  const { Icon, tone } = repoVisual(slug);
+  return (
+    <span className={`${className} tone-${tone}`}>
+      <Icon size={size} strokeWidth={1.9} />
+    </span>
+  );
+}
+
 export function RepositoryPage() {
   const { slug } = useParams();
-  const { isPending, error, project } = useProject(slug);
-  const [tab, setTab] = useState<Tab>("Overview");
+  const { isPending, error: projectError, project } = useProject(slug);
 
-  // The backend doesn't expose this rich detail yet; until it does, the page
-  // renders empty states.
-  const [detail] = useState<RepositoryDetail | null>(null);
+  const repoQuery = useRepository(slug);
+  const detail = repoQuery.data ?? null;
 
-  // Change requests, commits, branches and members all come from the real
-  // endpoints, keyed off the resolved project. Each stays disabled until the
-  // project is known, then loads (and caches) on its own.
   const crs = useChangeRequests(project?.id).data ?? null;
   const commits =
     useCommits(project?.id, project?.branches[0] ?? "main").data ?? null;
   const branches = useBranches(project?.id).data ?? null;
   const members = useMembers(project?.id).data ?? null;
 
+  // A status-0 (unreachable) project error isn't fatal: the detail query falls
+  // back to demo data, so the page still renders.
+  const projectFatal =
+    projectError &&
+    !(projectError instanceof ApiError && projectError.status === 0);
+
   return (
     <>
       <TopBar />
       <div className="app-scroll">
-        {error ? (
+        {projectFatal ? (
           <div className="page-pad">
             <div className="panel-msg error">
-              {errorText(error, "Failed to load repository.")}
+              {errorText(projectError, "Failed to load repository.")}
             </div>
           </div>
         ) : isPending ? (
@@ -86,149 +139,247 @@ export function RepositoryPage() {
                 <Box size={24} strokeWidth={1.6} />
               </span>
               <h3>Repository not found</h3>
-              <p>We couldn't find a project with that name.</p>
+              <p>We couldn't find a repository with that name.</p>
               <Link to="/projects" className="btn btn-primary btn-sm">
-                Back to projects
+                Back to repositories
               </Link>
             </div>
           </div>
         ) : (
-          <div className="repo-page">
-            {/* breadcrumb */}
-            <nav className="crumb">
-              <Link to="/projects">Projects</Link>
-              <span className="crumb-sep">/</span>
-              <span>{project.name}</span>
-            </nav>
-
-            {/* header */}
-            <header className="repo-head">
-              <span className="repo-head-ico">
-                <Box size={24} strokeWidth={2} />
-              </span>
-              <div className="repo-head-main">
-                <div className="repo-head-title">
-                  <h1>{project.name}</h1>
-                </div>
-                {detail?.description && <p className="repo-head-sub">{detail.description}</p>}
-              </div>
-            </header>
-
-            {/* stat cards — overview only */}
-            {tab === "Overview" && (
-              <div className="repo-stats">
-                <RepoStat
-                  icon={GitBranch}
-                  label="Branches"
-                  value={branches ? String(branches.length) : undefined}
-                />
-                <RepoStat
-                  icon={GitCommitHorizontal}
-                  label="Last commit"
-                  value={commits?.[0] ? timeAgo(commits[0].at) : undefined}
-                  subRight
-                  sub={
-                    commits?.[0] && (
-                      <span className="author">
-                        <span className="author-av">{initials(commits[0].author)}</span>
-                        {commits[0].author}
-                      </span>
-                    )
-                  }
-                />
-                <RepoStat
-                  icon={GitPullRequestArrow}
-                  label="Open change requests"
-                  value={
-                    crs
-                      ? String(crs.filter((cr) => cr.status !== "merged").length)
-                      : undefined
-                  }
-                />
-                <RepoStat
-                  icon={Users}
-                  label="Contributors"
-                  value={members ? String(members.length) : undefined}
-                />
-              </div>
-            )}
-
-            {/* tabs */}
-            <div className="repo-tabs">
-              {TABS.map(({ label, icon: Icon }) => (
-                <button
-                  key={label}
-                  className={`repo-tab${tab === label ? " active" : ""}`}
-                  onClick={() => setTab(label)}
-                >
-                  <Icon size={15} strokeWidth={1.8} />
-                  {label}
-                </button>
-              ))}
-            </div>
-
-            {tab === "Code" ? (
-              <CodeView detail={detail} slug={slug ?? ""} />
-            ) : tab === "Change requests" ? (
-              <ChangeRequestsCard crs={crs} slug={slug ?? ""} />
-            ) : tab !== "Overview" ? (
-              <div className="panel-msg">{tab} isn't built yet.</div>
-            ) : (
-              <div className="repo-grid">
-                <div className="repo-col">
-                  <CommitsCard commits={commits} slug={slug ?? ""} />
-                  <BranchesCard branches={branches} project={project} slug={slug ?? ""} />
-                  <ChangeRequestsCard crs={crs} slug={slug ?? ""} />
-                </div>
-                <aside className="repo-rail">
-                  <DetailsCard detail={detail} project={project} members={members} />
-                  <TagsCard detail={detail} />
-                </aside>
-              </div>
-            )}
-          </div>
+          <RepositoryView
+            detail={detail}
+            project={project}
+            commits={commits}
+            branches={branches}
+            crs={crs}
+            members={members}
+            slug={slug ?? ""}
+          />
         )}
       </div>
     </>
   );
 }
 
-function RepoStat({
-  icon: Icon,
-  label,
-  value,
-  sub,
-  subRight,
-}: {
-  icon: typeof Tag;
-  label: string;
-  value?: string;
-  sub?: React.ReactNode;
-  subRight?: boolean;
-}) {
-  const valueEl = (
-    <span className={value ? "rstat-val" : "rstat-val empty"}>{value ?? "—"}</span>
-  );
+// Dev-only preview: renders the presentational view with synthetic data so the
+// page can be inspected without a backend or auth.
+export function RepositoryPreview() {
+  const detail = demoRepositoryDetail();
+  const project = demoProjects()[0]; // Packaging Line 3
+  const crs: ChangeRequestSummary[] = detail.changeRequests.map((c, i) => ({
+    number: i + 1,
+    title: c.title,
+    author: c.author,
+    status: c.status === "open" ? "open" : c.status,
+    createdAt: c.at,
+  }));
   return (
-    <div className="rstat">
-      <span className="rstat-ico">
-        <Icon size={30} strokeWidth={2.2} />
-      </span>
-      {subRight ? (
-        <div className="rstat-body rstat-split">
-          <div className="rstat-textcol">
-            <span className="rstat-label">{label}</span>
-            {valueEl}
+    <>
+      <TopBar />
+      <div className="app-scroll">
+        <RepositoryView
+          detail={detail}
+          project={project}
+          commits={detail.commits}
+          branches={detail.branches}
+          crs={crs}
+          members={null}
+          slug="packaging-line-3"
+        />
+      </div>
+    </>
+  );
+}
+
+// The presentational repository view, independent of data loading. Holds the
+// active tab and renders the header, meta strip, tabs and body.
+function RepositoryView({
+  detail,
+  project,
+  commits,
+  branches,
+  crs,
+  members,
+  slug,
+}: {
+  detail: RepositoryDetail | null;
+  project: ProjectRow;
+  commits: Commit[] | null;
+  branches: BranchSummary[] | BranchInfo[] | null;
+  crs: ChangeRequestSummary[] | null;
+  members: Member[] | null;
+  slug: string;
+}) {
+  const [tab, setTab] = useState<Tab>("Overview");
+
+  const description = detail?.description || project.description || "";
+  const branchCount = detail?.branches?.length
+    ? detail.branches.length
+    : (branches?.length ?? project.branches?.length ?? null);
+  const defaultBranch =
+    branches?.find((b) => b.isDefault)?.name ?? project.branches?.[0] ?? "main";
+
+  return (
+    <div className="mr-page">
+      {/* breadcrumb */}
+      <nav className="crumb">
+        <Link to="/projects">Repositories</Link>
+        <span className="crumb-sep">/</span>
+        <span>{project.name}</span>
+      </nav>
+
+      {/* header */}
+      <header className="mr-head">
+        <RepoIcon slug={project.slug} size={24} className="repo-ico repo-head-tile" />
+        <div className="mr-head-main">
+          <div className="mr-title-row">
+            <h1 className="mr-title">{project.name}</h1>
           </div>
-          {sub}
+          {description && <p className="mr-sub">{description}</p>}
+          {detail?.status && (
+            <div className="repo-head-chips">
+              <StatusBadge status={detail.status} />
+            </div>
+          )}
         </div>
+        <div className="mr-actions">
+          <Link to="/compare" className="btn btn-primary btn-sm">
+            Create merge request
+          </Link>
+        </div>
+      </header>
+
+      {/* meta strip — overview only */}
+      {tab === "Overview" && (
+        <MetaStrip
+          detail={detail}
+          commits={commits}
+          crs={crs}
+          branchCount={branchCount}
+          defaultBranch={defaultBranch}
+        />
+      )}
+
+      {/* tabs */}
+      <nav className="pr-tabs repo-tabs2">
+        {TABS.map(({ label, icon: Icon }) => (
+          <button
+            key={label}
+            type="button"
+            className={`pr-tab${tab === label ? " active" : ""}`}
+            onClick={() => setTab(label)}
+          >
+            <Icon size={15} strokeWidth={1.8} />
+            {label}
+          </button>
+        ))}
+      </nav>
+
+      {tab === "Explorer" ? (
+        <CodeView detail={detail} slug={slug} />
+      ) : tab === "Merge requests" ? (
+        <ChangeRequestsCard
+          crs={crs}
+          detailCrs={detail?.changeRequests ?? null}
+          slug={slug}
+        />
+      ) : tab !== "Overview" ? (
+        <div className="panel-msg">{tab} isn't built yet.</div>
       ) : (
-        <div className="rstat-body">
-          <span className="rstat-label">{label}</span>
-          {valueEl}
-          {sub && <span className="rstat-sub">{sub}</span>}
+        <div className="repo-grid">
+          <div className="repo-col">
+            <CommitsCard
+              commits={detail?.commits?.length ? detail.commits : commits}
+              slug={slug}
+            />
+            <BranchesCard
+              branches={detail?.branches?.length ? detail.branches : branches}
+              project={project}
+              slug={slug}
+            />
+            <ChangeRequestsCard
+              crs={crs}
+              detailCrs={detail?.changeRequests ?? null}
+              slug={slug}
+            />
+          </div>
+          <aside className="repo-rail">
+            <DetailsCard detail={detail} project={project} members={members} />
+            <TagsCard detail={detail} />
+            <RepositoryFilesCard detail={detail} slug={slug} />
+          </aside>
         </div>
       )}
+    </div>
+  );
+}
+
+function MetaStrip({
+  detail,
+  commits,
+  crs,
+  branchCount,
+  defaultBranch,
+}: {
+  detail: RepositoryDetail | null;
+  commits: Commit[] | null;
+  crs: ChangeRequestSummary[] | null;
+  branchCount: number | null;
+  defaultBranch: string;
+}) {
+  const lastCommit = detail?.commits?.[0] ?? commits?.[0] ?? null;
+  const openCount =
+    detail?.openChangeRequests ??
+    (crs ? crs.filter((c) => c.status !== "merged").length : null);
+  const inReview = detail?.changeRequests?.length
+    ? detail.changeRequests.filter((c) => c.status === "review").length
+    : crs
+      ? crs.filter((c) => c.status === "review").length
+      : null;
+
+  return (
+    <div className="mr-meta stat-meta repo-meta">
+      <div className="mr-meta-card">
+        <div className="mr-meta-label">
+          <span className="mr-meta-ico">
+            <GitCommitHorizontal size={14} strokeWidth={1.8} />
+          </span>
+          Last commit
+        </div>
+        <span className="stat-value">{lastCommit ? timeAgo(lastCommit.at) : "—"}</span>
+        <span className="stat-sub">
+          {lastCommit ? (
+            <span className="author">
+              <span className="author-av">{initials(lastCommit.author)}</span>
+              by {lastCommit.author}
+            </span>
+          ) : (
+            "—"
+          )}
+        </span>
+      </div>
+      <div className="mr-meta-card">
+        <div className="mr-meta-label">
+          <span className="mr-meta-ico">
+            <GitPullRequestArrow size={14} strokeWidth={1.8} />
+          </span>
+          Open merge requests
+        </div>
+        <span className="stat-value">{openCount ?? "—"}</span>
+        <span className="stat-sub">
+          {inReview != null ? `${inReview} in review` : "—"}
+        </span>
+      </div>
+      <div className="mr-meta-card">
+        <div className="mr-meta-label">
+          <span className="mr-meta-ico">
+            <GitBranch size={14} strokeWidth={1.8} />
+          </span>
+          Total branches
+        </div>
+        <span className="stat-value">{branchCount ?? "—"}</span>
+        <span className="stat-sub">Default · {defaultBranch}</span>
+      </div>
     </div>
   );
 }
@@ -242,10 +393,34 @@ function CardHead({ title, action }: { title: string; action?: React.ReactNode }
   );
 }
 
-function CommitsCard({ commits, slug }: { commits: Commit[] | null; slug: string }) {
+// Either a live commit summary or a demo commit; both share the fields the row
+// renders.
+type CommitRow = Commit | {
+  hash: string;
+  sha: string;
+  message: string;
+  author: string;
+  branch: string;
+  at: string;
+};
+
+function CommitsCard({
+  commits,
+  slug,
+}: {
+  commits: CommitRow[] | null;
+  slug: string;
+}) {
   return (
     <div className="rcard">
-      <CardHead title="Recent commits" />
+      <CardHead
+        title="Recent commits"
+        action={
+          <Link to={`/projects/${slug}/commit`} className="link-btn">
+            View all commits
+          </Link>
+        }
+      />
       {!commits || commits.length === 0 ? (
         <div className="rcard-empty">No commits yet.</div>
       ) : (
@@ -257,6 +432,7 @@ function CommitsCard({ commits, slug }: { commits: Commit[] | null; slug: string
               <th>Author</th>
               <th>Branch</th>
               <th>Updated</th>
+              <th aria-label="Actions" />
             </tr>
           </thead>
           <tbody>
@@ -285,6 +461,11 @@ function CommitsCard({ commits, slug }: { commits: Commit[] | null; slug: string
                   </span>
                 </td>
                 <td className="muted-cell">{timeAgo(c.at)}</td>
+                <td className="row-action">
+                  <button className="icon-btn" aria-label="More actions">
+                    <MoreHorizontal size={16} strokeWidth={1.8} />
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -299,13 +480,23 @@ function BranchesCard({
   project,
   slug,
 }: {
-  branches: BranchSummary[] | null;
+  branches: BranchSummary[] | BranchInfo[] | null;
   project: ProjectRow;
   slug: string;
 }) {
   return (
     <div className="rcard">
-      <CardHead title="Branches" />
+      <CardHead
+        title="Branches"
+        action={
+          <Link
+            to={`/projects/${slug}/tree/${project.branches?.[0] ?? "main"}`}
+            className="link-btn"
+          >
+            View all branches
+          </Link>
+        }
+      />
       {!branches ? (
         <div className="rcard-empty">Loading branches…</div>
       ) : branches.length === 0 ? (
@@ -320,7 +511,8 @@ function BranchesCard({
             <tr>
               <th>Branch</th>
               <th>Latest commit</th>
-              <th>Updated</th>
+              <th>Latest activity</th>
+              <th>Ahead / Behind</th>
             </tr>
           </thead>
           <tbody>
@@ -336,7 +528,7 @@ function BranchesCard({
                 <td>
                   {b.lastCommitHash ? (
                     <>
-                      {b.lastCommitSha ? (
+                      {"lastCommitSha" in b && b.lastCommitSha ? (
                         <Link
                           to={`/projects/${slug}/commit/${b.lastCommitSha}`}
                           className="hash crlink"
@@ -353,7 +545,35 @@ function BranchesCard({
                   )}
                 </td>
                 <td className="muted-cell">
-                  {b.lastCommitAt ? timeAgo(b.lastCommitAt) : "—"}
+                  {"at" in b
+                    ? timeAgo(b.at)
+                    : b.lastCommitAt
+                      ? timeAgo(b.lastCommitAt)
+                      : "—"}
+                </td>
+                <td className="muted-cell">
+                  {"ahead" in b ? (
+                    b.ahead === 0 && b.behind === 0 ? (
+                      "–"
+                    ) : (
+                      <span className="branch-ab">
+                        <span className="ab-behind">
+                          <ChevronDown size={12} strokeWidth={2} />
+                          {b.behind}
+                        </span>
+                        <span className="ab-ahead">
+                          <ChevronDown
+                            size={12}
+                            strokeWidth={2}
+                            style={{ transform: "rotate(180deg)" }}
+                          />
+                          {b.ahead}
+                        </span>
+                      </span>
+                    )
+                  ) : (
+                    "–"
+                  )}
                 </td>
               </tr>
             ))}
@@ -366,16 +586,79 @@ function BranchesCard({
 
 function ChangeRequestsCard({
   crs,
+  detailCrs,
   slug,
 }: {
   crs: ChangeRequestSummary[] | null;
+  detailCrs?: ChangeRequestRow[] | null;
   slug: string;
 }) {
+  const action = (
+    <Link to="/changes" className="link-btn">
+      View all merge requests
+    </Link>
+  );
+
+  if (detailCrs && detailCrs.length > 0) {
+    return (
+      <div className="rcard">
+        <CardHead title="Merge requests" action={action} />
+        <table className="dtable">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Title</th>
+              <th>Author</th>
+              <th>Status</th>
+              <th>Updated</th>
+              <th aria-label="Actions" />
+            </tr>
+          </thead>
+          <tbody>
+            {detailCrs.map((cr) => {
+              const m = CR_META[cr.status];
+              const href = `/projects/${slug}/merge/${cr.id}`;
+              return (
+                <tr key={cr.id}>
+                  <td>
+                    <Link to={href} className="hash crlink">
+                      {cr.id}
+                    </Link>
+                  </td>
+                  <td className="cell-strong">
+                    <Link to={href} className="crtitle">
+                      {cr.title}
+                    </Link>
+                  </td>
+                  <td>
+                    <span className="author">
+                      <span className="author-av">{initials(cr.author)}</span>
+                      {cr.author}
+                    </span>
+                  </td>
+                  <td>
+                    <span className={`badge ${m.tone}`}>{m.label}</span>
+                  </td>
+                  <td className="muted-cell">{timeAgo(cr.at)}</td>
+                  <td className="row-action">
+                    <button className="icon-btn" aria-label="More actions">
+                      <MoreHorizontal size={16} strokeWidth={1.8} />
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+
   return (
     <div className="rcard">
-      <CardHead title="Change requests" />
+      <CardHead title="Merge requests" action={action} />
       {!crs || crs.length === 0 ? (
-        <div className="rcard-empty">No change requests yet.</div>
+        <div className="rcard-empty">No merge requests yet.</div>
       ) : (
         <table className="dtable">
           <thead>
@@ -385,6 +668,7 @@ function ChangeRequestsCard({
               <th>Author</th>
               <th>Status</th>
               <th>Created</th>
+              <th aria-label="Actions" />
             </tr>
           </thead>
           <tbody>
@@ -413,6 +697,11 @@ function ChangeRequestsCard({
                     <span className={`badge ${m.tone}`}>{m.label}</span>
                   </td>
                   <td className="muted-cell">{timeAgo(cr.createdAt)}</td>
+                  <td className="row-action">
+                    <button className="icon-btn" aria-label="More actions">
+                      <MoreHorizontal size={16} strokeWidth={1.8} />
+                    </button>
+                  </td>
                 </tr>
               );
             })}
@@ -433,11 +722,13 @@ function DetailsCard({
   members: Member[] | null;
 }) {
   const owner = members?.find((m) => m.role === "owner");
-  const rows = detail?.details ?? [
-    { label: "Repository", value: project.slug },
-    { label: "Owner", value: owner?.name ?? "—" },
-    { label: "Created", value: formatDate(project.created_at) },
-  ];
+  const rows = detail?.details?.length
+    ? detail.details
+    : [
+        { label: "Repository", value: project.slug },
+        { label: "Owner", value: owner?.name ?? "—" },
+        { label: "Created", value: formatDate(project.created_at) },
+      ];
   return (
     <section className="rail-section">
       <div className="rail-head">
@@ -563,73 +854,109 @@ function CodeView({ detail, slug }: { detail: RepositoryDetail | null; slug: str
   const info = branches.find((b) => b.name === selected) ?? branches[0];
   const files = detail.fileList;
   const commits = detail.commits.filter((c) => c.branch === info.name);
+  const upToDate = info.ahead === 0 && info.behind === 0;
 
   return (
-    <div className="repo-grid">
-      <div className="repo-col code-view">
+    <div className="explorer">
       <div className="code-bar">
         <BranchPicker
           branches={branches}
           selected={info.name}
           onSelect={setSelected}
         />
-        <div className="code-search">
+        {upToDate ? (
+          <span className="badge green">Up to date</span>
+        ) : (
+          <span className="badge gray">Diverged</span>
+        )}
+        <span className="branch-ab">
+          <span className="ab-ahead">
+            <ChevronDown
+              size={12}
+              strokeWidth={2}
+              style={{ transform: "rotate(180deg)" }}
+            />
+            {info.ahead} ahead
+          </span>
+          <span className="ab-behind">
+            <ChevronDown size={12} strokeWidth={2} />
+            {info.behind} behind
+          </span>
+        </span>
+        <div className="toolbar-search">
           <Search size={15} strokeWidth={1.8} />
           <input
-            placeholder="Search files, tags, routines…"
-            aria-label="Search files"
+            placeholder="Search files, folders, commits…"
+            aria-label="Search files, folders, commits"
           />
-          <Filter className="code-search-filter" size={15} strokeWidth={1.8} />
+          <kbd className="search-kbd">⌘K</kbd>
+        </div>
+        <div className="code-bar-right">
+          <button type="button" className="btn btn-outline btn-sm">
+            <History size={15} strokeWidth={1.8} />
+            History
+          </button>
         </div>
       </div>
 
-      <div className="table-wrap files-table">
+      <div className="rail-callout">
+        <Info size={15} strokeWidth={1.9} />
+        <span>
+          You're viewing files and commits for branch <strong>{info.name}</strong>.
+          Switching branches updates the repository contents and commits below.
+        </span>
+      </div>
+
+      <div className="rcard">
+        <CardHead title="Contents of /PLC Projects" />
         {files.length === 0 ? (
           <div className="rcard-empty">No files on this branch yet.</div>
         ) : (
           <>
             <FilesTable files={files} slug={slug} />
-            <div className="table-foot code-foot">
+            <div className="table-foot">
               <span>
                 {files.length} files · {detail.files.totalSize}
-              </span>
-              <span className="pager">
-                Showing 1–{files.length} of {files.length}
-                <button className="pager-btn" disabled aria-label="Previous page">
-                  <ChevronLeft size={15} strokeWidth={1.9} />
-                </button>
-                <button className="pager-btn" disabled aria-label="Next page">
-                  <ChevronRight size={15} strokeWidth={1.9} />
-                </button>
               </span>
             </div>
           </>
         )}
       </div>
 
-      <div className="code-section-head">
-        <h3>
-          Recent commits on <span className="mini-badge accent">{info.name}</span>
-        </h3>
-        <button className="link-btn">View all commits</button>
-      </div>
-
-      <div className="table-wrap files-table">
+      <div className="rcard">
+        <CardHead
+          title={`Recent commits on ${info.name}`}
+          action={
+            <Link to={`/projects/${slug}/commit`} className="link-btn">
+              View all on {info.name}
+            </Link>
+          }
+        />
         {commits.length === 0 ? (
           <div className="rcard-empty">No commits on this branch yet.</div>
         ) : (
           <table className="dtable">
             <thead>
               <tr>
+                <th>Commit</th>
                 <th>Author</th>
                 <th>Message</th>
                 <th>Files changed</th>
                 <th>Date</th>
+                <th aria-label="Actions" />
               </tr>
             </thead>
             <tbody>
               {commits.map((c) => (
                 <tr key={c.hash}>
+                  <td>
+                    <Link
+                      to={`/projects/${slug}/commit/${c.sha}`}
+                      className="hash crlink"
+                    >
+                      {c.hash}
+                    </Link>
+                  </td>
                   <td>
                     <span className="author">
                       <span className="author-av">{initials(c.author)}</span>
@@ -637,61 +964,59 @@ function CodeView({ detail, slug }: { detail: RepositoryDetail | null; slug: str
                     </span>
                   </td>
                   <td className="cell-strong">
-                    <Link to={`/projects/${slug}/commit/${c.sha}`} className="crtitle">
+                    <Link
+                      to={`/projects/${slug}/commit/${c.sha}`}
+                      className="crtitle"
+                    >
                       {c.message}
                     </Link>
                   </td>
                   <td className="muted-cell">{c.filesChanged ?? "—"}</td>
                   <td className="muted-cell">{timeAgo(c.at)}</td>
+                  <td className="row-action">
+                    <button className="icon-btn" aria-label="More actions">
+                      <MoreHorizontal size={16} strokeWidth={1.8} />
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         )}
       </div>
-      </div>
-
-      <aside className="repo-rail code-rail">
-        <AboutCodeCard />
-      </aside>
     </div>
   );
 }
 
-function AboutCodeCard() {
+function RepositoryFilesCard({
+  detail,
+  slug,
+}: {
+  detail: RepositoryDetail | null;
+  slug: string;
+}) {
+  const files = detail?.files;
   return (
-    <section className="rcard">
-      <CardHead title="About branches & commits" />
-      <div className="about-body">
-        <p className="about-intro">
-          The Code view shows one branch at a time. Switch branch to update both
-          the file tree and commits below.
-        </p>
-        <div className="about-item">
-          <span className="about-ico">
-            <GitBranch size={16} strokeWidth={1.9} />
-          </span>
-          <div>
-            <div className="about-item-title">Branches</div>
-            <div className="about-item-desc">
-              An isolated line of work. Each branch keeps its own files and
-              history until it's merged into another.
-            </div>
-          </div>
-        </div>
-        <div className="about-item">
-          <span className="about-ico">
-            <GitCommitHorizontal size={16} strokeWidth={1.9} />
-          </span>
-          <div>
-            <div className="about-item-title">Commits</div>
-            <div className="about-item-desc">
-              A saved snapshot of changes. Recent commits show what changed most
-              recently on the selected branch.
-            </div>
-          </div>
-        </div>
+    <section className="rail-section">
+      <div className="rail-head">
+        <span className="rail-title">Repository files</span>
+        <Link
+          to={`/projects/${slug}/tree/${"main"}`}
+          className="link-btn"
+        >
+          View files
+        </Link>
       </div>
+      <dl className="kv">
+        <div className="kv-row">
+          <dt>Files</dt>
+          <dd>{files && files.totalFiles ? files.totalFiles.toLocaleString() : "—"}</dd>
+        </div>
+        <div className="kv-row">
+          <dt>Total size</dt>
+          <dd>{files?.totalSize ?? "—"}</dd>
+        </div>
+      </dl>
     </section>
   );
 }

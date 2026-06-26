@@ -2277,102 +2277,6 @@ a.rail-item:focus-visible,
   font-weight: 400;
 }
 
-/* header */
-.repo-head {
-  display: flex;
-  align-items: flex-start;
-  gap: 16px;
-  margin-bottom: 20px;
-}
-.repo-head-ico {
-  width: 48px;
-  height: 48px;
-  flex: none;
-  border-radius: var(--r-lg);
-  display: grid;
-  place-items: center;
-  background: var(--accent-weak);
-  border: 1px solid var(--blue-line);
-  color: var(--accent);
-}
-.repo-head-main {
-  min-width: 0;
-}
-.repo-head-title {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.repo-head-title h1 {
-  margin: 0;
-  font: 650 24px/1.1 var(--sans);
-  letter-spacing: -0.02em;
-  color: var(--ink-title);
-}
-.repo-head-sub {
-  margin: 6px 0 0;
-  font: 400 14px/1.5 var(--sans);
-  color: var(--ink2);
-  max-width: 720px;
-}
-/* stat cards */
-.repo-stats {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 16px;
-  margin-bottom: 20px;
-}
-.rstat {
-  border: 1px solid var(--line);
-  background: var(--panel);
-  border-radius: var(--r-lg);
-  padding: 16px 18px;
-  display: flex;
-  align-items: center;
-  gap: 18px;
-}
-.rstat-ico {
-  flex: none;
-  display: inline-flex;
-  color: var(--black);
-}
-.rstat-body {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-.rstat-label {
-  font: 500 12px/16px var(--sans);
-  color: var(--ink3);
-}
-.rstat-val {
-  margin-top: 4px;
-  font: 650 24px/30px var(--sans);
-  letter-spacing: -0.02em;
-  color: var(--ink-title);
-}
-.rstat-split {
-  flex: 1;
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-.rstat-textcol {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-.rstat-val.empty {
-  color: var(--ink3);
-  font-weight: 500;
-}
-.rstat-sub {
-  margin-top: 4px;
-  font: 500 12px/1.3 var(--sans);
-  color: var(--ink3);
-}
-
 /* tabs */
 .repo-tabs {
   display: flex;
@@ -2491,25 +2395,6 @@ a.rail-item:focus-visible,
   font: 400 12.5px/1 var(--sans);
   color: var(--ink3);
 }
-.ab {
-  display: inline-flex;
-  align-items: center;
-  gap: 12px;
-  font: 500 12.5px/1 var(--sans);
-}
-.ab-up,
-.ab-down {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-}
-.ab-up {
-  color: var(--add);
-}
-.ab-down {
-  color: var(--ink3);
-}
-
 /* badge: merged */
 .badge.purple {
   color: var(--purple);
@@ -2517,28 +2402,6 @@ a.rail-item:focus-visible,
   border-color: var(--purple-line);
 }
 
-/* ===== branches tab ===== */
-.branches-card-head {
-  padding: 16px 16px 14px;
-}
-.branches-card-head h2 {
-  font: 650 16px/1.2 var(--sans);
-  letter-spacing: -0.01em;
-  color: var(--ink-title);
-  margin: 0 0 4px;
-}
-.branches-card-head p {
-  font: 400 13px/1.4 var(--sans);
-  color: var(--ink2);
-  margin: 0;
-}
-.branches-card .list-toolbar {
-  margin: 0;
-  padding: 0 16px 16px;
-}
-.branches-card .dtable th {
-  border-top: 1px solid var(--line2);
-}
 .mini-badge.accent {
   color: var(--accent);
   background: var(--accent-weak);
@@ -2676,61 +2539,25 @@ a.rail-item:focus-visible,
   align-items: center;
   gap: 8px;
 }
-.code-search {
+/* Explorer view — single full-width column of stacked cards */
+.explorer {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 1;
-  min-width: 0;
-  max-width: 440px;
-  height: 36px;
-  padding: 0 12px;
-  border: 1px solid var(--line);
-  border-radius: var(--r-md);
-  background: var(--panel);
-  color: var(--ink3);
+  flex-direction: column;
+  gap: 16px;
 }
-.code-search:focus-within {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-weak);
+/* The info banner spans the column, so the parent gap owns its spacing. */
+.explorer .rail-callout {
+  margin-top: 0;
 }
-.code-search input {
-  flex: 1;
-  min-width: 0;
-  border: none;
-  background: none;
-  font-size: 13.5px;
-  color: var(--ink);
-}
-.code-search input:focus {
-  outline: none;
-}
-.code-search-filter {
+/* keyboard hint chip inside the Explorer search field */
+.search-kbd {
   flex: none;
-  cursor: pointer;
-}
-.code-note {
-  margin: 0 0 18px;
-  font: 400 13px/1.4 var(--sans);
+  font: 500 11px/1 var(--mono);
   color: var(--ink3);
-}
-/* line the rail up with the top of the files table (below the toolbar row) */
-.code-rail {
-  margin-top: 64px;
-}
-.code-section-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin: 26px 0 12px;
-}
-.code-section-head h3 {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0;
-  font: 650 15px/1.2 var(--sans);
-  color: var(--ink-title);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 3px 5px;
 }
 .pager {
   display: inline-flex;
@@ -2821,44 +2648,6 @@ a.rail-item:focus-visible,
 }
 .branch-menu-item .bmi-check {
   color: var(--accent);
-}
-.code-toggle {
-  display: inline-flex;
-  flex: none;
-  border: 1px solid var(--line);
-  border-radius: var(--r-md);
-  overflow: hidden;
-  background: var(--panel);
-}
-.code-seg {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  height: 36px;
-  padding: 0 14px;
-  border: none;
-  background: none;
-  font: 500 13px/1 var(--sans);
-  color: var(--ink2);
-  cursor: pointer;
-}
-.code-seg svg {
-  color: var(--ink3);
-}
-.code-seg + .code-seg {
-  border-left: 1px solid var(--line);
-}
-.code-seg:hover {
-  background: var(--hover);
-  color: var(--ink);
-}
-.code-seg.active {
-  background: var(--panel2);
-  color: var(--ink-title);
-  font-weight: 600;
-}
-.code-seg.active svg {
-  color: var(--ink-title);
 }
 .about-body {
   padding: 16px;
@@ -3250,6 +3039,95 @@ a.file-cell:hover .file-cell-name {
 .mr-meta.stat-meta {
   grid-template-columns: repeat(4, 1fr);
   margin-bottom: 16px;
+}
+/* Five-up stat strip used on the repository detail page. */
+.mr-meta.stat-meta.repo-meta {
+  grid-template-columns: repeat(3, 1fr);
+}
+/* Smaller stat value for cells that hold a longer string. */
+.stat-value.stat-value-sm {
+  font: 650 15px/22px var(--sans);
+  letter-spacing: -0.01em;
+}
+
+/* Repository header icon tile — larger than the list-row icon. */
+.repo-ico.repo-head-tile {
+  width: 38px;
+  height: 38px;
+  border-radius: var(--r-md);
+  flex: none;
+  margin-top: 2px;
+}
+
+/* Star/watch toggle beside the repository title. */
+.repo-star {
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--panel);
+  color: var(--ink3);
+  cursor: pointer;
+}
+.repo-star:hover {
+  color: var(--ink);
+  border-color: var(--border);
+}
+.repo-star.active {
+  color: var(--mod);
+  border-color: var(--mod-line);
+  background: var(--mod-bg);
+}
+
+/* Controller + status chips under the repository description. */
+.repo-head-chips {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+.repo-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 9px;
+  font: 500 12px/16px var(--sans);
+  color: var(--blue);
+  background: var(--blue-bg);
+  border: 1px solid var(--blue-line);
+  border-radius: var(--r-sm);
+}
+
+/* Repository tab strip — allow horizontal scroll when the tabs overflow. */
+.pr-tabs.repo-tabs2 {
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.pr-tabs.repo-tabs2::-webkit-scrollbar {
+  display: none;
+}
+
+/* Branch ahead / behind cell on the repository detail page. */
+.branch-ab {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+.ab-ahead,
+.ab-behind {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font: 500 12.5px/1 var(--sans);
+}
+.ab-ahead {
+  color: var(--add);
+}
+.ab-behind {
+  color: var(--ink3);
 }
 .stat-meta .mr-meta-card {
   display: flex;
@@ -4441,6 +4319,9 @@ a.mr-commit-row:hover {
   .mr-meta.stat-meta {
     grid-template-columns: repeat(2, 1fr);
   }
+  .mr-meta.stat-meta.repo-meta {
+    grid-template-columns: repeat(2, 1fr);
+  }
   .mr-meta.stat-meta .mr-meta-card:nth-child(2n) {
     border-right: none;
   }
@@ -4474,11 +4355,6 @@ a.mr-commit-row:hover {
 }
 
 /* ============ Upload & commit page ============ */
-.repo-head-actions {
-  margin-left: auto;
-  align-self: center;
-}
-
 .commit-page {
   padding: 20px 36px 48px;
 }

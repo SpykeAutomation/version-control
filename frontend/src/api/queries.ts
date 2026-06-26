@@ -40,7 +40,7 @@ import {
   type CommitDetail,
   type RoutineFull,
 } from "./commit";
-import type { Commit } from "./repository";
+import { getRepository, type Commit, type RepositoryDetail } from "./repository";
 
 // Cache keys. Everything for a project is nested under ["projects", id] so a
 // single invalidation after a write refreshes that project's commits,
@@ -68,6 +68,7 @@ export const queryKeys = {
   mergeRequest: (slug: string, mrId: string) =>
     ["merge-request", slug, mrId] as const,
   commit: (slug: string, sha: string) => ["commit-detail", slug, sha] as const,
+  repository: (slug: string) => ["repository", slug] as const,
   routineContent: (projectId: number, sha: string, program: string, routine: string) =>
     ["projects", projectId, "commit-routine", sha, program, routine] as const,
 };
@@ -223,6 +224,16 @@ export function useCommit(
     queryKey: queryKeys.commit(slug ?? "", sha ?? ""),
     queryFn: () => getCommit(slug!, sha!),
     enabled: !!slug && !!sha,
+  });
+}
+
+// One repository's rich detail (controller, tags, linked controller). Falls
+// back to demo data inside getRepository when the backend is unreachable.
+export function useRepository(slug: string | undefined) {
+  return useQuery<RepositoryDetail>({
+    queryKey: queryKeys.repository(slug ?? ""),
+    queryFn: () => getRepository(slug!),
+    enabled: !!slug,
   });
 }
 

@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { NavLink } from "react-router-dom";
 import {
-  ArrowLeftRight,
   Book,
   ChevronsLeft,
   CirclePlay,
@@ -18,7 +17,6 @@ const NAV = [
   { to: "/dashboard", label: "Dashboard", icon: Home },
   { to: "/projects", label: "Projects", icon: Layers },
   { to: "/changes", label: "Changes", icon: GitBranch },
-  { to: "/compare", label: "Compare", icon: ArrowLeftRight },
   { to: "/releases", label: "Releases", icon: Tag },
   { to: "/commissioning", label: "Commissioning", icon: CirclePlay },
   { to: "/documentation", label: "Documentation", icon: Book },
