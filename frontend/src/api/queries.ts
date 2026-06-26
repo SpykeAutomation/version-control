@@ -34,6 +34,7 @@ import {
   type ChangeRequestSummary,
   type MergeRequest,
 } from "./mergeRequest";
+import { getCommit, type CommitDetail } from "./commit";
 import type { Commit } from "./repository";
 
 // Cache keys. Everything for a project is nested under ["projects", id] so a
@@ -61,6 +62,7 @@ export const queryKeys = {
     ["projects", projectId, "pulls"] as const,
   mergeRequest: (slug: string, mrId: string) =>
     ["merge-request", slug, mrId] as const,
+  commit: (slug: string, sha: string) => ["commit-detail", slug, sha] as const,
 };
 
 // Turn a query error into a message, falling back when it isn't an ApiError.
@@ -201,6 +203,19 @@ export function useMergeRequest(
     queryKey: queryKeys.mergeRequest(slug ?? "", mrId ?? ""),
     queryFn: () => getMergeRequest(slug!, mrId!),
     enabled: !!slug && !!mrId,
+  });
+}
+
+// One commit's review detail (meta, grouped diffs, discussion). Falls back to
+// demo data inside getCommit when the backend is unreachable.
+export function useCommit(
+  slug: string | undefined,
+  sha: string | undefined,
+) {
+  return useQuery<CommitDetail>({
+    queryKey: queryKeys.commit(slug ?? "", sha ?? ""),
+    queryFn: () => getCommit(slug!, sha!),
+    enabled: !!slug && !!sha,
   });
 }
 

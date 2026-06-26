@@ -51,6 +51,76 @@ export function isEmptyChangeSet(cs: ChangeSet): boolean {
   return deriveChangeView(cs).rows.length === 0;
 }
 
+// A short, plain-language bullet describing one routine's change, leaning on its
+// rung / line counts.
+function routineBullet(r: RoutineChange): string {
+  if (r.kind === "added") return `Added routine ${r.name}`;
+  if (r.kind === "removed") return `Removed routine ${r.name}`;
+  const rungs = r.rungs.length;
+  if (rungs > 0) {
+    return `Updated ${r.name} (${rungs} ${rungs === 1 ? "rung" : "rungs"} changed)`;
+  }
+  const lines = r.lines.length;
+  if (lines > 0) {
+    return `Edited ${r.name} (${lines} ${lines === 1 ? "line" : "lines"} changed)`;
+  }
+  if (r.formatting_only) return `Reformatted ${r.name}`;
+  return `Updated ${r.name}`;
+}
+
+// Turn a semantic diff into the "Commit summary" bullet list shown on the commit
+// page. Routines — the substantive logic edits — get a bullet each; tags and
+// other entity kinds roll up into one line apiece. The list is capped so a large
+// commit stays readable, with a trailing "+N more" when it overflows.
+export function summarizeChangeSet(cs: ChangeSet, limit = 6): string[] {
+  const bullets: string[] = [];
+
+  for (const p of cs.programs) {
+    if (p.kind === "added") {
+      bullets.push(`Added program ${p.name}`);
+      continue;
+    }
+    if (p.kind === "removed") {
+      bullets.push(`Removed program ${p.name}`);
+      continue;
+    }
+    for (const r of p.routines) bullets.push(routineBullet(r));
+  }
+
+  const tagCount =
+    cs.controller_tags.length +
+    cs.programs.reduce((n, p) => n + p.tags.length, 0);
+  if (tagCount > 0) {
+    bullets.push(`Updated ${tagCount} ${tagCount === 1 ? "tag" : "tags"}`);
+  }
+
+  const pushCount = (n: number, one: string, many: string) => {
+    if (n > 0) bullets.push(`Updated ${n} ${n === 1 ? one : many}`);
+  };
+  pushCount(cs.modules.length, "module", "modules");
+  pushCount(cs.data_types.length, "data type", "data types");
+  pushCount(
+    cs.add_on_instructions.length,
+    "add-on instruction",
+    "add-on instructions",
+  );
+  pushCount(cs.tasks.length, "task", "tasks");
+  if (cs.controller.length > 0) {
+    bullets.push(
+      `Changed ${cs.controller.length} controller ${
+        cs.controller.length === 1 ? "property" : "properties"
+      }`,
+    );
+  }
+
+  if (bullets.length > limit) {
+    const shown = bullets.slice(0, limit);
+    shown.push(`+${bullets.length - limit} more changes`);
+    return shown;
+  }
+  return bullets;
+}
+
 // Fold "comment_changed" (and any other kind) down to the three we display.
 function rowKind(kind: string): ChangeRowKind {
   if (kind === "added") return "added";
