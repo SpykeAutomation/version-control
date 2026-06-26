@@ -6,7 +6,8 @@ person joins only by accepting an invitation — never by naming an org.
 """
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from ..auth import current_user
@@ -19,9 +20,54 @@ from ..invites import (
 )
 from ..models import Organization, User
 from ..ratelimit import invite_rate_limit
-from ..schemas import AcceptIn, AcceptResult, InviteIn, InviteOut, InvitePreview
+from ..schemas import (
+    AcceptIn,
+    AcceptResult,
+    InviteIn,
+    InviteOut,
+    InvitePreview,
+    UserOut,
+)
 
 router = APIRouter(tags=["organizations"])
+
+
+@router.get("/orgs/{org_id}/users", response_model=list[UserOut])
+def list_org_users(
+    org_id: int,
+    response: Response,
+    limit: int = 50,
+    offset: int = 0,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+) -> list[UserOut]:
+    """Users in an organization (members + owner). Visible to anyone in that org.
+    Indexed on organization_id, so it's fast; paginated via `limit`/`offset` with
+    the total in the `X-Total-Count` header."""
+    org = db.get(Organization, org_id)
+    if org is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Organization not found")
+    if user.organization_id != org_id and org.owner_id != user.id:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Not a member of this organization")
+    limit = max(1, min(limit, 200))
+    total = db.scalar(
+        select(func.count()).select_from(User).where(User.organization_id == org_id)
+    )
+    rows = db.scalars(
+        select(User)
+        .where(User.organization_id == org_id)
+        .order_by(User.last_name, User.first_name, User.id)
+        .limit(limit)
+        .offset(max(0, offset))
+    ).all()
+    response.headers["X-Total-Count"] = str(total or 0)
+    return [
+        UserOut(
+            id=u.id, email=u.email, first_name=u.first_name,
+            last_name=u.last_name, organization=org.name, avatar=u.avatar,
+        )
+        for u in rows
+    ]
 
 
 def _require_owner(db: Session, org_id: int, user: User) -> Organization:

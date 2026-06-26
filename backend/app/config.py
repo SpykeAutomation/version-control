@@ -28,6 +28,29 @@ class Settings(BaseSettings):
     # of calls (preview + submit, with retries).
     invite_rate_max: int = 20
     invite_rate_window_seconds: int = 60
+    # Max size of a single uploaded file (megabytes). Enforced per file in the
+    # upload handler. NOTE: this is per-file; the Caddy edge separately caps the
+    # whole request body (see Caddyfile `request_body max_size`), which must be
+    # large enough to admit a batch of these.
+    max_upload_mb: int = 100
+    # Per-organization storage cap (gigabytes). Counts each org's Git repos and
+    # their cached diffs on disk; enforced when a commit is uploaded.
+    org_storage_limit_gb: float = 2.0
+    # Soft cap on the whole diff cache (megabytes). When exceeded, the least
+    # recently used cache files are evicted (a diff is cheap to recompute lazily).
+    diff_cache_max_mb: int = 500
+
+    @property
+    def max_upload_bytes(self) -> int:
+        return self.max_upload_mb * 1024 * 1024
+
+    @property
+    def org_storage_limit_bytes(self) -> int:
+        return int(self.org_storage_limit_gb * 1024 * 1024 * 1024)
+
+    @property
+    def diff_cache_max_bytes(self) -> int:
+        return self.diff_cache_max_mb * 1024 * 1024
 
     @property
     def repos_dir(self) -> Path:

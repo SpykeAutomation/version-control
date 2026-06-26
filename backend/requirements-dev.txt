@@ -1,2 +1,4 @@
 -r requirements.txt
 pytest>=8
+# Starlette's TestClient (used by scripts/smoke_api.py) needs httpx at runtime.
+httpx>=0.27
