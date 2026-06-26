@@ -28,6 +28,7 @@ import {
   type ProjectTree,
 } from "./tree";
 import {
+  createComment,
   getMergeRequest,
   listChangeRequests,
   type ChangeRequestSummary,
@@ -200,6 +201,23 @@ export function useMergeRequest(
     queryKey: queryKeys.mergeRequest(slug ?? "", mrId ?? ""),
     queryFn: () => getMergeRequest(slug!, mrId!),
     enabled: !!slug && !!mrId,
+  });
+}
+
+// Posting a comment adds to a merge request's thread, so refresh that merge
+// request on success to pull in the new comment.
+export function useCreateComment(
+  slug: string | undefined,
+  mrId: string | undefined,
+) {
+  const qc = useQueryClient();
+  return useMutation<unknown, Error, string>({
+    mutationFn: (body) => createComment(slug!, mrId!, body),
+    onSuccess: () => {
+      qc.invalidateQueries({
+        queryKey: queryKeys.mergeRequest(slug ?? "", mrId ?? ""),
+      });
+    },
   });
 }
 

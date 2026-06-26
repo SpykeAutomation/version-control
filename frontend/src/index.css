@@ -3734,6 +3734,510 @@ a.file-cell:hover .file-cell-name {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* ============ Pull request page (refined review view) ============ */
+/* Header: decorative PR glyph, bold id beside the title, inline status. */
+.mr-glyph {
+  width: 34px;
+  height: 34px;
+  flex: none;
+  margin-top: 2px;
+  display: grid;
+  place-items: center;
+  color: var(--accent);
+}
+.pr-id {
+  font: 650 24px/1.15 var(--sans);
+  letter-spacing: -0.02em;
+  color: var(--ink-title);
+}
+.pr-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: 600 13px/1 var(--sans);
+}
+.pr-status.blue {
+  color: var(--accent);
+}
+.pr-status.green {
+  color: var(--add);
+}
+.pr-status.orange {
+  color: var(--mod);
+}
+.pr-status.red {
+  color: var(--danger);
+}
+.pr-status.purple {
+  color: var(--purple);
+}
+.pr-status.gray {
+  color: var(--ink2);
+}
+
+/* Meta row: five cards, reviewers shows an avatar stack over names. */
+.mr-meta {
+  grid-template-columns: repeat(5, 1fr);
+}
+.mr-rev-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 24px;
+  min-width: 0;
+}
+.mr-rev-names {
+  font: 500 12.5px/1.3 var(--sans);
+  color: var(--ink2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Branch names read as bold sans (not mono) in the meta cards. */
+.mr-meta-mono {
+  font-family: var(--sans);
+}
+/* Lead reviewer avatar is solid dark with white initials. */
+.mr-av:first-child {
+  background: var(--ink-title);
+  color: #fff;
+}
+
+/* Pull request summary: borderless block, stats in a horizontal strip. */
+.pr-summary {
+  margin-bottom: 22px;
+}
+.pr-summary-title {
+  margin: 0 0 12px;
+  font: 650 15px/1 var(--sans);
+  color: var(--ink-title);
+}
+.pr-summary-body {
+  display: flex;
+  gap: 36px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+.pr-summary-text {
+  flex: 1;
+  min-width: 0;
+}
+.pr-summary-stats {
+  flex: none;
+  display: flex;
+  gap: 28px;
+  padding-top: 2px;
+}
+.pr-sstat {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.pr-sstat-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 20px;
+}
+.pr-sstat-ico {
+  display: inline-flex;
+  color: var(--ink3);
+}
+.pr-sstat-num {
+  font: 650 20px/1 var(--sans);
+  letter-spacing: -0.02em;
+  color: var(--ink-title);
+}
+.pr-sstat-label {
+  font: 500 11.5px/1.35 var(--sans);
+  color: var(--ink3);
+  max-width: 96px;
+}
+.pr-sstat.orange .pr-sstat-ico,
+.pr-sstat.orange .pr-sstat-label {
+  color: var(--mod);
+}
+
+/* Tab strip above the change content. */
+.pr-tabs {
+  display: flex;
+  align-items: center;
+  gap: 26px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 4px;
+}
+.pr-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 11px 1px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font: 600 13.5px/1 var(--sans);
+  color: var(--ink3);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+.pr-tab:hover {
+  color: var(--ink);
+}
+.pr-tab.active {
+  color: var(--ink-title);
+  border-bottom-color: var(--ink-title);
+}
+.pr-tab-count {
+  font: 600 11.5px/1 var(--sans);
+  color: var(--ink3);
+}
+
+/* Section heads: numbered prefix, plain-text counts, right-aligned tools. */
+.mr-section-num {
+  color: var(--ink-title);
+  font-weight: 650;
+  margin-right: -4px;
+}
+.mr-section-count {
+  background: none;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  font: 500 12.5px/1 var(--sans);
+  color: var(--ink3);
+}
+.mr-section-file {
+  font: 600 12.5px/1 var(--mono);
+  color: var(--ink2);
+}
+.mr-section-tools {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.mr-section-tools .zoom {
+  margin-left: 0;
+}
+.mr-fs {
+  display: inline-flex;
+  border: none;
+  background: none;
+  padding: 4px;
+  border-radius: 6px;
+  color: var(--ink3);
+  cursor: pointer;
+}
+.mr-fs:hover {
+  background: var(--panel2);
+  color: var(--ink);
+}
+/* Wraps the shared LadderDiff renderer inside the numbered section card. */
+.mr-ladderwrap {
+  padding: 14px;
+}
+.mr-ladderwrap .ladder-diff-doc {
+  gap: 0;
+}
+/* On this page the diff header is smaller and drops the rung count. */
+.mr-ladderwrap .lad-col-ver {
+  font-size: 12.5px;
+}
+.mr-ladderwrap .lad-col-count {
+  display: none;
+}
+
+/* Changes grouped by file: toolbar, file cards, per-routine blocks. */
+.pr-changes-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.pr-changes-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font: 650 14px/1 var(--sans);
+  color: var(--ink-title);
+}
+.pr-file-ico {
+  display: inline-flex;
+  color: var(--ink2);
+}
+.pr-file-name {
+  font: 650 13.5px/1 var(--mono);
+  color: var(--ink-title);
+}
+.pr-file-body {
+  display: flex;
+  flex-direction: column;
+}
+/* Routine block within a file: a quiet sub-header, then its diff. */
+.pr-routine + .pr-routine {
+  border-top: 1px solid var(--line);
+}
+.pr-routine-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: var(--panel2);
+  border-bottom: 1px solid var(--line2);
+}
+.pr-routine-name {
+  font: 600 13px/1 var(--sans);
+  color: var(--ink-title);
+}
+
+/* Side-by-side diff: two outlined panels with a transparent centre channel
+   carrying per-row change markers. Per-cell borders keep each row's two sides
+   and its marker on the same baseline. */
+.mr-sxs {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 14px minmax(0, 1fr);
+  align-items: stretch;
+  padding: 16px;
+}
+/* Dark header bar, matching the ladder diff's .lad-col-head design. */
+.sxs-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 16px;
+  background: #1f242b;
+}
+.sxs-head-l {
+  border: 1px solid #1f242b;
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
+}
+.sxs-head-r {
+  border: 1px solid #1f242b;
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
+}
+.sxs-head-ver {
+  font: 700 12.5px/1 var(--mono);
+  color: #fff;
+}
+.sxs-head.sxs-gut {
+  background: transparent;
+  border: none;
+}
+.sxs-cell {
+  padding: 8px 12px;
+  background: var(--panel);
+  border-left: 1px solid var(--line);
+  border-right: 1px solid var(--line);
+  overflow-x: auto;
+}
+.sxs-cell.sxs-last {
+  border-bottom: 1px solid var(--line);
+  border-radius: 0 0 var(--r-lg) var(--r-lg);
+}
+.sxs-gut {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+/* Inside a panel cell the rung shouldn't carry its own bottom gap. */
+.sxs-cell .rung {
+  margin-bottom: 0;
+}
+/* Darker rung numbers and sans-serif instruction tags, scoped to this view. */
+.mr-sxs .rung-num {
+  color: var(--ink2);
+  font-weight: 600;
+}
+.mr-sxs .el-tag {
+  font-family: var(--sans);
+}
+
+/* Structured-text variant of the side-by-side grid. */
+.mr-sxs-code .sxs-cell {
+  padding: 3px 12px;
+}
+.mr-sxs-code .sxs-l.sxs-last,
+.mr-sxs-code .sxs-r.sxs-last {
+  padding-bottom: 10px;
+}
+.cd-line {
+  display: flex;
+  align-items: baseline;
+  font: 400 12.5px/1.75 var(--mono);
+  white-space: pre;
+}
+.cd-num {
+  flex: none;
+  width: 26px;
+  text-align: right;
+  margin-right: 16px;
+  color: var(--ink4);
+  user-select: none;
+}
+.cd-code {
+  color: var(--ink);
+}
+.tok-kw {
+  color: var(--accent);
+  font-weight: 600;
+}
+.tok-add {
+  color: var(--add);
+  font-weight: 600;
+}
+.tok-rem {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+/* Discussion: comment body on the left, time + actions stacked on the right. */
+.disc-main {
+  display: flex;
+  gap: 18px;
+  align-items: flex-start;
+}
+.disc-content {
+  flex: 1;
+  min-width: 0;
+}
+.disc-role {
+  background: none;
+  border: none;
+  padding: 0;
+  font: 500 12px/1 var(--sans);
+  color: var(--ink3);
+}
+.disc-role.author {
+  background: none;
+  border: none;
+  color: var(--ink3);
+}
+.disc-time {
+  margin-left: 0;
+}
+.disc-aside {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 16px;
+}
+.disc-aside-top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.disc-aside-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.disc-kebab,
+.disc-like {
+  display: inline-flex;
+  border: none;
+  background: none;
+  padding: 2px;
+  border-radius: 6px;
+  color: var(--ink3);
+  cursor: pointer;
+}
+.disc-kebab:hover,
+.disc-like:hover {
+  background: var(--panel2);
+  color: var(--ink);
+}
+.disc-reply-btn {
+  border: none;
+  background: none;
+  padding: 0;
+  font: 600 12.5px/1 var(--sans);
+  color: var(--ink2);
+  cursor: pointer;
+}
+.disc-reply-btn:hover {
+  color: var(--ink);
+}
+
+/* Comment composer at the foot of the discussion. */
+.disc-composer {
+  display: flex;
+  gap: 12px;
+  padding-top: 16px;
+  margin-top: 4px;
+  border-top: 1px solid var(--line2);
+}
+.disc-composer-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.disc-composer-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+.disc-composer-error {
+  font: 500 12.5px/1.4 var(--sans);
+  color: var(--danger);
+}
+
+/* Rail reviewer / check rows use an icon to carry state. */
+.mr-state {
+  gap: 5px;
+}
+.chk-ico.orange {
+  color: var(--mod);
+}
+
+/* Impacted tags render as plain spaced text, not pills, on this rail. */
+.pr-tags {
+  column-gap: 22px;
+  row-gap: 13px;
+}
+.pr-tags .sym-chip {
+  background: none;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  color: var(--ink2);
+}
+
+/* Pull request details: label + value as two left-aligned columns. */
+.md-row {
+  display: grid;
+  grid-template-columns: 104px 1fr;
+  gap: 12px;
+  align-items: baseline;
+}
+.md-val {
+  text-align: left;
+}
+
+/* Borderless, full-width text button (rail "Request changes"). */
+.btn-text {
+  background: none;
+  border: none;
+  color: var(--ink);
+}
+.btn-text:hover {
+  background: var(--panel2);
+}
+/* Give the merge actions some breathing room below the note. */
+.mr-merge-card .btn-approve {
+  margin-top: 14px;
+}
+
+@media (max-width: 1080px) {
+  .pr-summary-body {
+    flex-direction: column;
+    gap: 18px;
+  }
+  .pr-summary-stats {
+    flex-wrap: wrap;
+  }
+}
 @media (max-width: 980px) {
   .mr-meta {
     grid-template-columns: repeat(3, 1fr);
