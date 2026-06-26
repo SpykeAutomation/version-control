@@ -21,8 +21,10 @@ from diff.models import ChangeSet, ProgramChange
 from parsers.l5x.models import L5XDocument
 
 # Bump alongside the cache view in diff_cache.SCHEMA_VERSION when this shape
-# changes in a way a renderer must notice.
-SCHEMA_VERSION = 1
+# changes in a way a renderer must notice. v2: include I/O modules whose parent
+# is a self-reference or missing (previously dropped, so the I/O folder was
+# absent).
+SCHEMA_VERSION = 2
 
 NodeKind = Literal[
     "controller", "folder", "program", "routine", "aoi", "datatype", "tag", "module", "task"
@@ -304,23 +306,34 @@ def _entity_folder(
 def _module_nodes(doc: L5XDocument, status: dict[str, str]) -> list[TreeNode]:
     """Build the I/O module nodes, nested by parent_module into a rack tree."""
     names = {m.name for m in doc.modules}
+    # Group children under their parent. The local chassis module names itself
+    # as its parent, and a partial export can point at a parent that isn't in
+    # the file — both are rack roots, so normalise them to "no parent" (None).
+    # Without this the root would be its own child and never appear (and the
+    # recursion would loop).
     by_parent: dict[Optional[str], list] = {}
     for m in doc.modules:
-        by_parent.setdefault(m.parent_module, []).append(m)
+        parent = m.parent_module
+        if parent == m.name or parent not in names:
+            parent = None
+        by_parent.setdefault(parent, []).append(m)
 
-    def build(m) -> TreeNode:
+    def build(m, seen: set[str]) -> Optional[TreeNode]:
+        if m.name in seen:  # defensive: never recurse through a cycle
+            return None
+        seen = seen | {m.name}
+        children = [
+            node for c in by_parent.get(m.name, []) if (node := build(c, seen)) is not None
+        ]
         return TreeNode(
             key=f"module:{m.name}",
             label=m.name,
             kind="module",
             status=status.get(m.name, "unchanged"),
-            children=[build(c) for c in by_parent.get(m.name, [])],
+            children=children,
         )
 
-    # A module is a root when it has no parent, or its parent isn't in the file
-    # (a partial export) — otherwise it would be orphaned out of the tree.
-    roots = [m for m in doc.modules if not m.parent_module or m.parent_module not in names]
-    nodes = [build(m) for m in roots]
+    nodes = [n for m in by_parent.get(None, []) if (n := build(m, set())) is not None]
     for name, st in status.items():
         if st == "removed" and name not in names:
             nodes.append(
