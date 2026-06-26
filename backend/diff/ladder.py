@@ -62,8 +62,20 @@ class LabelResolver:
             return spec
         labels = self._aoi.get(name)
         if labels is not None:
-            return {"display": "box", "form": None, "operands": labels}
+            # An AOI executes on power flow, so it reads as an output.
+            return {"display": "box", "form": None, "role": "output", "operands": labels}
         return None
+
+    def role(self, name: str) -> str:
+        """Whether instruction ``name`` reads ("input") or writes ("output").
+
+        Unknown box-shaped instructions default to "output" — most are actions —
+        so only the known compare/test instructions stay on the input side.
+        """
+        spec = self._builtins.get(name)
+        if spec is not None:
+            return spec.get("role", "output")
+        return "output"
 
 
 def aoi_operand_labels(aois: Iterable[AOI]) -> dict[str, list[str]]:
@@ -125,6 +137,45 @@ def classify_rung(parsed: ParsedRung, resolver: Optional[LabelResolver] = None) 
     """Classify every top-level node of a parsed rung."""
     resolver = resolver or LabelResolver()
     return [classify(n, resolver) for n in parsed.elements]
+
+
+def _element_role(el: Element, resolver: LabelResolver) -> str:
+    """Whether an element belongs on a rung's input (read) or output (write) side.
+
+    Contacts read and coils write by definition; a box defers to the instruction
+    reference; a branch is an output if any element inside any of its legs is —
+    so a parallel output (e.g. branched coils) stays on the right, while a
+    branch of conditions stays on the left. A raw fallback is left in place.
+    """
+    if el.kind == "coil":
+        return "output"
+    if el.kind == "contact":
+        return "input"
+    if el.kind == "box":
+        return resolver.role(el.mnemonic or "")
+    if el.kind == "branch":
+        nested = (e for leg in el.legs for e in leg)
+        return "output" if any(_element_role(e, resolver) == "output" for e in nested) else "input"
+    return "input"
+
+
+def order_io(elements: list[Element], resolver: LabelResolver) -> list[Element]:
+    """Lay a rung out the way ladder logic reads: inputs left, outputs right.
+
+    A stable partition — reads keep their order, writes keep theirs, and every
+    read comes before every write. A valid rung is already in this order, so
+    this only tidies cases where the source order differs. Branch legs are
+    ordered the same way in turn.
+    """
+    for el in elements:
+        if el.kind == "branch":
+            el.legs = [order_io(leg, resolver) for leg in el.legs]
+    reads, writes = [], []
+    for el in elements:
+        role = _element_role(el, resolver)
+        el.io = role
+        (writes if role == "output" else reads).append(el)
+    return reads + writes
 
 
 def _box(mnemonic: str, values: list[str], labels: list[str]) -> Element:
@@ -417,6 +468,10 @@ def _build_rung(
     else:  # unchanged or comment_changed — logic is identical on both sides
         before = _classify_text(old_rung.text, parser, resolver_old) if old_rung else []
         after = _classify_text(new_rung.text, parser, resolver_new) if new_rung else []
+    # The diff above is aligned on the rung's true source order; only now, for
+    # the side-by-side view, lay each side out reads-left / writes-right.
+    before = order_io(before, resolver_old)
+    after = order_io(after, resolver_new)
     return RungDiff(
         status=row.status,
         old_number=old_rung.number if old_rung else None,

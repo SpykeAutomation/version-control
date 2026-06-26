@@ -176,8 +176,8 @@ export function RepositoryPage() {
             ) : (
               <div className="repo-grid">
                 <div className="repo-col">
-                  <CommitsCard commits={commits} />
-                  <BranchesCard branches={branches} project={project} />
+                  <CommitsCard commits={commits} slug={slug ?? ""} />
+                  <BranchesCard branches={branches} project={project} slug={slug ?? ""} />
                   <ChangeRequestsCard crs={crs} slug={slug ?? ""} />
                 </div>
                 <aside className="repo-rail">
@@ -242,7 +242,7 @@ function CardHead({ title, action }: { title: string; action?: React.ReactNode }
   );
 }
 
-function CommitsCard({ commits }: { commits: Commit[] | null }) {
+function CommitsCard({ commits, slug }: { commits: Commit[] | null; slug: string }) {
   return (
     <div className="rcard">
       <CardHead title="Recent commits" />
@@ -263,9 +263,15 @@ function CommitsCard({ commits }: { commits: Commit[] | null }) {
             {commits.slice(0, 8).map((c) => (
               <tr key={c.hash}>
                 <td>
-                  <span className="hash">{c.hash}</span>
+                  <Link to={`/projects/${slug}/commit/${c.sha}`} className="hash crlink">
+                    {c.hash}
+                  </Link>
                 </td>
-                <td className="cell-strong">{c.message}</td>
+                <td className="cell-strong">
+                  <Link to={`/projects/${slug}/commit/${c.sha}`} className="crtitle">
+                    {c.message}
+                  </Link>
+                </td>
                 <td>
                   <span className="author">
                     <span className="author-av">{initials(c.author)}</span>
@@ -291,9 +297,11 @@ function CommitsCard({ commits }: { commits: Commit[] | null }) {
 function BranchesCard({
   branches,
   project,
+  slug,
 }: {
   branches: BranchSummary[] | null;
   project: ProjectRow;
+  slug: string;
 }) {
   return (
     <div className="rcard">
@@ -328,7 +336,16 @@ function BranchesCard({
                 <td>
                   {b.lastCommitHash ? (
                     <>
-                      <span className="hash">{b.lastCommitHash}</span>{" "}
+                      {b.lastCommitSha ? (
+                        <Link
+                          to={`/projects/${slug}/commit/${b.lastCommitSha}`}
+                          className="hash crlink"
+                        >
+                          {b.lastCommitHash}
+                        </Link>
+                      ) : (
+                        <span className="hash">{b.lastCommitHash}</span>
+                      )}{" "}
                       <span className="branch-msg">{b.lastCommitMessage}</span>
                     </>
                   ) : (
@@ -619,7 +636,11 @@ function CodeView({ detail, slug }: { detail: RepositoryDetail | null; slug: str
                       {c.author}
                     </span>
                   </td>
-                  <td className="cell-strong">{c.message}</td>
+                  <td className="cell-strong">
+                    <Link to={`/projects/${slug}/commit/${c.sha}`} className="crtitle">
+                      {c.message}
+                    </Link>
+                  </td>
                   <td className="muted-cell">{c.filesChanged ?? "—"}</td>
                   <td className="muted-cell">{timeAgo(c.at)}</td>
                 </tr>

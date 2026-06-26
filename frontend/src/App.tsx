@@ -8,6 +8,7 @@ import { DonePage } from "./pages/DonePage";
 import { ProjectsPage } from "./pages/ProjectsPage";
 import { RepositoryPage } from "./pages/RepositoryPage";
 import { CommitPage } from "./pages/CommitPage";
+import { CommitDetailPage } from "./pages/CommitDetailPage";
 import { FileViewPage } from "./pages/FileViewPage";
 import { BranchViewPage } from "./pages/BranchViewPage";
 import { ComparePage } from "./pages/ComparePage";
@@ -53,6 +54,7 @@ export function App() {
         <Route path="projects" element={<ProjectsPage />} />
         <Route path="projects/:slug" element={<RepositoryPage />} />
         <Route path="projects/:slug/commit" element={<CommitPage />} />
+        <Route path="projects/:slug/commit/:sha" element={<CommitDetailPage />} />
         <Route path="projects/:slug/files/:fileName" element={<FileViewPage />} />
         <Route path="projects/:slug/tree/:branch" element={<BranchViewPage />} />
         <Route path="projects/:slug/merge/:mrId" element={<MergeRequestPage />} />

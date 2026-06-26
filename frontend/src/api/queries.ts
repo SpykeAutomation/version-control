@@ -15,6 +15,14 @@ import {
 } from "./projects";
 import { listBranches, listCommits, type BranchSummary } from "./commits";
 import {
+  getCommitDiff,
+  getCommitLadderDiff,
+  getDiff,
+  getLadderDiff,
+  type ChangeSet,
+  type LadderDiffDoc,
+} from "./diff";
+import {
   getMergeRequest,
   listChangeRequests,
   type ChangeRequestSummary,
@@ -31,6 +39,14 @@ export const queryKeys = {
   commits: (projectId: number, branch: string) =>
     ["projects", projectId, "commits", branch] as const,
   branches: (projectId: number) => ["projects", projectId, "branches"] as const,
+  commitDiff: (projectId: number, sha: string) =>
+    ["projects", projectId, "commit-diff", sha] as const,
+  commitLadderDiff: (projectId: number, sha: string) =>
+    ["projects", projectId, "commit-ladder", sha] as const,
+  diff: (projectId: number, base: string, head: string) =>
+    ["projects", projectId, "diff", base, head] as const,
+  ladderDiff: (projectId: number, base: string, head: string) =>
+    ["projects", projectId, "ladder-diff", base, head] as const,
   changeRequests: (projectId: number) =>
     ["projects", projectId, "pulls"] as const,
   mergeRequest: (slug: string, mrId: string) =>
@@ -78,6 +94,57 @@ export function useBranches(projectId: number | undefined) {
     queryKey: queryKeys.branches(projectId ?? -1),
     queryFn: () => listBranches(projectId!),
     enabled: projectId != null,
+  });
+}
+
+// The semantic change-set for one commit. Needs both the project and a commit
+// sha, so it stays disabled until both are known.
+export function useCommitDiff(
+  projectId: number | undefined,
+  sha: string | undefined,
+) {
+  return useQuery<ChangeSet>({
+    queryKey: queryKeys.commitDiff(projectId ?? -1, sha ?? ""),
+    queryFn: () => getCommitDiff(projectId!, sha!),
+    enabled: projectId != null && !!sha,
+  });
+}
+
+// The ladder-diff IR for one commit, used by the rung-by-rung panels.
+export function useCommitLadderDiff(
+  projectId: number | undefined,
+  sha: string | undefined,
+) {
+  return useQuery<LadderDiffDoc>({
+    queryKey: queryKeys.commitLadderDiff(projectId ?? -1, sha ?? ""),
+    queryFn: () => getCommitLadderDiff(projectId!, sha!),
+    enabled: projectId != null && !!sha,
+  });
+}
+
+// Generic diff between two refs, used when the commit page compares against a
+// base other than the parent. Disabled until both refs are known.
+export function useDiff(
+  projectId: number | undefined,
+  base: string | undefined,
+  head: string | undefined,
+) {
+  return useQuery<ChangeSet>({
+    queryKey: queryKeys.diff(projectId ?? -1, base ?? "", head ?? ""),
+    queryFn: () => getDiff(projectId!, base!, head!),
+    enabled: projectId != null && !!base && !!head,
+  });
+}
+
+export function useLadderDiff(
+  projectId: number | undefined,
+  base: string | undefined,
+  head: string | undefined,
+) {
+  return useQuery<LadderDiffDoc>({
+    queryKey: queryKeys.ladderDiff(projectId ?? -1, base ?? "", head ?? ""),
+    queryFn: () => getLadderDiff(projectId!, base!, head!),
+    enabled: projectId != null && !!base && !!head,
   });
 }
 

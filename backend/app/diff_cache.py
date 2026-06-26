@@ -18,7 +18,14 @@ from diff.ladder_models import SCHEMA_VERSION as LADDER_SCHEMA
 from .config import settings
 
 # Output-format version per view. Bump when a view's JSON shape changes.
-SCHEMA_VERSION = {"changeset": 1, "ladder": LADDER_SCHEMA}
+SCHEMA_VERSION = {
+    "changeset": 1,
+    "ladder": LADDER_SCHEMA,
+    # Single-commit ladder diffs share the ladder shape but carry different
+    # version labels (short shas, not ref names), so they need their own
+    # namespace to avoid colliding with the generic ref-to-ref ladder view.
+    "commit-ladder": LADDER_SCHEMA,
+}
 
 
 def _path(project_id: int, view: str, base_sha: str, head_sha: str) -> Path:
