@@ -21,6 +21,7 @@
   --line2: #eceef0;
   --line: #dfe2e5;
   --border: #c9ced3;
+  --wire: #707783; /* ladder rail / wire colour */
 
   /* Brand / action */
   --black: #050505;
@@ -1114,6 +1115,19 @@ a {
   gap: 24px;
   align-items: start;
 }
+/* Inline (full-width) variant of the files list: chips flow in a row rather
+   than stacking in a narrow rail column. */
+.commit-files {
+  margin-bottom: 20px;
+}
+.commit-files .file-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.commit-files .file-row {
+  flex: 0 0 auto;
+}
 .page-pad {
   padding: 32px 36px 40px;
 }
@@ -1616,6 +1630,45 @@ a.rail-item:focus-visible,
 }
 .cmp-select:hover {
   border-color: var(--border);
+}
+/* read-only field (commit page): fixed comparison, not a picker */
+.cmp-select.cmp-static {
+  cursor: default;
+}
+.cmp-select.cmp-static:hover {
+  border-color: var(--line);
+}
+/* a native <select> sitting inside a .cmp-select box, styled to blend in */
+.cmp-bare-select {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  appearance: none;
+  -webkit-appearance: none;
+  border: none;
+  background: transparent;
+  /* line-height "normal" (not 1) so descenders like g/p/y aren't clipped */
+  font: 600 13px/normal var(--sans);
+  color: var(--ink-title);
+  cursor: pointer;
+  outline: none;
+}
+
+/* commit page diff bar (own class — .commit-bar is taken by another component).
+   A tighter bar with no grey fill behind the fields; keeps its border. */
+.cd-bar {
+  padding: 9px 14px;
+  margin-bottom: 16px;
+  background: transparent;
+}
+.cd-bar .cmp-field {
+  gap: 4px;
+}
+.cd-bar .cmp-field-label {
+  font-size: 11px;
+}
+.cd-bar .cmp-select {
+  height: 34px;
 }
 .cmp-select-ico {
   display: inline-flex;
@@ -3659,6 +3712,18 @@ a.file-cell:hover .file-cell-name {
   .page-rail {
     display: none;
   }
+  .commit-tree-diff {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .tree-rail {
+    position: static;
+  }
+  /* Single column: the tree stacks above the diff, so it can't borrow the
+     diff's height — cap it directly and scroll inside. */
+  .tree-rail > .project-tree {
+    position: static;
+    max-height: 340px;
+  }
   .repo-grid {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -3735,18 +3800,142 @@ a.file-cell:hover .file-cell-name {
   margin-bottom: 18px;
 }
 
+/* Commit page: the side-by-side ladder diff is the focus and needs the full
+   page width, so this layout drops the right rail and runs a single column. */
 .commit-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) minmax(0, 1fr);
-  gap: 20px;
-  align-items: start;
+  grid-template-columns: minmax(0, 1fr);
 }
-.commit-main,
-.commit-mid,
-.commit-rail {
+
+/* With the organizer tree, the commit page runs a fixed left sidebar plus the
+   diff. The diff column stays minmax(0,1fr) so wide rungs scroll inside it
+   rather than stretching the grid. */
+/* ---- Project organizer tree + diff (commit page) ---- */
+/* The tree and the diff sit side by side, below the full-width header, stats,
+   and files. The row stretches both columns to the same height; the tree
+   contributes no intrinsic height (its content is absolutely positioned), so
+   the row height is the diff visual's and a long organizer scrolls inside the
+   tree card rather than making it taller than the diff. */
+.commit-tree-diff {
+  display: grid;
+  grid-template-columns: 264px minmax(0, 1fr);
+  gap: 20px;
+  align-items: stretch;
+  margin-bottom: 18px;
+}
+.commit-tree-diff > .commit-diff-stage {
+  /* Let wide rungs scroll inside this column instead of stretching the grid. */
+  min-width: 0;
+  /* Drop the standalone bottom margin: as a grid item it would shrink this
+     column's box and leave the tree (no margin) stretching lower. The row's
+     own margin-bottom provides the spacing below. */
+  margin-bottom: 0;
+}
+.tree-rail {
+  position: relative;
+  align-self: stretch;
+  overflow: hidden;
+  background: var(--panel);
+  border: 1px solid var(--line2);
+  border-radius: 12px;
+}
+.tree-rail > .project-tree {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+  padding: 10px 8px;
+}
+.project-tree {
+  font: 400 13px/1.4 var(--sans);
+}
+.tree-children {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+}
+.tree-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 4px 8px 4px 8px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  text-align: left;
+  color: var(--ink2);
+  cursor: pointer;
+}
+.tree-row:hover {
+  background: var(--gray-bg);
+}
+.tree-row-active {
+  background: var(--accent-weak);
+  color: var(--ink-title);
+  font-weight: 600;
+}
+.tree-toggle {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink3);
+}
+.tree-ico {
+  flex: none;
+  display: flex;
+  align-items: center;
+  color: var(--ink3);
+}
+.tree-ico-controller {
+  color: var(--accent);
+}
+.tree-ico-routine {
+  color: var(--blue);
+}
+.tree-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* One small black dot marks a change — on a changed node, or on a collapsed
+   container hiding a change below it. */
+.tree-dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  margin-right: 4px;
+  border-radius: 999px;
+  background: var(--black);
+}
+/* Banner above the diff when the tree has narrowed it to one routine/entity. */
+.tree-filter-note {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding: 8px 14px;
+  border: 1px solid var(--accent-line, var(--line2));
+  border-radius: 9px;
+  background: var(--accent-weak);
+  font: 400 13px/1.4 var(--sans);
+  color: var(--ink2);
+}
+.tree-filter-clear {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: 600 13px/1 var(--sans);
+  cursor: pointer;
+}
+.tree-filter-clear:hover {
+  text-decoration: underline;
 }
 
 /* numbered step header inside a card */
@@ -3918,23 +4107,567 @@ a.file-cell:hover .file-cell-name {
   text-align: center;
 }
 
-/* tighter widths: collapse three columns down to two, then one */
-@media (max-width: 1240px) {
-  .commit-grid {
-    grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
-  }
-  .commit-rail {
-    grid-column: 1 / -1;
-  }
-}
 @media (max-width: 880px) {
   .commit-page {
     padding: 18px 20px 40px;
   }
-  .commit-grid {
+}
+
+/* ============================================================
+   IR-faithful ladder diff (LadderDiff.tsx)
+   One card per routine; one aligned row per rung; left = before,
+   right = after. Reuses .rung-net / .rail / .ladder-el / .el-tag
+   and the .dph-ver version chips from the Compare panels.
+   ============================================================ */
+
+/* full-width stage for the commit-page diff (not the Compare half-width grid) */
+.commit-diff-stage {
+  margin-bottom: 20px;
+}
+.ladder-diff-doc {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.ladder-diff-card {
+  background: transparent;
+  border-radius: var(--r-lg);
+  overflow-x: auto;
+  overflow-y: visible;
+}
+/* Headers and rows share one fixed 50/50 grid so the before/after divider runs
+   straight down the whole card. When a busy rung is wider than the page, the
+   whole card scrolls as one aligned unit via .ladder-diff-card's overflow-x. */
+.ladder-diff-head,
+.lad-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 14px;
+}
+.lad-cell {
+  min-width: 0;
+  background: var(--panel);
+  border-left: 1px solid var(--line);
+  border-right: 1px solid var(--line);
+}
+.lad-row:first-child .lad-cell {
+  border-top: 1px solid var(--line);
+}
+.lad-row + .lad-row .lad-cell {
+  border-top: 1px solid var(--line2);
+}
+.lad-row:last-child .lad-cell {
+  border-bottom: 1px solid var(--line);
+  border-radius: 0 0 var(--r-lg) var(--r-lg);
+}
+.lad-col-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  padding: 11px 16px;
+  background: #1f242b;
+  border: 1px solid #1f242b;
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
+}
+.lad-col-ver {
+  font: 750 15px/1 var(--mono);
+  color: #fff;
+}
+.lad-col-count {
+  font: 700 11px/1 var(--sans);
+  color: #d6dae0;
+  background: rgba(255, 255, 255, 0.14);
+  padding: 4px 10px;
+  border-radius: 999px;
+}
+/* one rung line within a column */
+.lad-rung {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-height: 118px;
+  height: 100%;
+  padding: 12px 16px 14px;
+}
+.lad-rung-branched {
+  min-height: 156px;
+}
+/* a wholly added/removed rung tints its whole row; a modified rung gets no row
+   styling — the changed element's badge/outline carries the colour */
+.lad-rung-add {
+  background: var(--add-bg);
+}
+.lad-rung-rem {
+  background: var(--danger-bg);
+}
+.lad-rung-cmt {
+  background: var(--blue-bg);
+}
+.lad-rung-empty {
+  background: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 7px,
+    var(--panel2) 7px,
+    var(--panel2) 14px
+  );
+}
+.lad-rung-main {
+  flex: 1;
+  min-width: 0;
+}
+.lad-empty {
+  flex: 1;
+  text-align: center;
+  font: 500 13px/1 var(--mono);
+  color: var(--ink3);
+}
+.lad-rung-caption {
+  margin: 0 0 8px;
+  padding: 0 2px;
+  font: 650 11.5px/1.35 var(--sans);
+  font-style: italic;
+  color: var(--ink2);
+}
+
+/* boxed rung number in the left gutter (reference style) */
+.lad-rung .rung-num {
+  width: 26px;
+  height: 26px;
+  flex: none;
+  align-self: flex-start;
+  margin-top: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--panel2);
+  font: 600 11px/1 var(--mono);
+  color: var(--ink3);
+}
+/* Placeholder side: keep the gutter width for alignment but show no box. */
+.lad-rung .rung-num-empty {
+  border-color: transparent;
+  background: none;
+}
+
+/* Each instruction sits in a slot: wire | chip | wire. The flexible wires fill
+   the gaps so the rung is one continuous rail; the chip carries the highlight. */
+.rung-els {
+  align-items: center;
+}
+/* The rung is one wrapping flex line. A busy rung wraps onto more rows instead
+   of overflowing the panel; the rails sit inline (first/last items) so the left
+   rail leads the first row and the right rail closes the last. */
+.ladder-diff-card .rung-net {
+  width: 100%;
+  min-width: 0;
+  padding: 4px 0;
+  flex-wrap: wrap;
+  align-items: center;
+  row-gap: 6px;
+  position: relative;
+}
+/* Continuation arrows at a wrap point: a right-pointing chevron where a row
+   runs off the right edge, and where the rung resumes at the next row's left. */
+.wrap-arrow {
+  position: absolute;
+  width: 0;
+  height: 0;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-left: 6px solid var(--wire);
+  opacity: 0.85;
+  pointer-events: none;
+}
+.wrap-out {
+  transform: translate(-100%, -50%);
+}
+.wrap-in {
+  transform: translate(0, -50%);
+}
+/* Per-row fill wire: a measured overlay from a row's rightmost element to the
+   row's right edge (the right rail on the last row, the wrap point otherwise),
+   so every row reaches the edge without growing flex items (which would spread
+   the elements). Sits on the measured row centre line, so it never reflows. */
+.rung-fill {
+  position: absolute;
+  height: 2px;
+  background: var(--wire);
+  opacity: 0.85;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+/* Overlaid right rail: one per row, placed by measurement at the row's true
+   right edge (the panel edge) on the row centre line, so the rail always closes
+   the row at its right edge — never stranded mid-row by the wrapping flow. The
+   in-flow .rail-r is removed; this overlay replaces it. Wrapped rows get an
+   "out" continuation arrow instead (the rail only closes the final row). */
+.rung-rail-r {
+  position: absolute;
+  width: 2px;
+  height: 26px;
+  background: var(--wire);
+  opacity: 0.85;
+  border-radius: 1px;
+  transform: translate(-100%, -50%);
+  pointer-events: none;
+}
+.ladder-diff-card .rail {
+  background: var(--wire);
+  opacity: 0.85;
+}
+/* The first write's slot is the ONLY growable item on the line, and its leading
+   wire absorbs all the slot's slack. So whatever row holds the first write gets
+   one long bridging wire ahead of it: on a single-row rung that pushes the
+   writes to the right (reads cluster left); on a wrapped write row it pushes the
+   write to the right rail. All other rows have no growable item, so their reads
+   pack tight-left and reach the right edge via the measured overlay (.rung-fill)
+   plus the overlaid right rail. */
+.el-slot {
+  /* Slots do NOT grow (except the boundary slot below): reads pack tight against
+     the left rail and writes against the right rail (source order is
+     reads-then-writes). The rung's slack goes to the single growing boundary
+     wire; each row is then filled to its right edge by a measured overlay wire
+     (.rung-fill) and closed by the overlaid right rail. */
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+/* The boundary slot (the first write) is the ONLY growable item on the line, and
+   its leading wire absorbs all the slot's slack. So whatever row holds the first
+   write gets one long bridging wire ahead of it: on a single-row rung that
+   pushes the writes to the right (reads cluster left); on a wrapped write row it
+   pushes the write to the right rail. All other rows have no growable item, so
+   their reads pack tight-left and reach the right edge via the measured overlay
+   (.rung-fill) plus the overlaid right rail. Declared after .el-slot so it wins
+   (equal specificity). */
+.el-slot.el-slot-boundary {
+  flex: 1 1 auto;
+}
+.el-slot-boundary > .el-wire:first-child {
+  flex: 1 1 0;
+  min-width: 24px;
+}
+.el-slot-box {
+  min-width: 106px;
+}
+.el-wire {
+  flex: 0 0 8px;
+  width: 8px;
+  min-width: 8px;
+  height: 2px;
+  background: var(--wire);
+  align-self: center;
+  opacity: 0.85;
+}
+.el-iwire {
+  flex: 1 1 6px;
+  height: 2px;
+  background: var(--wire);
+  opacity: 0.85;
+}
+
+/* contact / coil chip: tag above, glyph on the rail. Lifted so the wire row
+   (below the tag) lands on the slot centre line, level with the boxes. */
+.el-chip {
+  position: relative;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  border-radius: 7px;
+  /* No horizontal padding: the wire row reaches the chip edge so the rung line
+     stays unbroken across the glyph. Breathing room for the change highlight
+     comes from the tag's own padding instead. */
+  padding: 2px 0 1px;
+  transform: translateY(-7.8px);
+}
+.el-chip .el-tag {
+  max-width: 126px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: center;
+  font: 600 10.5px/1.3 var(--mono);
+  color: var(--ink2);
+  margin-bottom: 1px;
+  padding: 0 6px;
+}
+.el-wirerow {
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+.el-chip .el-symbol {
+  color: #202124;
+  display: block;
+  flex: none;
+}
+
+/* change highlight hugs the chip; the rail wires run outside it */
+.el-chip.el-added {
+  background: var(--add-bg);
+  box-shadow:
+    inset 0 0 0 1px var(--add-line),
+    0 0 0 1px rgba(24, 128, 56, 0.18);
+}
+.el-chip.el-removed {
+  background: var(--danger-bg);
+  box-shadow:
+    inset 0 0 0 1px #f0c6c3,
+    0 0 0 1px rgba(217, 48, 37, 0.16);
+}
+.el-chip.el-modified {
+  background: var(--mod-bg);
+  box-shadow:
+    inset 0 0 0 1px var(--mod-line),
+    0 0 0 1px rgba(183, 92, 0, 0.16);
+}
+/* Changed elements keep a neutral-dark glyph and tag; status is shown only by
+   the chip fill, outline, and corner badge (matching the reference). */
+.ladder-diff-card .ladder-box {
+  position: relative;
+}
+.el-slot-box .ladder-box {
+  margin: 0;
+}
+
+/* corner badge on a changed element */
+.el-badge {
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  width: 15px;
+  height: 15px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font: 800 10px/1 var(--sans);
+  color: #fff;
+  border: 2px solid var(--panel);
+  z-index: 1;
+}
+.el-badge-added {
+  background: var(--add);
+}
+.el-badge-removed {
+  background: var(--danger);
+}
+.el-badge-modified {
+  background: var(--mod);
+}
+
+/* box instruction: titled rectangle, one row per operand */
+.ladder-box {
+  flex: none;
+  min-width: 98px;
+  margin: 0 2px;
+  border: 1.25px solid #b9bec3;
+  border-radius: var(--r-sm);
+  background: var(--panel);
+}
+.box-title {
+  padding: 3px 9px;
+  font: 750 10.5px/1.2 var(--mono);
+  color: var(--ink-title);
+  text-align: center;
+  background: var(--panel2);
+  border-bottom: 1px solid var(--line);
+  border-radius: calc(var(--r-sm) - 2px) calc(var(--r-sm) - 2px) 0 0;
+}
+.box-operands {
+  display: flex;
+  flex-direction: column;
+}
+.box-operand {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 3px 9px;
+  font: 550 10.5px/1.3 var(--mono);
+}
+.box-operand + .box-operand {
+  border-top: 1px solid var(--line2);
+}
+.operand-label {
+  color: var(--ink3);
+  flex: none;
+}
+.operand-value {
+  color: var(--ink);
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.box-operand.operand-changed {
+  background: var(--mod-bg);
+}
+.box-operand.operand-changed .operand-label,
+.box-operand.operand-changed .operand-value {
+  color: var(--mod);
+}
+/* box-level tint follows the element status */
+.ladder-box.el-added {
+  border-color: var(--add);
+  background: var(--add-bg);
+}
+.ladder-box.el-removed {
+  border-color: var(--danger);
+  background: var(--danger-bg);
+}
+.ladder-box.el-modified {
+  border-color: var(--mod-line);
+  /* Keep the box body neutral so the per-operand tint shows WHICH operand changed. */
+  background: var(--panel);
+}
+/* tint the box header to match the change colour */
+.ladder-box.el-added .box-title {
+  background: rgba(24, 128, 56, 0.1);
+  color: var(--add);
+  border-bottom-color: var(--add-line);
+}
+.ladder-box.el-removed .box-title {
+  background: rgba(217, 48, 37, 0.08);
+  color: var(--danger);
+}
+.ladder-box.el-modified .box-title {
+  background: var(--mod-bg);
+  color: var(--mod);
+  border-bottom-color: var(--mod-line);
+}
+
+/* branch: parallel legs stacked vertically, joined on both ends */
+.ladder-branch {
+  flex: none;
+  display: flex;
+  align-items: stretch;
+  margin: 0 4px;
+  min-height: 0;
+  background: transparent;
+  overflow: visible;
+  transform: translateY(var(--branch-drop, 0px));
+}
+.ladder-diff-card .ladder-branch.el-added,
+.ladder-diff-card .ladder-branch.el-removed,
+.ladder-diff-card .ladder-branch.el-modified {
+  background: transparent;
+}
+.branch-join {
+  width: 2px;
+  align-self: stretch;
+  background: #b9bec3;
+  flex: none;
+  border-radius: 1px;
+}
+.branch-legs {
+  display: grid;
+  grid-auto-rows: 54px;
+  gap: 8px;
+  align-content: center;
+  padding: 3px 0;
+}
+.branch-leg {
+  display: flex;
+  align-items: center;
+  min-height: 54px;
+  height: 54px;
+  overflow: visible;
+}
+.branch-leg-elements {
+  display: flex;
+  align-items: center;
+  flex: none;
+}
+.branch-leg .el-iwire {
+  flex: 0 0 5px;
+  min-width: 5px;
+}
+.branch-leg .ladder-box {
+  min-width: 112px;
+}
+.branch-leg .el-chip {
+  transform: translateY(-6px);
+}
+/* an empty (pass-through) branch leg drawn as a plain horizontal wire */
+.branch-wire {
+  flex: 1 1 14px;
+  min-width: 14px;
+  height: 2px;
+  align-self: center;
+  background: #b9bec3;
+  opacity: 0.85;
+  border-radius: 1px;
+}
+.branch-mid-wire,
+.branch-pass {
+  flex: none;
+  width: 18px;
+  height: 2px;
+  background: #b9bec3;
+  opacity: 0.85;
+  border-radius: 1px;
+}
+.ladder-branch.el-added .branch-join {
+  background: var(--add);
+}
+.ladder-branch.el-removed .branch-join {
+  background: var(--danger);
+}
+
+/* raw fallback: verbatim text in a monospace pill */
+.ladder-raw {
+  flex: none;
+  margin: 0 6px;
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--panel2);
+  font: 500 11px/1.3 var(--mono);
+  color: var(--ink2);
+  white-space: pre;
+}
+.ladder-raw.el-added {
+  border-color: var(--add-line);
+  background: var(--add-bg);
+  color: var(--add);
+}
+.ladder-raw.el-removed {
+  border-color: var(--danger-line, #f0c6c3);
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+.ladder-raw.el-modified {
+  border-color: var(--mod-line);
+  background: var(--mod-bg);
+  color: var(--mod);
+}
+
+/* rung comment text, shown for comment-changed / comment-only rungs */
+.rung-comment {
+  padding: 4px 10px 6px;
+  font: 400 12px/1.4 var(--sans);
+  color: var(--ink2);
+}
+.rung-comment-l .comment-text {
+  color: var(--danger);
+}
+.rung-comment-r .comment-text {
+  color: var(--add);
+}
+.drow-comment_changed .rung-comment .comment-text {
+  color: var(--blue);
+}
+
+@media (max-width: 880px) {
+  .drow {
     grid-template-columns: 1fr;
-  }
-  .commit-rail {
-    grid-column: auto;
   }
 }

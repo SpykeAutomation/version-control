@@ -24,14 +24,17 @@ from fastapi import (
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from diff import ChangeSet, LadderDocument
+from diff import ChangeSet, LadderDocument, build_ladder_document, diff_documents
 from vcs import ProjectRepoError
 
 from ..auth import current_user
 from ..db import get_db
 from ..deps import require_member
+from ..tree import ProjectTree, build_project_tree
+from .. import diff_cache
 from ..diffing import serve_diff
 from ..models import Project, ProjectMember, User
+from ..storage import repo_for
 from ..schemas import (
     BranchIn,
     CommitOut,
@@ -274,3 +277,206 @@ def ladder_diff(
         head,
         lambda r, b, h: r.ladder_diff_refs(b, h, old_label=base, new_label=head),
     )
+
+
+# ---------------------------------------------------------------------------
+# Single-commit diffs: what one commit changed against its parent.
+# ---------------------------------------------------------------------------
+
+
+def _resolve_parent(repo, sha: str) -> tuple[str, str | None]:
+    """Resolve a commit and its first parent.
+
+    Returns (resolved sha, parent sha) where parent is None for a root commit
+    (the very first commit on a branch has no parent). A bad sha raises
+    ProjectRepoError, which the callers turn into a 400.
+    """
+    resolved = repo.resolve_ref(sha)
+    try:
+        parent = repo.resolve_ref(f"{resolved}^")
+    except ProjectRepoError:
+        parent = None  # root/initial commit has no parent
+    return resolved, parent
+
+
+def _empty_like(doc):
+    """Copy a document with every entity list emptied.
+
+    Used as the "old" side when a commit has no parent, so its diff reads as
+    "everything added". The controller and metadata are kept as-is so they do
+    not show up as spurious changes — only the real additions appear.
+    """
+    return doc.model_copy(
+        update={
+            "modules": [],
+            "data_types": [],
+            "add_on_instructions": [],
+            "controller_tags": [],
+            "programs": [],
+            "tasks": [],
+        }
+    )
+
+
+# Git's well-known empty-tree hash. Used as the stable "base" cache key for a
+# root commit's diff, so even the first commit is cached like every (base, head)
+# pair instead of being recomputed on every request.
+_EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
+
+
+def _root_diff_response(project_id: int, view: str, head_sha: str, build) -> Response:
+    """Serve and cache a root commit's diff, keyed against the empty tree.
+
+    `build` is a no-argument callable that returns a Pydantic model; it runs
+    only on a cache miss (so a hit avoids re-reading the snapshot).
+    """
+    cached = diff_cache.get(project_id, view, _EMPTY_TREE, head_sha)
+    if cached is not None:
+        return Response(cached, media_type="application/json", headers={"X-Cache": "HIT"})
+    payload = build().model_dump_json()
+    diff_cache.put(project_id, view, _EMPTY_TREE, head_sha, payload)
+    return Response(payload, media_type="application/json", headers={"X-Cache": "MISS"})
+
+
+@router.get("/{project_id}/commits/{sha}/diff", response_model=ChangeSet)
+def commit_diff(
+    project_id: int,
+    sha: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+) -> Response:
+    """Semantic diff of one commit against its parent.
+
+    A root commit (no parent) reads as everything added.
+    """
+    require_member(project_id, db, user)
+    repo = repo_for(project_id)
+    try:
+        resolved, parent = _resolve_parent(repo, sha)
+    except ProjectRepoError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc))
+
+    if parent is not None:
+        return serve_diff(
+            project_id,
+            "changeset",
+            parent,
+            resolved,
+            lambda r, b, h: r.diff_refs(b, h),
+        )
+
+    # Root commit: diff the new snapshot against an empty version of itself.
+    def build() -> ChangeSet:
+        new_doc = repo.document_at(resolved)
+        return diff_documents(_empty_like(new_doc), new_doc)
+
+    try:
+        return _root_diff_response(project_id, "changeset", resolved, build)
+    except ProjectRepoError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc))
+
+
+@router.get("/{project_id}/commits/{sha}/diff/ladder", response_model=LadderDocument)
+def commit_ladder_diff(
+    project_id: int,
+    sha: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+) -> Response:
+    """Drawable ladder-diagram diff of one commit against its parent.
+
+    A root commit (no parent) reads as everything added.
+    """
+    require_member(project_id, db, user)
+    repo = repo_for(project_id)
+    try:
+        resolved, parent = _resolve_parent(repo, sha)
+    except ProjectRepoError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc))
+
+    short_new = resolved[:7]
+    if parent is not None:
+        short_parent = parent[:7]
+        return serve_diff(
+            project_id,
+            "commit-ladder",
+            parent,
+            resolved,
+            lambda r, b, h: r.ladder_diff_refs(
+                b, h, old_label=short_parent, new_label=short_new
+            ),
+        )
+
+    # Root commit: build the ladder diff against an empty version of itself.
+    def build() -> LadderDocument:
+        new_doc = repo.document_at(resolved)
+        return build_ladder_document(
+            _empty_like(new_doc),
+            new_doc,
+            old_label="(initial)",
+            new_label=short_new,
+            commit=resolved,
+        )
+
+    try:
+        return _root_diff_response(project_id, "commit-ladder", resolved, build)
+    except ProjectRepoError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc))
+
+
+# ---------------------------------------------------------------------------
+# Project organizer tree: the full structure at a commit, with change status.
+# ---------------------------------------------------------------------------
+
+
+def _build_tree(r, b, h) -> ProjectTree:
+    """Compute closure for serve_diff: head structure overlaid with the diff."""
+    return build_project_tree(r.document_at(h), r.diff_refs(b, h))
+
+
+@router.get("/{project_id}/tree", response_model=ProjectTree)
+def project_tree(
+    project_id: int,
+    base: str,
+    head: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+) -> Response:
+    """Organizer tree at `head`, tagged by the diff against `base`.
+
+    Lets the commit page track a custom base (the page's ?base= re-base).
+    """
+    require_member(project_id, db, user)
+    return serve_diff(project_id, "tree", base, head, _build_tree)
+
+
+@router.get("/{project_id}/commits/{sha}/tree", response_model=ProjectTree)
+def commit_tree(
+    project_id: int,
+    sha: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+) -> Response:
+    """Organizer tree of one commit, tagged by the diff against its parent.
+
+    A root commit (no parent) reads as everything added.
+    """
+    require_member(project_id, db, user)
+    repo = repo_for(project_id)
+    try:
+        resolved, parent = _resolve_parent(repo, sha)
+    except ProjectRepoError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc))
+
+    if parent is not None:
+        return serve_diff(project_id, "tree", parent, resolved, _build_tree)
+
+    # Root commit: tag the structure against an empty version of itself.
+    def build() -> ProjectTree:
+        new_doc = repo.document_at(resolved)
+        return build_project_tree(new_doc, diff_documents(_empty_like(new_doc), new_doc))
+
+    try:
+        return _root_diff_response(project_id, "tree", resolved, build)
+    except ProjectRepoError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc))

@@ -5,7 +5,8 @@ import type { RepoStatus } from "./projects";
 import type { Rung } from "./compare";
 
 export interface Commit {
-  hash: string;
+  hash: string; // short 7-char hash for display
+  sha: string; // full hash for API calls
   message: string;
   author: string;
   branch: string;

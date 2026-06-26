@@ -22,9 +22,12 @@ export async function listCommits(
   projectId: number,
   branch: string,
 ): Promise<Commit[]> {
-  const commits = await apiFetch<CommitOut[]>(`/projects/${projectId}/commits`);
+  const commits = await apiFetch<CommitOut[]>(
+    `/projects/${projectId}/commits?branch=${encodeURIComponent(branch)}`,
+  );
   return commits.map((c) => ({
     hash: c.sha.slice(0, 7),
+    sha: c.sha,
     message: c.title,
     author: c.author,
     branch,
@@ -38,6 +41,7 @@ export interface BranchSummary {
   name: string;
   isDefault: boolean;
   lastCommitHash?: string;
+  lastCommitSha?: string;
   lastCommitMessage?: string;
   lastCommitAt?: string;
 }
@@ -64,6 +68,7 @@ export async function listBranches(
         name,
         isDefault: name === "main",
         lastCommitHash: latest?.sha.slice(0, 7),
+        lastCommitSha: latest?.sha,
         lastCommitMessage: latest?.title,
         lastCommitAt: latest?.date,
       };
