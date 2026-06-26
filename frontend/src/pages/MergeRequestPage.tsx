@@ -1,35 +1,46 @@
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
-  ArrowLeft,
+  AlertTriangle,
   CheckCircle2,
   ChevronDown,
+  Circle,
   Clock,
+  Eye,
   FileCode2,
   GitBranch,
+  GitFork,
   GitMerge,
   GitPullRequestArrow,
-  MessageSquare,
+  Maximize2,
+  Minus,
+  MoreVertical,
+  Plus,
   ShieldAlert,
-  ShieldCheck,
+  ThumbsUp,
   Users,
 } from "lucide-react";
 import { TopBar } from "../app/TopBar";
-import { RungView } from "../components/Ladder";
+import { RoutineLadderDiffView } from "../components/LadderDiff";
 import { ApiError } from "../api/client";
 import {
-  CHECK_STATE_META,
+  demoPull,
   MR_STATUS_META,
   REVIEW_STATE_META,
   type MergeRequest,
-  type MRCheck,
   type MRCodeDiff,
   type MRComment,
-  type MRLadderDiff,
-  type MRLadderSide,
   type MRReviewer,
+  type PRFile,
+  type PRRoutineChange,
 } from "../api/mergeRequest";
-import { errorText, useMergeRequest, useProject } from "../api/queries";
+import {
+  errorText,
+  useCreateComment,
+  useMergeRequest,
+  useProject,
+} from "../api/queries";
+import { useAuth } from "../auth/AuthContext";
 import { formatDate, timeAgo } from "../lib/time";
 
 function initials(name: string): string {
@@ -37,27 +48,23 @@ function initials(name: string): string {
   return ((p[0]?.[0] ?? "") + (p[1]?.[0] ?? "")).toUpperCase() || "?";
 }
 
-function hasRungs(d: MRLadderDiff): boolean {
-  return d.left.rungs.length > 0 || d.right.rungs.length > 0;
-}
-function hasCode(d: MRCodeDiff): boolean {
-  return d.left.lines.length > 0 || d.right.lines.length > 0;
-}
-
 export function MergeRequestPage() {
   const { slug, mrId } = useParams();
   const { project, isPending: projectPending, error: projectError } =
     useProject(slug);
   const mrQuery = useMergeRequest(slug, mrId);
-  const [showNumbers, setShowNumbers] = useState(true);
 
   const mr = mrQuery.data ?? null;
-  const loading = projectPending || mrQuery.isPending;
+  const loading = (projectPending && !mr) || mrQuery.isPending;
   // A 404 means the merge request doesn't exist — show the empty state rather
-  // than an error banner. Any other failure is a real error.
+  // than an error banner. A status-0 (unreachable) project error isn't fatal
+  // here: the request query falls back to demo data, so we still render it.
   const notFound =
     mrQuery.error instanceof ApiError && mrQuery.error.status === 404;
-  const error = projectError
+  const projectFatal =
+    projectError &&
+    !(projectError instanceof ApiError && projectError.status === 0);
+  const error = projectFatal
     ? errorText(projectError, "Failed to load merge request.")
     : mrQuery.error && !notFound
       ? errorText(mrQuery.error, "Failed to load merge request.")
@@ -80,83 +87,125 @@ export function MergeRequestPage() {
             <EmptyMerge slug={slug} />
           </div>
         ) : (
-          <div className="mr-page">
-            <nav className="crumb">
-              <Link to="/projects">Projects</Link>
-              <span className="crumb-sep">/</span>
-              {project ? (
-                <Link to={`/projects/${slug}`}>{project.name}</Link>
-              ) : (
-                <span>Project</span>
-              )}
-              <span className="crumb-sep">/</span>
-              <span>Merge request</span>
-            </nav>
-
-            <MergeHeader mr={mr} slug={slug} />
-            <MetaRow mr={mr} />
-
-            <div className="repo-grid mr-grid">
-              <div className="repo-col">
-                <SummaryCard mr={mr} />
-                {hasRungs(mr.ladder) && (
-                  <LadderSection
-                    diff={mr.ladder}
-                    showNumbers={showNumbers}
-                    onToggle={() => setShowNumbers((v) => !v)}
-                  />
-                )}
-                {hasCode(mr.code) && <CodeSection diff={mr.code} />}
-                <Discussion comments={mr.comments} count={mr.commentCount} />
-              </div>
-
-              <aside className="repo-rail mr-rail">
-                <ChecksBanner checks={mr.checks} />
-                <ReviewersCard reviewers={mr.reviewers} />
-                <ChecksCard checks={mr.checks} />
-                <ImpactedTags tags={mr.impactedTags} />
-                <MergeDetails mr={mr} />
-                <MergeActions mr={mr} />
-              </aside>
-            </div>
-          </div>
+          <MergeRequestView
+            mr={mr}
+            projectName={project?.name}
+            slug={slug}
+            mrId={mrId}
+          />
         )}
       </div>
     </>
   );
 }
 
+// The presentational merge-request view, independent of data loading so it can
+// also back the dev preview route below.
+function MergeRequestView({
+  mr,
+  projectName,
+  slug,
+  mrId,
+}: {
+  mr: MergeRequest;
+  projectName?: string;
+  slug?: string;
+  mrId?: string;
+}) {
+  const [showNumbers, setShowNumbers] = useState(true);
+  return (
+    <div className="mr-page">
+      <nav className="crumb">
+        <Link to="/projects">Repositories</Link>
+        <span className="crumb-sep">/</span>
+        {projectName ? (
+          <Link to={`/projects/${slug}`}>{projectName}</Link>
+        ) : (
+          <span>Repository</span>
+        )}
+        <span className="crumb-sep">/</span>
+        <span>Merge request</span>
+      </nav>
+
+      <MergeHeader mr={mr} />
+      <MetaRow mr={mr} />
+      <SummaryCard mr={mr} />
+
+      <div className="repo-grid mr-grid">
+        <div className="repo-col">
+          <Tabs mr={mr} />
+          <ChangesToolbar
+            count={mr.files.length}
+            showNumbers={showNumbers}
+            onToggle={() => setShowNumbers((v) => !v)}
+          />
+          {mr.files.map((file, i) => (
+            <FileSection
+              key={i}
+              index={i + 1}
+              file={file}
+              showNumbers={showNumbers}
+            />
+          ))}
+          <Discussion comments={mr.comments} slug={slug} mrId={mrId} />
+        </div>
+
+        <aside className="repo-rail mr-rail">
+          <ReviewersCard reviewers={mr.reviewers} />
+          <MergeDetails mr={mr} />
+          <MergeActions targetBranch={mr.targetBranch} />
+        </aside>
+      </div>
+    </div>
+  );
+}
+
+// Dev-only preview: renders the page with self-contained demo data so the look
+// can be checked without a backend or signing in. Wired in App.tsx under DEV.
+export function MergeRequestPreview() {
+  const mr = demoPull("MR-027");
+  return (
+    <>
+      <TopBar />
+      <div className="app-scroll">
+        <MergeRequestView
+          mr={mr}
+          projectName="Packaging Line 3"
+          slug="packaging-line-3"
+          mrId="MR-027"
+        />
+      </div>
+    </>
+  );
+}
+
 // ---- Header ----
-function MergeHeader({ mr, slug }: { mr: MergeRequest; slug?: string }) {
+function MergeHeader({ mr }: { mr: MergeRequest }) {
   const s = MR_STATUS_META[mr.status];
   return (
     <header className="mr-head">
-      <Link
-        to={slug ? `/projects/${slug}` : "/projects"}
-        className="mr-back"
-        aria-label="Back to project"
-      >
-        <ArrowLeft size={18} strokeWidth={2} />
-      </Link>
+      <span className="mr-glyph" aria-hidden="true">
+        <GitFork size={24} strokeWidth={1.8} />
+      </span>
       <div className="mr-head-main">
         <div className="mr-title-row">
-          <span className="mr-id">{mr.id}</span>
+          <span className="pr-id">{mr.id}</span>
           <h1 className="mr-title">{mr.title}</h1>
         </div>
         <p className="mr-sub">
-          Merge <span className="mr-branch">{mr.sourceBranch}</span> into{" "}
-          <span className="mr-branch">{mr.targetBranch}</span>
+          Merge {mr.sourceBranch} into {mr.targetBranch}
         </p>
       </div>
       <div className="mr-actions">
-        <span className={`badge ${s.tone}`}>
-          <span className="badge-dot" />
+        <span className={`pr-status ${s.tone}`}>
+          <Eye size={15} strokeWidth={2} />
           {s.label}
         </span>
-        <button className="btn btn-outline btn-sm">Request changes</button>
+        <button className="btn-quiet">Request changes</button>
         <button className="btn btn-approve btn-sm">
           <GitMerge size={15} strokeWidth={2} />
           Approve &amp; merge
+          <ChevronDown size={15} strokeWidth={2} />
         </button>
       </div>
     </header>
@@ -185,17 +234,25 @@ function MetaCard({
 }
 
 function MetaRow({ mr }: { mr: MergeRequest }) {
+  const leadReviewers = mr.reviewers.slice(0, 2);
+  const reviewerNames = leadReviewers.map((r) => r.name).join(", ");
   return (
     <div className="mr-meta">
       <MetaCard icon={<GitBranch size={14} strokeWidth={1.8} />} label="Source branch">
         <span className="mr-meta-mono">{mr.sourceBranch}</span>
-        <span className="mr-meta-sub">{mr.sourceCommits} commits</span>
+        <span className="mr-meta-sub">
+          {mr.sourceSha ? `${mr.sourceSha} · ` : ""}
+          {mr.sourceCommits} commits
+        </span>
       </MetaCard>
       <MetaCard icon={<GitBranch size={14} strokeWidth={1.8} />} label="Target branch">
         <span className="mr-meta-mono">{mr.targetBranch}</span>
-        <span className="mr-meta-sub">{mr.targetCommits} commits</span>
+        <span className="mr-meta-sub">
+          {mr.targetSha ? `${mr.targetSha} · ` : ""}
+          {mr.targetCommits} commits
+        </span>
       </MetaCard>
-      <MetaCard icon={<GitPullRequestArrow size={14} strokeWidth={1.8} />} label="Author">
+      <MetaCard icon={<Users size={14} strokeWidth={1.8} />} label="Author">
         <span className="author">
           <span className="author-av">{initials(mr.author)}</span>
           {mr.author}
@@ -203,49 +260,34 @@ function MetaRow({ mr }: { mr: MergeRequest }) {
         <span className="mr-meta-sub">{timeAgo(mr.authorAt)}</span>
       </MetaCard>
       <MetaCard icon={<Users size={14} strokeWidth={1.8} />} label="Reviewers">
-        <span className="mr-avstack">
-          {mr.reviewers.map((r) => (
-            <span className="mr-av" key={r.name} title={r.name}>
-              {initials(r.name)}
-            </span>
-          ))}
+        <span className="mr-rev-line">
+          <span className="mr-avstack">
+            {leadReviewers.map((r) => (
+              <span className="mr-av" key={r.name} title={r.name}>
+                {initials(r.name)}
+              </span>
+            ))}
+          </span>
+          <span className="mr-rev-names" title={reviewerNames}>
+            {reviewerNames}
+          </span>
         </span>
-        <span className="mr-meta-sub">{mr.reviewers.length} assigned</span>
       </MetaCard>
       <MetaCard icon={<Clock size={14} strokeWidth={1.8} />} label="Updated">
         <span className="mr-meta-strong">{timeAgo(mr.updatedAt)}</span>
         <span className="mr-meta-sub">{formatDate(mr.updatedAt)}</span>
       </MetaCard>
-      <MetaCard icon={<CheckCircle2 size={14} strokeWidth={1.8} />} label="Checks">
-        <span className="mr-meta-strong">{checkSummary(mr.checks)}</span>
-        <span className="mr-meta-sub">
-          {mr.checks.length} check{mr.checks.length === 1 ? "" : "s"}
-        </span>
-      </MetaCard>
     </div>
   );
 }
 
-function checkSummary(checks: MRCheck[]): string {
-  const passed = checks.filter((c) => c.state === "passed").length;
-  const warn = checks.filter((c) => c.state === "warning" || c.state === "pending").length;
-  const failed = checks.filter((c) => c.state === "failed").length;
-  const parts: string[] = [];
-  if (passed) parts.push(`${passed} passed`);
-  if (warn) parts.push(`${warn} pending`);
-  if (failed) parts.push(`${failed} failed`);
-  return parts.join(", ") || "No checks";
-}
-
-// ---- Merge summary ----
+// ---- Merge request summary ----
 function SummaryCard({ mr }: { mr: MergeRequest }) {
   return (
-    <section className="rcard mr-summary">
-      <div className="rcard-head">
-        <span className="rcard-title">Merge summary</span>
-      </div>
-      <div className="mr-summary-body">
-        <div className="mr-summary-text">
+    <section className="pr-summary">
+      <h2 className="pr-summary-title">Merge request summary</h2>
+      <div className="pr-summary-body">
+        <div className="pr-summary-text">
           <p className="mr-summary-lede">
             {mr.summary || "No description was provided for this merge request."}
           </p>
@@ -257,31 +299,16 @@ function SummaryCard({ mr }: { mr: MergeRequest }) {
             </ul>
           )}
         </div>
-        <div className="mr-summary-stats">
-          <Sstat
-            icon={<GitMerge size={16} strokeWidth={1.8} />}
-            value={String(mr.rungsChanged)}
-            label="Rungs changed"
-          />
-          <Sstat
-            icon={<FileCode2 size={16} strokeWidth={1.8} />}
-            value={String(mr.routinesModified)}
-            label="ST routine modified"
-          />
-          <Sstat
-            icon={<MessageSquare size={16} strokeWidth={1.8} />}
-            value={String(mr.commentCount)}
-            label="Comments"
-          />
-          {mr.safetyReview && (
+        {mr.safetyReview && (
+          <div className="pr-summary-stats">
             <Sstat
-              icon={<ShieldAlert size={16} strokeWidth={1.8} />}
-              value="!"
+              icon={<ShieldAlert size={16} strokeWidth={1.9} />}
+              value=""
               label="Safety review required"
               tone="orange"
             />
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </section>
   );
@@ -299,126 +326,263 @@ function Sstat({
   tone?: "orange";
 }) {
   return (
-    <div className={`mr-sstat${tone ? ` ${tone}` : ""}`}>
-      <span className="mr-sstat-ico">{icon}</span>
-      <span className="mr-sstat-num">{value}</span>
-      <span className="mr-sstat-label">{label}</span>
+    <div className={`pr-sstat${tone ? ` ${tone}` : ""}`}>
+      <span className="pr-sstat-top">
+        <span className="pr-sstat-ico">{icon}</span>
+        {value && <span className="pr-sstat-num">{value}</span>}
+      </span>
+      <span className="pr-sstat-label">{label}</span>
     </div>
   );
 }
 
-// ---- Ladder logic changes ----
-function LadderSection({
-  diff,
+// ---- Tabs ----
+function Tabs({ mr }: { mr: MergeRequest }) {
+  // Visual tab strip; "Changes" is the active view rendered below.
+  const tabs: { key: string; label: string; count?: number }[] = [
+    { key: "changes", label: "Changes" },
+    { key: "commits", label: "Commits", count: mr.sourceCommits },
+    { key: "files", label: "Files", count: mr.files.length },
+    { key: "checks", label: "Checks" },
+    { key: "activity", label: "Activity" },
+  ];
+  return (
+    <nav className="pr-tabs">
+      {tabs.map((t) => (
+        <button
+          key={t.key}
+          className={`pr-tab${t.key === "changes" ? " active" : ""}`}
+          type="button"
+        >
+          {t.label}
+          {t.count != null && <span className="pr-tab-count">{t.count}</span>}
+        </button>
+      ))}
+    </nav>
+  );
+}
+
+// ---- Changes, grouped by file ----
+// Toolbar above the changed-file list: file count on the left, diff controls
+// (rung numbers, zoom, fullscreen) on the right — they apply to every diff.
+function ChangesToolbar({
+  count,
   showNumbers,
   onToggle,
 }: {
-  diff: MRLadderDiff;
+  count: number;
   showNumbers: boolean;
   onToggle: () => void;
 }) {
   return (
-    <section className="mr-section">
-      <div className="mr-section-head">
-        <div className="mr-section-title">
-          Ladder logic changes
-          <span className="mr-section-count">{diff.networks} networks</span>
-        </div>
+    <div className="pr-changes-bar">
+      <span className="pr-changes-title">
+        Changed files
+        <span className="mr-section-count">{count}</span>
+      </span>
+      <div className="mr-section-tools">
         <label className="mr-toggle">
           <input type="checkbox" checked={showNumbers} onChange={onToggle} />
           Show rung numbers
         </label>
+        <ZoomControl />
+        <button className="mr-fs" type="button" aria-label="Fullscreen">
+          <Maximize2 size={15} strokeWidth={1.9} />
+        </button>
       </div>
-      <div className="diff-panels">
-        <LadderPanel side="left" side_data={diff.left} showNumbers={showNumbers} />
-        <LadderPanel side="right" side_data={diff.right} showNumbers={showNumbers} />
+    </div>
+  );
+}
+
+// One changed file: a header naming the file and the kinds of change it holds,
+// then each routine that changed inside it (ladder and/or structured text).
+function FileSection({
+  index,
+  file,
+  showNumbers,
+}: {
+  index: number;
+  file: PRFile;
+  showNumbers: boolean;
+}) {
+  return (
+    <section className="mr-section pr-file">
+      <div className="mr-section-head">
+        <div className="mr-section-title">
+          <span className="mr-section-num">{index}.</span>
+          <span className="pr-file-ico">
+            <FileCode2 size={15} strokeWidth={1.8} />
+          </span>
+          <span className="pr-file-name">{file.name}</span>
+          <span className="mr-section-count">
+            {file.changes.length} {file.changes.length === 1 ? "routine" : "routines"}
+          </span>
+        </div>
+      </div>
+      <div className="pr-file-body">
+        {file.changes.map((ch, i) => (
+          <RoutineChangeBlock key={i} change={ch} showNumbers={showNumbers} />
+        ))}
       </div>
     </section>
   );
 }
 
-function LadderPanel({
-  side,
-  side_data,
+// One routine's change within a file: a sub-header (routine name + kind), then
+// the diff drawn by the matching renderer.
+function RoutineChangeBlock({
+  change,
   showNumbers,
 }: {
-  side: "left" | "right";
-  side_data: MRLadderSide;
+  change: PRRoutineChange;
   showNumbers: boolean;
 }) {
   return (
-    <section className={`diff-panel diff-${side}`}>
-      <header className="diff-panel-head">
-        <span className="dph-ref">{side_data.ref}</span>
-        <span className={`dph-ver ${side === "right" ? "green" : "gray"}`}>
-          {side_data.version}
-        </span>
-      </header>
-      <div className="diff-panel-body">
-        {side_data.rungs.map((r) => (
-          <RungView key={r.number} rung={r} showNumbers={showNumbers} showHighlight />
-        ))}
+    <div className="pr-routine">
+      <div className="pr-routine-head">
+        <span className="pr-routine-name">{change.routine}</span>
       </div>
-    </section>
+      {change.kind === "ladder" && change.ladder ? (
+        <div className="mr-ladderwrap">
+          <RoutineLadderDiffView routine={change.ladder} showNumbers={showNumbers} />
+        </div>
+      ) : change.code ? (
+        <CodeDiffBody diff={change.code} />
+      ) : null}
+    </div>
+  );
+}
+
+function ZoomControl() {
+  const [zoom, setZoom] = useState(100);
+  return (
+    <div className="zoom">
+      <button
+        className="zoom-btn"
+        type="button"
+        aria-label="Zoom out"
+        onClick={() => setZoom((z) => Math.max(50, z - 10))}
+      >
+        <Minus size={14} strokeWidth={2} />
+      </button>
+      <span className="zoom-val">{zoom}%</span>
+      <button
+        className="zoom-btn"
+        type="button"
+        aria-label="Zoom in"
+        onClick={() => setZoom((z) => Math.min(200, z + 10))}
+      >
+        <Plus size={14} strokeWidth={2} />
+      </button>
+    </div>
   );
 }
 
 // ---- Structured text changes ----
-function CodeSection({ diff }: { diff: MRCodeDiff }) {
-  return (
-    <section className="mr-section">
-      <div className="mr-section-head">
-        <div className="mr-section-title">
-          Structured text changes
-          <span className="mr-section-count">{diff.routine}</span>
-        </div>
-      </div>
-      <div className="diff-panels">
-        <CodePanel side="left" side_data={diff.left} />
-        <CodePanel side="right" side_data={diff.right} />
-      </div>
-    </section>
-  );
+const ST_KEYWORDS = new Set([
+  "IF", "THEN", "ELSE", "ELSIF", "END_IF", "AND", "OR", "NOT", "TRUE", "FALSE",
+  "RETURN", "FOR", "TO", "DO", "WHILE", "END_FOR", "END_WHILE", "CASE", "OF",
+  "END_CASE", "XOR", "MOD",
+]);
+
+// Lightweight ST highlighter. Tokens wrapped in ⟦…⟧ are the changed value on
+// this side (green when added on the right, red when removed on the left);
+// known keywords render in the accent colour; everything else is plain text.
+function highlightST(text: string, side: "left" | "right"): React.ReactNode[] {
+  const out: React.ReactNode[] = [];
+  const changeCls = side === "right" ? "tok-add" : "tok-rem";
+  const parts = text.split(/(⟦[^⟧]*⟧)/g);
+  let key = 0;
+  for (const part of parts) {
+    if (!part) continue;
+    if (part.startsWith("⟦") && part.endsWith("⟧")) {
+      out.push(
+        <span className={changeCls} key={key++}>
+          {part.slice(1, -1)}
+        </span>,
+      );
+      continue;
+    }
+    // Split keywords out of the plain run, keeping the delimiters.
+    const toks = part.split(/(\b[A-Za-z_][A-Za-z0-9_]*\b)/g);
+    for (const tok of toks) {
+      if (!tok) continue;
+      if (ST_KEYWORDS.has(tok)) {
+        out.push(
+          <span className="tok-kw" key={key++}>
+            {tok}
+          </span>,
+        );
+      } else {
+        out.push(<span key={key++}>{tok}</span>);
+      }
+    }
+  }
+  return out;
 }
 
-function CodePanel({
-  side,
-  side_data,
-}: {
-  side: "left" | "right";
-  side_data: MRCodeDiff["left"];
-}) {
+// Structured-text diff body (no section chrome — it sits inside a file's
+// routine block).
+function CodeDiffBody({ diff }: { diff: MRCodeDiff }) {
+  const rows = Math.max(diff.left.lines.length, diff.right.lines.length);
+  const last = rows - 1;
   return (
-    <section className={`diff-panel diff-${side}`}>
-      <header className="diff-panel-head">
-        <span className="dph-ref">{side_data.ref}</span>
-        <span className={`dph-ver ${side === "right" ? "green" : "gray"}`}>
-          {side_data.version}
-        </span>
-      </header>
-      <div className="code-diff">
-        {side_data.lines.map((l) => (
-          <div className={`code-line cl-${l.kind}`} key={l.ln}>
-            <span className="cl-num">{l.ln}</span>
-            <span className="cl-sign">
-              {l.kind === "added" ? "+" : l.kind === "removed" ? "−" : ""}
-            </span>
-            <span className="cl-text">{l.text || " "}</span>
-          </div>
-        ))}
+    <div className="pr-codewrap">
+      <div className="mr-sxs mr-sxs-code">
+        <div className="sxs-head sxs-head-l">
+          <span className="sxs-head-ver">{diff.left.ref}</span>
+        </div>
+        <div className="sxs-head sxs-gut" />
+        <div className="sxs-head sxs-head-r">
+          <span className="sxs-head-ver">{diff.right.ref}</span>
+        </div>
+        {Array.from({ length: rows }).map((_, i) => {
+          const l = diff.left.lines[i];
+          const r = diff.right.lines[i];
+          const edge = i === last ? " sxs-last" : "";
+          return (
+            <div className="sxs-row" key={i} style={{ display: "contents" }}>
+              <div className={`sxs-cell sxs-l${edge}`}>
+                {l && (
+                  <div className="cd-line">
+                    <span className="cd-num">{l.ln}</span>
+                    <span className="cd-code">{highlightST(l.text, "left")}</span>
+                  </div>
+                )}
+              </div>
+              <div className="sxs-gut" />
+              <div className={`sxs-cell sxs-r${edge}`}>
+                {r && (
+                  <div className="cd-line">
+                    <span className="cd-num">{r.ln}</span>
+                    <span className="cd-code">{highlightST(r.text, "right")}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
       </div>
-    </section>
+    </div>
   );
 }
 
 // ---- Discussion ----
-function Discussion({ comments, count }: { comments: MRComment[]; count: number }) {
+function Discussion({
+  comments,
+  slug,
+  mrId,
+}: {
+  comments: MRComment[];
+  slug?: string;
+  mrId?: string;
+}) {
   return (
     <section className="mr-section">
       <div className="mr-section-head">
         <div className="mr-section-title">
           Discussion
-          <span className="mr-section-count">{count}</span>
+          <span className="mr-section-count">{comments.length} comments</span>
         </div>
       </div>
       <div className="disc-list">
@@ -429,46 +593,88 @@ function Discussion({ comments, count }: { comments: MRComment[]; count: number 
           <article className="disc-item" key={i}>
             <span className="disc-av">{initials(c.author)}</span>
             <div className="disc-main">
-              <div className="disc-top">
-                <span className="disc-who">{c.author}</span>
-                <span className={`disc-role${c.isAuthor ? " author" : ""}`}>{c.role}</span>
-                {c.on && <span className="disc-on">Commented on {c.on}</span>}
-                <span className="disc-time">{timeAgo(c.at)}</span>
+              <div className="disc-content">
+                <div className="disc-top">
+                  <span className="disc-who">{c.author}</span>
+                  <span className="disc-role">{c.role}</span>
+                  {c.on && <span className="disc-on">Comment on {c.on}</span>}
+                </div>
+                <p className="disc-body">{c.body}</p>
               </div>
-              <p className="disc-body">{c.body}</p>
+              <div className="disc-aside">
+                <div className="disc-aside-top">
+                  <span className="disc-time">{timeAgo(c.at)}</span>
+                  <button className="disc-kebab" type="button" aria-label="More">
+                    <MoreVertical size={15} strokeWidth={2} />
+                  </button>
+                </div>
+                <div className="disc-aside-actions">
+                  <button className="disc-reply-btn" type="button">
+                    Reply
+                  </button>
+                  <button className="disc-like" type="button" aria-label="Like">
+                    <ThumbsUp size={14} strokeWidth={1.9} />
+                  </button>
+                </div>
+              </div>
             </div>
           </article>
         ))}
-        <div className="disc-reply">
-          <button className="btn btn-outline btn-sm">Add comment</button>
-        </div>
+        <DiscussionComposer slug={slug} mrId={mrId} />
       </div>
     </section>
   );
 }
 
-// ---- Right rail ----
-function ChecksBanner({ checks }: { checks: MRCheck[] }) {
-  const failed = checks.some((c) => c.state === "failed");
-  const warn = checks.some((c) => c.state === "warning" || c.state === "pending");
-  const tone = failed ? "red" : warn ? "orange" : "green";
+// Comment composer: a textarea + Comment button that posts a thread-level
+// comment, then lets the merge-request query refetch to show it.
+function DiscussionComposer({ slug, mrId }: { slug?: string; mrId?: string }) {
+  const { user } = useAuth();
+  const [body, setBody] = useState("");
+  const create = useCreateComment(slug, mrId);
+  const canSubmit = body.trim().length > 0 && !create.isPending && !!slug && !!mrId;
+
+  const submit = () => {
+    if (!canSubmit) return;
+    create.mutate(body.trim(), { onSuccess: () => setBody("") });
+  };
+
   return (
-    <section className={`rail-section mr-checkbanner ${tone}`}>
-      <span className="mr-checkbanner-ico">
-        {failed ? (
-          <ShieldAlert size={18} strokeWidth={1.9} />
-        ) : warn ? (
-          <ShieldAlert size={18} strokeWidth={1.9} />
-        ) : (
-          <ShieldCheck size={18} strokeWidth={1.9} />
+    <div className="disc-composer">
+      <span className="disc-av">{initials(user?.name ?? "You")}</span>
+      <div className="disc-composer-main">
+        <textarea
+          className="textarea tall"
+          placeholder="Add a comment…"
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
+        />
+        {create.isError && (
+          <div className="disc-composer-error">
+            {errorText(create.error, "Couldn't post comment.")}
+          </div>
         )}
-      </span>
-      <div className="mr-checkbanner-main">
-        <div className="mr-checkbanner-text">{checkSummary(checks)}</div>
-        <button className="link-btn">View details</button>
+        <div className="disc-composer-actions">
+          <button
+            className="btn btn-primary btn-sm"
+            type="button"
+            disabled={!canSubmit}
+            onClick={submit}
+          >
+            {create.isPending ? "Posting…" : "Comment"}
+          </button>
+        </div>
       </div>
-    </section>
+    </div>
   );
+}
+
+// ---- Right rail ----
+function reviewerStateIcon(tone: string): React.ReactNode {
+  if (tone === "green") return <CheckCircle2 size={15} strokeWidth={2} />;
+  if (tone === "orange") return <Clock size={14} strokeWidth={2} />;
+  if (tone === "red") return <AlertTriangle size={14} strokeWidth={2} />;
+  return <Circle size={13} strokeWidth={2} />;
 }
 
 function ReviewersCard({ reviewers }: { reviewers: MRReviewer[] }) {
@@ -492,7 +698,7 @@ function ReviewersCard({ reviewers }: { reviewers: MRReviewer[] }) {
                 <div className="rv-role">{r.role}</div>
               </div>
               <span className={`mr-state ${m.tone}`}>
-                <span className="mr-state-dot" />
+                {reviewerStateIcon(m.tone)}
                 {m.label}
               </span>
             </div>
@@ -503,83 +709,29 @@ function ReviewersCard({ reviewers }: { reviewers: MRReviewer[] }) {
   );
 }
 
-function ChecksCard({ checks }: { checks: MRCheck[] }) {
-  return (
-    <section className="rail-section">
-      <div className="rail-head">
-        <span className="rail-title">Checks</span>
-        <button className="link-btn">View details</button>
-      </div>
-      {checks.length === 0 && <div className="rail-empty">No checks configured.</div>}
-      <div className="chk-list">
-        {checks.map((c) => {
-          const m = CHECK_STATE_META[c.state];
-          return (
-            <div className="chk-item" key={c.label}>
-              <span className={`chk-ico ${m.tone}`}>
-                {c.state === "passed" ? (
-                  <CheckCircle2 size={15} strokeWidth={2} />
-                ) : (
-                  <Clock size={14} strokeWidth={2} />
-                )}
-              </span>
-              <span className="chk-label">{c.label}</span>
-              <span className={`chk-state ${m.tone}`}>{m.label}</span>
-            </div>
-          );
-        })}
-      </div>
-    </section>
-  );
-}
-
-function ImpactedTags({ tags }: { tags: string[] }) {
-  return (
-    <section className="rail-section">
-      <div className="rail-head">
-        <span className="rail-title">Impacted tags ({tags.length})</span>
-        {tags.length > 0 && <button className="link-btn">View all</button>}
-      </div>
-      {tags.length === 0 ? (
-        <div className="rail-empty">No tags impacted.</div>
-      ) : (
-        <div className="sym-chips">
-          {tags.map((t) => (
-            <span className="sym-chip" key={t}>
-              {t}
-            </span>
-          ))}
-        </div>
-      )}
-    </section>
-  );
-}
-
 function MergeDetails({ mr }: { mr: MergeRequest }) {
   return (
     <section className="rail-section">
       <div className="rail-head">
-        <span className="rail-title">Merge details</span>
+        <span className="rail-title">Merge request details</span>
       </div>
       <dl className="md-rows">
-        <MdRow label="Source branch" value={mr.sourceBranch} mono />
-        <MdRow label="Target branch" value={mr.targetBranch} mono />
+        <MdRow label="Source branch" value={mr.sourceBranch} />
+        <MdRow label="Target branch" value={mr.targetBranch} />
         <MdRow label="Commits" value={String(mr.sourceCommits)} />
+        <MdRow label="Files changed" value={String(mr.files.length)} />
       </dl>
       <div className="md-changed-head">Changed items</div>
       <div className="md-changed">
-        <div className="md-changed-row">
-          <GitBranch size={14} strokeWidth={1.8} />
-          <span className="md-changed-name">Ladder logic</span>
-          <span className="md-changed-val">
-            {mr.ladder.networks} networks · {mr.rungsChanged} rungs
-          </span>
-        </div>
-        <div className="md-changed-row">
-          <FileCode2 size={14} strokeWidth={1.8} />
-          <span className="md-changed-name">Structured text</span>
-          <span className="md-changed-val">{mr.routinesModified} routine</span>
-        </div>
+        {mr.files.map((f) => (
+          <div className="md-changed-row" key={f.name}>
+            <FileCode2 size={14} strokeWidth={1.8} />
+            <span className="md-changed-name">{f.name}</span>
+            <span className="md-changed-val">
+              {f.changes.length} {f.changes.length === 1 ? "routine" : "routines"}
+            </span>
+          </div>
+        ))}
       </div>
     </section>
   );
@@ -602,18 +754,23 @@ function MdRow({
   );
 }
 
-function MergeActions({ mr }: { mr: MergeRequest }) {
-  const ready = mr.checks.every((c) => c.state === "passed");
+function MergeActions({ targetBranch }: { targetBranch: string }) {
   return (
     <section className="rail-section mr-merge-card">
-      <div className="mr-merge-title">{ready ? "Ready to merge" : "Not ready to merge"}</div>
-      <p className="mr-merge-note">All required checks must pass before merging.</p>
+      <div className="mr-merge-title">Ready to merge</div>
+      <p className="mr-merge-note">
+        Once merged, the changes in this branch will be reflected on{" "}
+        <span className="mr-branch">{targetBranch}</span>.
+      </p>
       <button className="btn btn-approve btn-block">
         <GitMerge size={16} strokeWidth={2} />
         Approve &amp; merge
         <ChevronDown size={15} strokeWidth={2} />
       </button>
-      <button className="btn btn-outline btn-block">Request changes</button>
+      <button className="btn btn-text btn-block">
+        <GitPullRequestArrow size={16} strokeWidth={1.9} />
+        Request changes
+      </button>
     </section>
   );
 }
@@ -627,7 +784,7 @@ function EmptyMerge({ slug }: { slug?: string }) {
       <h3>Merge request not found</h3>
       <p>We couldn't find that merge request. It may have been merged or closed.</p>
       <Link to={slug ? `/projects/${slug}` : "/projects"} className="btn btn-primary btn-sm">
-        Back to project
+        Back to repository
       </Link>
     </div>
   );

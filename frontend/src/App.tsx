@@ -12,7 +12,7 @@ import { CommitDetailPage } from "./pages/CommitDetailPage";
 import { FileViewPage } from "./pages/FileViewPage";
 import { BranchViewPage } from "./pages/BranchViewPage";
 import { ComparePage } from "./pages/ComparePage";
-import { MergeRequestPage } from "./pages/MergeRequestPage";
+import { MergeRequestPage, MergeRequestPreview } from "./pages/MergeRequestPage";
 import { ComingSoon } from "./pages/ComingSoon";
 import { RequireAuth } from "./auth/RequireAuth";
 
@@ -65,6 +65,13 @@ export function App() {
         <Route path="documentation" element={<ComingSoon title="Documentation" />} />
         <Route path="settings" element={<ComingSoon title="Settings" />} />
       </Route>
+
+      {/* Dev-only: preview the merge request page with demo data, no auth. */}
+      {import.meta.env.DEV && (
+        <Route element={<AppLayout />}>
+          <Route path="preview/merge-request" element={<MergeRequestPreview />} />
+        </Route>
+      )}
 
       <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
