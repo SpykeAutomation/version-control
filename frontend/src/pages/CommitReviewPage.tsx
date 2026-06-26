@@ -219,7 +219,7 @@ function CommitReviewView({
 
         {tab !== "files" && (
           <aside className="repo-rail cm-rail">
-            <CommitDetailsCard commit={commit} />
+            <AboutCommitsCard />
             <FilesChangedCard files={commit.fileStats} />
             <ActionsCard />
           </aside>
@@ -954,55 +954,42 @@ function DiscussionComposer({ onAdd }: { onAdd: (comment: MRComment) => void }) 
 }
 
 // ---- Right rail ----
-function CommitDetailsCard({ commit }: { commit: CommitDetail }) {
+function AboutCommitsCard() {
   return (
     <section className="rail-section">
       <div className="rail-head">
-        <span className="rail-title">Commit details</span>
+        <span className="rail-title">About commits</span>
       </div>
-      <dl className="md-rows">
-        <MdRow label="Branch" value={commit.branch} />
-        <MdRow label="Parent commit" value={commit.parentSha} mono link />
-        <MdRow label="Commit hash" value={commit.sha} mono copy />
-      </dl>
-      <dl className="md-rows cm-md-divide">
-        <MdRow label="Files changed" value={String(commit.filesChanged)} />
-        <MdRow label="Comments" value={String(commit.commentCount)} />
-      </dl>
+      <div className="about-body">
+        <p className="about-intro">
+          The commit view shows a single commit's changes against its parent.
+        </p>
+        <div className="about-item">
+          <span className="about-ico">
+            <GitCommitHorizontal size={16} strokeWidth={1.9} />
+          </span>
+          <div>
+            <div className="about-item-title">Commits</div>
+            <div className="about-item-desc">
+              A saved snapshot of the project. It records what changed in the
+              logic, who made the change, and when.
+            </div>
+          </div>
+        </div>
+        <div className="about-item">
+          <span className="about-ico">
+            <RotateCcw size={16} strokeWidth={1.9} />
+          </span>
+          <div>
+            <div className="about-item-title">Reverting</div>
+            <div className="about-item-desc">
+              Commits are read-only history. To undo one, revert it — that adds a
+              new commit restoring the earlier state.
+            </div>
+          </div>
+        </div>
+      </div>
     </section>
-  );
-}
-
-function MdRow({
-  label,
-  value,
-  mono,
-  link,
-  copy,
-}: {
-  label: string;
-  value: string;
-  mono?: boolean;
-  link?: boolean;
-  copy?: boolean;
-}) {
-  return (
-    <div className="md-row">
-      <dt className="md-label">{label}</dt>
-      <dd className={`md-val${mono ? " mono" : ""}${link ? " cm-link" : ""}`}>
-        {value}
-        {copy && (
-          <button
-            className="cm-copy"
-            type="button"
-            aria-label="Copy"
-            onClick={() => navigator.clipboard?.writeText(value)}
-          >
-            <Copy size={13} strokeWidth={1.9} />
-          </button>
-        )}
-      </dd>
-    </div>
   );
 }
 

@@ -5348,24 +5348,10 @@ a.file-cell:hover .file-cell-name {
 .cm-rail {
   gap: 16px;
 }
-.cm-rail .md-row {
-  grid-template-columns: 1fr auto;
-  gap: 12px;
-}
-.cm-rail .md-val {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 6px;
-  text-align: right;
-}
-.cm-rail .md-rows {
-  margin-bottom: 0;
-}
-.cm-md-divide {
-  margin-top: 14px;
-  padding-top: 14px;
-  border-top: 1px solid var(--line2);
+/* The "About commits" rail card reuses the .about-* pattern; the rail-section
+   already pads, so drop the about-body's own padding. */
+.rail-section .about-body {
+  padding: 0;
 }
 
 /* Files-changed card: file name + green/red line tally. */
