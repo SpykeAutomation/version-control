@@ -20,6 +20,7 @@ from typing import Optional
 from diff.ladder_models import SCHEMA_VERSION as LADDER_SCHEMA
 
 from .config import settings
+from .tree import SCHEMA_VERSION as TREE_SCHEMA
 
 # Output-format version per view. Bump when a view's JSON shape changes.
 SCHEMA_VERSION = {
@@ -28,6 +29,8 @@ SCHEMA_VERSION = {
     "ladder": LADDER_SCHEMA,
     "text": 1,
     "compare": 1,
+    # The per-L5X project-organizer tree at a ref (full structure + change status).
+    "tree": TREE_SCHEMA,
 }
 
 

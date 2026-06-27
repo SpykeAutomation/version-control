@@ -103,6 +103,17 @@ def commit(pid: int, token: str, branch: str, title: str, text: str,
     )
 
 
+def find_node(node: dict, pred):
+    """Depth-first search of an organizer tree for the first node matching pred."""
+    if pred(node):
+        return node
+    for child in node.get("children", []):
+        hit = find_node(child, pred)
+        if hit is not None:
+            return hit
+    return None
+
+
 print("== auth & accounts ==")
 alice, acme_id = make_owner("alice@example.com", "Alice", "Anderson", "Acme Mfg")
 check("owner can log in", bool(alice))
@@ -178,6 +189,26 @@ check("ladder diff returns a LadderDocument", "routines" in lad.json())
 check("ladder diff is cached too (HIT on repeat)", client.get(
     f"/projects/{pid}/diff/ladder?base=main&head=feature/gate&path=l5x/line",
     headers=auth(alice)).headers.get("X-Cache") == "HIT")
+
+print("== organizer tree (nested, per L5X file) ==")
+gate_sha = client.get(
+    f"/projects/{pid}/commits?branch=feature/gate", headers=auth(alice)).json()[0]["sha"]
+tr = client.get(f"/projects/{pid}/commits/{gate_sha}/tree?path=l5x/line", headers=auth(alice))
+check("organizer tree computed (cache MISS)", tr.headers.get("X-Cache") == "MISS")
+root = tr.json()["root"]
+check("tree root is the controller", root["kind"] == "controller")
+check("tree has a Programs folder", any(
+    c["kind"] == "folder" and c["label"] == "Programs" for c in root["children"]))
+mod_routine = find_node(root, lambda n: n["kind"] == "routine" and n["status"] == "modified")
+check("the changed routine is flagged modified, with ladder identity",
+      mod_routine is not None and mod_routine["routine"] == "Main"
+      and mod_routine["controller"] is not None)
+check("organizer tree is cached (HIT on repeat)", client.get(
+    f"/projects/{pid}/commits/{gate_sha}/tree?path=l5x/line",
+    headers=auth(alice)).headers.get("X-Cache") == "HIT")
+check("ref-range organizer tree also builds", client.get(
+    f"/projects/{pid}/tree?base=main&head=feature/gate&path=l5x/line",
+    headers=auth(alice)).json()["root"]["kind"] == "controller")
 
 print("== multi-file upload, per-file diff, text diff, raw download ==")
 mpid = client.post("/projects", json={"name": "Multi Line"}, headers=auth(alice)).json()["id"]
@@ -262,6 +293,10 @@ check("PR diff manifest lists the changed file", any(
         f"/projects/{pid}/pulls/1/diff", headers=auth(alice)).json()["files"]))
 merge = client.post(f"/projects/{pid}/pulls/1/merge", headers=auth(alice)).json()
 check("clean merge succeeds", merge["status"] == "merged" and merge["merge_sha"])
+_main_tip = client.get(f"/projects/{pid}/commits?branch=main", headers=auth(alice)).json()[0]
+check("the merge commit is attributed to the acting user (not the system identity)",
+      _main_tip["title"].startswith("Merge pull request #1")
+      and _main_tip["author"] == "Alice Anderson")
 
 print("== conflict + comments from another user ==")
 pid2 = client.post("/projects", json={"name": "Conflict Demo"}, headers=auth(alice)).json()["id"]

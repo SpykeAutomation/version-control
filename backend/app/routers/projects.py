@@ -40,6 +40,7 @@ from ..diffing import (
     l5x_name,
     serve_diff,
 )
+from ..tree import ProjectTree, build_project_tree
 from ..models import (
     Activity,
     BranchProtection,
@@ -171,6 +172,19 @@ def _commit_base_head(project_id: int, sha: str) -> tuple[str, str]:
     except ProjectRepoError as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc))
     return base, head
+
+
+def _tree_compute(name: str):
+    """A serve_diff compute closure that builds the organizer tree for one L5X
+    file: the full structure at head, overlaid with the base..head ChangeSet."""
+
+    def compute(repo: ProjectRepo, base_sha: str, head_sha: str) -> ProjectTree:
+        doc = repo.document_at(head_sha, name)
+        if doc is None:
+            raise ProjectRepoError(f"no L5X file {name!r} at this ref")
+        return build_project_tree(doc, repo.diff_refs(base_sha, head_sha, name))
+
+    return compute
 
 
 def _slugify(name: str) -> str:
@@ -835,6 +849,25 @@ def commit_text_diff(
     )
 
 
+@router.get("/{project_id}/commits/{sha}/tree", response_model=ProjectTree)
+def commit_tree(
+    project_id: int,
+    sha: str,
+    path: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+) -> Response:
+    """Organizer tree of one L5X file as of a commit (the Studio 5000 Controller
+    Organizer with per-node change status vs the commit's first parent; a root
+    commit reads as everything added). `path` is an `l5x/<name>` manifest path."""
+    require_member(project_id, db, user)
+    base, head = _commit_base_head(project_id, sha)
+    name = l5x_name(path)
+    return serve_diff(
+        project_id, "tree", base, head, _tree_compute(name), file_path=f"l5x/{name}"
+    )
+
+
 @router.get("/{project_id}/diff", response_model=DiffManifest)
 def diff_manifest(
     project_id: int,
@@ -927,6 +960,29 @@ def diff_text(
         head,
         lambda r, b, h: build_text_diff(r, b, h, repo_path),
         file_path=repo_path,
+    )
+
+
+@router.get("/{project_id}/tree", response_model=ProjectTree)
+def project_tree(
+    project_id: int,
+    base: str,
+    head: str,
+    path: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+) -> Response:
+    """Organizer tree of one L5X file at `head`, tagged by the base..head diff.
+
+    The full Controller Organizer (Controller -> Tasks / Programs / Routines,
+    plus AOIs, Data Types, Controller Tags, I/O) with each node flagged
+    added/removed/modified/unchanged. Nested under the file tree: `path` is an
+    `l5x/<name>` entry from `GET /files`. Routine nodes carry (controller,
+    program, routine) so the UI can link them to their ladder-diff card."""
+    require_member(project_id, db, user)
+    name = l5x_name(path)
+    return serve_diff(
+        project_id, "tree", base, head, _tree_compute(name), file_path=f"l5x/{name}"
     )
 
 

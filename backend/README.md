@@ -163,6 +163,7 @@ the UI can hide controls the user isn't allowed to use.
 | `GET`  | `/projects/{id}/commits/{sha}/diff/changeset` | `?path=l5x/<name>` | `ChangeSet` (parent → commit) |
 | `GET`  | `/projects/{id}/commits/{sha}/diff/ladder` | `?path=l5x/<name>` | `LadderDocument` (parent → commit) |
 | `GET`  | `/projects/{id}/commits/{sha}/diff/text` | `?path=files/<nested/path>` | `TextDiff` (parent → commit) |
+| `GET`  | `/projects/{id}/commits/{sha}/tree` | `?path=l5x/<name>` | `ProjectTree` (organizer of one L5X at the commit, vs its parent) |
 | `GET`  | `/projects/{id}/compare` | `?base=<ref>&head=<ref>` | `CompareView` (rolled-up summary + impact rows) |
 | `GET`  | `/projects/{id}/tags` | `?limit=50&offset=0` | `[Tag]` + `X-Total-Count` (newest first; tags = releases) |
 | `POST` | `/projects/{id}/tags` | `{name, ref?="main", message?}` (any member) | `201` `Tag` |
@@ -174,6 +175,7 @@ the UI can hide controls the user isn't allowed to use.
 | `GET`  | `/projects/{id}/diff/changeset` | `?base=<ref>&head=<ref>&path=l5x/<name>` | `ChangeSet` |
 | `GET`  | `/projects/{id}/diff/ladder` | `?base=<ref>&head=<ref>&path=l5x/<name>` | `LadderDocument` |
 | `GET`  | `/projects/{id}/diff/text` | `?base=<ref>&head=<ref>&path=files/<nested/path>` | `TextDiff` |
+| `GET`  | `/projects/{id}/tree` | `?base=<ref>&head=<ref>&path=l5x/<name>` | `ProjectTree` (organizer of one L5X at `head`, tagged by the `base..head` diff) |
 | `POST` | `/projects/{id}/pulls` | `{title, description?, source_branch, target_branch?="main"}` | `201` `Pull` |
 | `GET`  | `/projects/{id}/pulls` | `?status_filter=open&limit=50&offset=0` | `[Pull]` + `X-Total-Count` |
 | `GET`  | `/projects/{id}/pulls/{n}` | — | `Pull` |
@@ -258,6 +260,14 @@ FileEntry   = { "path": string, "kind": "l5x"|"file",     // "l5x/<name>" or "fi
                 "size": int,                               // bytes; for an L5X, its source.L5X size
                 "modified_by": string, "modified_at": string }  // last commit's author + ISO-8601 date
 DiffManifest = { "files": [ChangedFile] }
+ProjectTree = { "schema_version": int, "root": TreeNode }   // per-L5X organizer, nested under the file tree
+TreeNode    = { "key": string, "label": string,
+                "kind": "controller"|"folder"|"program"|"routine"|"aoi"|"datatype"|"tag"|"module"|"task",
+                "status": "unchanged"|"added"|"removed"|"modified",  // the node's own change
+                "descendant_changed": bool,                          // something beneath it changed
+                "routine_type": string|null,                         // routine nodes only
+                "controller": string|null, "program": string|null, "routine": string|null,  // ladder-card identity
+                "children": [TreeNode] }
 ChangedFile  = { "path": string, "kind": "l5x"|"file",
                  "change": "added"|"modified"|"removed",
                  "views": [string] }   // drill-down views: l5x→["changeset","ladder"], file→["text"]
