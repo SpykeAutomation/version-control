@@ -43,6 +43,7 @@ export interface BranchSummary {
   lastCommitHash?: string;
   lastCommitSha?: string;
   lastCommitMessage?: string;
+  lastCommitAuthor?: string;
   lastCommitAt?: string;
 }
 
@@ -70,6 +71,7 @@ export async function listBranches(
         lastCommitHash: latest?.sha.slice(0, 7),
         lastCommitSha: latest?.sha,
         lastCommitMessage: latest?.title,
+        lastCommitAuthor: latest?.author,
         lastCommitAt: latest?.date,
       };
     }),

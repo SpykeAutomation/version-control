@@ -13,6 +13,7 @@ import { FileViewPage } from "./pages/FileViewPage";
 import { BranchViewPage } from "./pages/BranchViewPage";
 import { ComparePage } from "./pages/ComparePage";
 import { MergeRequestPage } from "./pages/MergeRequestPage";
+import { CreateMergeRequestPage } from "./pages/CreateMergeRequestPage";
 import { ComingSoon } from "./pages/ComingSoon";
 import { RequireAuth } from "./auth/RequireAuth";
 
@@ -57,6 +58,10 @@ export function App() {
         <Route path="projects/:slug/commit/:sha" element={<CommitReviewPage />} />
         <Route path="projects/:slug/files/:fileName" element={<FileViewPage />} />
         <Route path="projects/:slug/tree/:branch" element={<BranchViewPage />} />
+        <Route
+          path="projects/:slug/merge-requests/new"
+          element={<CreateMergeRequestPage />}
+        />
         <Route path="projects/:slug/merge/:mrId" element={<MergeRequestPage />} />
         <Route path="changes" element={<ComingSoon title="Changes" />} />
         <Route path="compare" element={<ComparePage />} />

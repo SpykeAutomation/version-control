@@ -5614,3 +5614,468 @@ a.mr-commit-row:hover {
   margin-top: 1px;
   color: var(--accent);
 }
+
+/* ============================================================
+   Create merge request page
+   ============================================================ */
+
+/* Branch selector bar — full-width card under the page header. */
+.cmr-branchbar {
+  display: flex;
+  align-items: stretch;
+  gap: 20px;
+  padding: 16px 18px;
+  margin-bottom: 24px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--panel);
+}
+.cmr-branch-block {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  flex: 1;
+  min-width: 0;
+}
+.cmr-branch-label {
+  font: 600 11.5px/1 var(--sans);
+  letter-spacing: 0.01em;
+  color: var(--ink3);
+  text-transform: uppercase;
+}
+.cmr-branch-name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.cmr-branch-ico {
+  display: inline-flex;
+  color: var(--ink2);
+  flex: none;
+}
+.cmr-branch-name {
+  font: 650 14px/1 var(--mono);
+  color: var(--ink-title);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cmr-branch-sub {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  font: 400 12.5px/1.3 var(--sans);
+  color: var(--ink3);
+}
+.cmr-branch-sha {
+  font-family: var(--mono);
+  color: var(--ink2);
+  flex: none;
+}
+.cmr-branch-sep {
+  color: var(--ink4);
+  flex: none;
+}
+.cmr-branch-subject {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cmr-branch-av {
+  width: 18px;
+  height: 18px;
+  font-size: 8.5px;
+  flex: none;
+}
+.cmr-branch-author {
+  flex: none;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--ink2);
+}
+.cmr-branch-empty {
+  color: var(--ink3);
+}
+.cmr-branch-arrow {
+  display: flex;
+  align-items: center;
+  color: var(--ink3);
+  flex: none;
+}
+.cmr-branch-edit {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: none;
+  margin-left: auto;
+}
+.cmr-branch-selects {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.cmr-select {
+  width: auto;
+  min-width: 150px;
+  height: 38px;
+}
+.cmr-select-arrow {
+  display: inline-flex;
+  align-items: center;
+  color: var(--ink3);
+  flex: none;
+}
+
+/* Overview form. */
+.cmr-form {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 4px 0;
+}
+.cmr-field {
+  display: flex;
+  flex-direction: column;
+}
+.cmr-field-toprow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.cmr-field-toprow .label {
+  margin-bottom: 8px;
+}
+.cmr-req {
+  color: var(--danger);
+  font-weight: 600;
+}
+.cmr-counter {
+  font: 400 12px/1 var(--mono);
+  color: var(--ink3);
+}
+.cmr-hint {
+  margin: 8px 0 0;
+}
+
+/* Rich-text editor (toolbar + textarea/preview). */
+.cmr-editor {
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--panel);
+  overflow: hidden;
+}
+.cmr-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--line2);
+  background: var(--panel2);
+}
+.cmr-toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.cmr-toolbar-div {
+  width: 1px;
+  height: 18px;
+  margin: 0 6px;
+  background: var(--line);
+}
+.cmr-tool {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: var(--r-sm);
+  background: none;
+  color: var(--ink2);
+  cursor: pointer;
+}
+.cmr-tool:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+.cmr-preview-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--panel);
+  color: var(--ink2);
+  font: 600 12.5px/1 var(--sans);
+  cursor: pointer;
+}
+.cmr-preview-toggle:hover {
+  color: var(--ink);
+}
+.cmr-preview-toggle.active {
+  color: var(--ink-title);
+  border-color: var(--border);
+  background: var(--panel2);
+}
+.cmr-textarea {
+  display: block;
+  width: 100%;
+  min-height: 132px;
+  padding: 12px 14px;
+  border: none;
+  background: var(--panel);
+  font: 400 14px/1.55 var(--sans);
+  color: var(--ink);
+  resize: vertical;
+}
+.cmr-textarea:focus {
+  outline: none;
+}
+.cmr-textarea::placeholder {
+  color: var(--ink3);
+}
+.cmr-preview-body {
+  min-height: 132px;
+  padding: 12px 14px;
+}
+.cmr-preview-text {
+  margin: 0;
+  font: 400 14px/1.55 var(--sans);
+  color: var(--ink);
+  white-space: pre-wrap;
+}
+.cmr-preview-empty {
+  font: 400 13px/1.4 var(--sans);
+  color: var(--ink3);
+}
+
+/* Chips (reviewers) + add controls. */
+.cmr-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.cmr-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 30px;
+  padding: 0 6px 0 6px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel2);
+  font: 500 13px/1 var(--sans);
+  color: var(--ink);
+}
+.cmr-chip-x {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: var(--ink3);
+  cursor: pointer;
+}
+.cmr-chip-x:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+.cmr-add-wrap {
+  position: relative;
+}
+.cmr-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 11px;
+  border: 1px dashed var(--border);
+  border-radius: 999px;
+  background: none;
+  color: var(--ink2);
+  font: 600 12.5px/1 var(--sans);
+  cursor: pointer;
+}
+.cmr-add:hover:not(:disabled) {
+  background: var(--panel2);
+  color: var(--ink);
+}
+.cmr-add:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.cmr-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 20;
+  min-width: 220px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--panel);
+  box-shadow: 0 8px 24px rgba(17, 19, 21, 0.1);
+}
+.cmr-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 7px 8px;
+  border: none;
+  border-radius: var(--r-sm);
+  background: none;
+  cursor: pointer;
+  text-align: left;
+}
+.cmr-menu-item:hover {
+  background: var(--panel2);
+}
+.cmr-menu-name {
+  font: 500 13px/1 var(--sans);
+  color: var(--ink);
+}
+.cmr-menu-role {
+  margin-left: auto;
+  font: 400 12px/1 var(--sans);
+  color: var(--ink3);
+}
+
+/* Footer actions. */
+.cmr-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 18px;
+  border-top: 1px solid var(--line2);
+  margin-top: 4px;
+}
+
+/* Rail: changes summary additions / deletions, sitting under the
+   files-changed count (indented past the icon column to align with its value). */
+.cmr-diffstat {
+  display: flex;
+  gap: 12px;
+  margin: -2px 0 4px 28px;
+  font: 600 12.5px/1 var(--mono);
+}
+.cmr-add-val {
+  color: var(--add);
+}
+.cmr-del-val {
+  color: var(--danger);
+}
+
+/* Rail: files-changed rows. */
+.cmr-file-group {
+  display: flex;
+  flex-direction: column;
+}
+.cmr-file-folder {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 0 2px;
+  font: 600 11.5px/1 var(--sans);
+  color: var(--ink3);
+}
+.cmr-file-folder svg {
+  color: var(--ink4);
+  flex: none;
+}
+.cmr-file-item {
+  cursor: default;
+}
+.cmr-file-ico {
+  display: inline-flex;
+  color: var(--ink3);
+  flex: none;
+}
+.cmr-file-name {
+  font: 500 12.5px/1.3 var(--mono);
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Rail: commit timeline with connector dots. */
+.cmr-timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.cmr-tl-item {
+  position: relative;
+}
+.cmr-tl-link {
+  display: flex;
+  gap: 12px;
+  padding: 8px 0;
+  text-decoration: none;
+  color: inherit;
+}
+.cmr-tl-dot {
+  position: relative;
+  flex: none;
+  width: 9px;
+  height: 9px;
+  margin-top: 4px;
+  border-radius: 50%;
+  background: var(--panel);
+  border: 2px solid var(--border);
+}
+/* Connector line linking the dots, drawn behind all but the last row. */
+.cmr-tl-item:not(:last-child) .cmr-tl-dot::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 2px);
+  transform: translateX(-50%);
+  width: 2px;
+  height: calc(100% + 12px);
+  background: var(--line);
+}
+.cmr-tl-main {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.cmr-tl-top {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+.cmr-tl-sha {
+  font: 600 11.5px/1 var(--mono);
+  color: var(--ink2);
+  flex: none;
+}
+.cmr-tl-msg {
+  font: 500 13px/1.3 var(--sans);
+  color: var(--ink-title);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cmr-tl-meta {
+  font: 400 12px/1 var(--sans);
+  color: var(--ink3);
+}
+a.cmr-tl-link:hover .cmr-tl-msg {
+  color: var(--accent);
+}
