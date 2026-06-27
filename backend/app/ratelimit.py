@@ -73,3 +73,16 @@ def invite_rate_limit(request: Request) -> None:
         settings.invite_rate_window_seconds,
         "Too many invitation requests; please try again later.",
     )
+
+
+def device_rate_limit(request: Request) -> None:
+    """Dependency: cap the public CLI device-auth calls (code request + token
+    polling) per client IP, so the device endpoints can't be flooded. Roomier
+    than login since a single login legitimately polls several times."""
+    _enforce(
+        "device",
+        request,
+        settings.device_rate_max,
+        settings.device_rate_window_seconds,
+        "Too many device-authorization requests; please try again later.",
+    )

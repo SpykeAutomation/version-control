@@ -33,6 +33,28 @@ class PasswordChange(BaseModel):
     new_password: str
 
 
+# --- device authorization (CLI login, RFC 8628) ---
+class DeviceCodeOut(BaseModel):
+    device_code: str  # the CLI polls with this; the server stores only its hash
+    user_code: str  # short code the user confirms in the browser
+    verification_uri: str  # where to approve (the web app's /cli-auth page)
+    verification_uri_complete: str  # the same URL with ?code= prefilled
+    interval: int  # seconds the CLI should wait between token polls
+    expires_in: int  # seconds until both codes expire
+
+
+class DeviceApproveIn(BaseModel):
+    user_code: str
+
+
+class DeviceApproveResult(BaseModel):
+    status: str = "approved"
+
+
+class DeviceTokenIn(BaseModel):
+    device_code: str
+
+
 # --- organizations & invitations ---
 class InviteIn(BaseModel):
     email: EmailStr

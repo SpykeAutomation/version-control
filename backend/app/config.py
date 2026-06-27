@@ -39,6 +39,18 @@ class Settings(BaseSettings):
     # Soft cap on the whole diff cache (megabytes). When exceeded, the least
     # recently used cache files are evicted (a diff is cheap to recompute lazily).
     diff_cache_max_mb: int = 500
+    # Public base URL of the web app (not the API). Used only to build the
+    # device-login verification URL the CLI opens in the browser
+    # (`<web_app_url>/cli-auth?code=...`).
+    web_app_url: str = "https://app.spykeautomation.com"
+    # CLI device-login (RFC 8628): how long a device/user code stays valid, and
+    # how often the CLI is told to poll for the token.
+    device_code_ttl_minutes: int = 10
+    device_poll_interval_seconds: int = 5
+    # Device-auth rate limit: max code/token calls per client IP within the
+    # window (seconds). Guards the public device endpoints against flooding.
+    device_rate_max: int = 60
+    device_rate_window_seconds: int = 60
 
     @property
     def max_upload_bytes(self) -> int:

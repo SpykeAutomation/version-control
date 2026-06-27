@@ -112,6 +112,29 @@ check("/auth/me returns first + last name",
 check("owner is mapped to its organization", me_data["organization"] == "Acme Mfg")
 check("weak password is rejected", _weak_password_rejected())
 
+print("== CLI device authorization (RFC 8628) ==")
+dc = client.post("/auth/device/code").json()
+check("device-code request returns a device_code + user_code",
+      bool(dc.get("device_code")) and bool(dc.get("user_code")))
+check("polling before approval returns authorization_pending (400)", client.post(
+      "/auth/device/token", json={"device_code": dc["device_code"]}).status_code == 400)
+check("approving requires a logged-in user (401 without a token)", client.post(
+      "/auth/device/approve", json={"user_code": dc["user_code"]}).status_code == 401)
+check("an unknown user_code is rejected (400)", client.post(
+      "/auth/device/approve", json={"user_code": "ZZZZ-ZZZZ"}, headers=auth(alice)).status_code == 400)
+check("the logged-in user approves the device code (200)", client.post(
+      "/auth/device/approve", json={"user_code": dc["user_code"]}, headers=auth(alice)).status_code == 200)
+_issued = client.post("/auth/device/token", json={"device_code": dc["device_code"]})
+check("after approval the CLI receives a token",
+      _issued.status_code == 200 and bool(_issued.json()["access_token"]))
+check("the device token authenticates as the approving user",
+      client.get("/auth/me", headers=auth(_issued.json()["access_token"])
+                 ).json()["email"] == "alice@example.com")
+check("the device code is one-time (a second poll fails)", client.post(
+      "/auth/device/token", json={"device_code": dc["device_code"]}).status_code == 400)
+check("a used user_code cannot be approved again (409)", client.post(
+      "/auth/device/approve", json={"user_code": dc["user_code"]}, headers=auth(alice)).status_code == 409)
+
 pid = client.post("/projects", json={"name": "Mixer Line 1"}, headers=auth(alice)).json()["id"]
 check("project created with main branch",
       client.get(f"/projects/{pid}", headers=auth(alice)).json()["branches"] == ["main"])

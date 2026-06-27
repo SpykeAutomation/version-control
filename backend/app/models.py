@@ -210,6 +210,34 @@ class Invitation(Base):
     accepted_user_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
 
+class DeviceAuthorization(Base):
+    """A CLI device-login request (OAuth 2.0 Device Authorization Grant, RFC 8628).
+
+    The raw device_code is never stored — only its SHA-256 hash, exactly like an
+    invitation token. `user_code` is the short, human code the user approves in
+    the web app while logged in. One-time: once a token is issued the row is
+    marked 'redeemed'. Existing users only — `user_id` is set on approval and the
+    flow never creates an account."""
+
+    __tablename__ = "device_codes"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    device_code_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    user_code: Mapped[str] = mapped_column(String(20), unique=True, index=True)
+    status: Mapped[str] = mapped_column(
+        String(20), default="pending"
+    )  # pending | approved | redeemed
+    # The approving user; null until approved. CASCADE so a deleted user's
+    # in-flight device requests go with them.
+    user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+    expires_at: Mapped[datetime] = mapped_column(DateTime)
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    redeemed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
 class Activity(Base):
     """One append-only event in a project's timeline (the activity feed / audit
     log): who did what to which target, when. Written in the same transaction as

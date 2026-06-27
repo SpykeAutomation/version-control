@@ -136,6 +136,9 @@ the UI can hide controls the user isn't allowed to use.
 | `GET`  | `/auth/me` | — | `User` |
 | `PATCH` | `/auth/me` | `{first_name?, last_name?, avatar?}` | `User` (`avatar` = 3 alphanumerics) |
 | `POST` | `/auth/me/password` | `{current_password, new_password}` | `204`; `403` wrong current, `422` weak new |
+| `POST` | `/auth/device/code` | _(none; public, rate-limited)_ | `DeviceCode` — starts the CLI device-login flow |
+| `POST` | `/auth/device/approve` | `{user_code}` (authenticated) | `200` `{status:"approved"}`; `400` invalid/expired, `409` already approved |
+| `POST` | `/auth/device/token` | `{device_code}` (public, rate-limited) | `Token` once approved; else `400` with `detail` = `authorization_pending` / `expired_token` |
 | `POST` | `/orgs/{id}/invites` | `{email, role?}` (owner only) | `201` `Invite` (one-time link) |
 | `GET`  | `/orgs/{id}/users` | `?limit=50&offset=0` (org members) | `[User]` + `X-Total-Count` |
 | `GET`  | `/invites/{token}` | — (public, rate-limited) | `InvitePreview` (or `429`) |
@@ -205,6 +208,12 @@ original L5X that is `l5x/<name>/source.L5X`.
 
 ```jsonc
 Token   = { "access_token": string, "token_type": "bearer" }
+DeviceCode = { "device_code": string,   // the CLI polls /auth/device/token with this
+               "user_code": string,      // short code the user approves in the web app
+               "verification_uri": string,          // the web app's /cli-auth page
+               "verification_uri_complete": string, // same URL with ?code= prefilled
+               "interval": int,           // seconds between token polls
+               "expires_in": int }        // seconds until the codes expire
 Invite        = { "email": string, "role": string, "organization": string, "status": string,
                   "expires_at": datetime, "token": string, "accept_path": string }
 InvitePreview = { "organization": string, "email": string, "role": string, "status": string }
@@ -554,6 +563,9 @@ All settings are `PLCVC_*` environment variables — see [`.env.example`](.env.e
 | `PLCVC_MAX_UPLOAD_MB` | Max size of a single uploaded file (default 100). Per-file (→ `413`); the Caddy edge caps the whole request separately |
 | `PLCVC_ORG_STORAGE_LIMIT_GB` | Per-organization storage cap in GB (default 2); counts repos + cached diffs (→ `507`) |
 | `PLCVC_DIFF_CACHE_MAX_MB` | Soft cap on the diff cache in MB (default 500); least-recently-used entries are evicted past it |
+| `PLCVC_WEB_APP_URL` | Web-app base URL used to build the CLI device-login verification link (default `https://app.spykeautomation.com`) |
+| `PLCVC_DEVICE_CODE_TTL_MINUTES` / `PLCVC_DEVICE_POLL_INTERVAL_SECONDS` | CLI device-login code lifetime and poll interval (default 10 / 5) |
+| `PLCVC_DEVICE_RATE_MAX` / `PLCVC_DEVICE_RATE_WINDOW_SECONDS` | Device-auth calls per client IP per window (default 60 / 60s) |
 
 ---
 
