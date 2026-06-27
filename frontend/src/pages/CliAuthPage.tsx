@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { CheckCircle2, ShieldAlert, Terminal } from "lucide-react";
+import { CheckCircle2, ShieldAlert } from "lucide-react";
+import logoUrl from "../assets/logo.png";
 import { useAuth } from "../auth/AuthContext";
 import { approveDevice } from "../api/auth";
 import { ApiError } from "../api/client";
@@ -123,8 +124,8 @@ export function CliAuthPage() {
   return (
     <div className="center-pane">
       <form className="auth-card cli-card" onSubmit={onApprove}>
-        <div className="cli-badge">
-          <Terminal size={20} strokeWidth={1.8} />
+        <div className="cli-marks">
+          <img className="cli-logo" src={logoUrl} alt="Spyke" />
         </div>
         <h2 className="auth-title">Approve CLI sign-in</h2>
 

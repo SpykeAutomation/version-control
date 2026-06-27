@@ -367,6 +367,23 @@ a {
   padding: 18px 16px;
   margin-bottom: 22px;
 }
+.cli-marks {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.cli-marks .cli-badge {
+  margin: 0;
+}
+.cli-logo {
+  width: 42px;
+  height: 42px;
+  border-radius: 11px;
+  object-fit: contain;
+  display: block;
+}
 .cli-badge-warn {
   border-color: #f4c4bd;
   background: #fdecea;
