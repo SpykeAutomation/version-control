@@ -697,11 +697,23 @@ class ProjectRepo:
             counts[sha] = len(logical)
         return counts
 
-    def merge(self, source: str, target: str, *, message: str | None = None) -> str:
+    def merge(
+        self,
+        source: str,
+        target: str,
+        *,
+        message: str | None = None,
+        author_name: str | None = None,
+        author_email: str | None = None,
+    ) -> str:
         """Merge source into target.
 
         Returns the resulting commit SHA. On conflicts the merge is rolled back
         and MergeConflict is raised, listing the files that could not be merged.
+
+        When `author_name`/`author_email` are both given, the merge commit is
+        attributed to that identity (the user who performed the merge) rather
+        than the repository's own — so a PR merge shows the real merger.
         """
         self._ensure_repo()
         if not self.branch_exists(source):
@@ -711,7 +723,10 @@ class ProjectRepo:
 
         self._checkout_branch(target)
         msg = message or f"Merge branch '{source}' into '{target}'"
-        result = self._run("merge", "--no-ff", "-m", msg, source, check=False)
+        ident: list[str] = []
+        if author_name and author_email:
+            ident = ["-c", f"user.name={author_name}", "-c", f"user.email={author_email}"]
+        result = self._run(*ident, "merge", "--no-ff", "-m", msg, source, check=False)
         if result.returncode != 0:
             conflicts = self._run(
                 "diff", "--name-only", "--diff-filter=U", check=False
