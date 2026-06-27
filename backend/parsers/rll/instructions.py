@@ -4,8 +4,11 @@ and what its operands are called.
 The data lives in ``instructions.json`` (reference data, not code) so the set
 can grow without touching logic; this module just loads and caches it. Each
 entry gives a ``display`` ("contact" | "coil" | "box"), a ``form`` (contact:
-"no"/"nc"; coil: "ote"/"otl"/"otu"; else null), and, for boxes, the ordered
-``operands`` label list.
+"no"/"nc"; coil: "ote"/"otl"/"otu"; else null), a ``role`` ("input" for
+condition instructions that read — contacts and the compare/test boxes;
+"output" for instructions that act — coils and the rest), and, for boxes, the
+ordered ``operands`` label list. The role lets a rung draw its reads on the
+left and its writes on the right, the way ladder logic is laid out.
 
 Operand labels and glyphs were pulled from the Rockwell Automation reference
 manuals: Logix 5000 General Instructions (publication 1756-RM003), Advanced
