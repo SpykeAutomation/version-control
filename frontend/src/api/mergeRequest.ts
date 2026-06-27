@@ -4,8 +4,16 @@
 // share one renderer.
 import { apiFetch } from "./client";
 import { listProjects } from "./projects";
+import { listCommits } from "./commits";
+import {
+  getCommitDiff,
+  getCommitLadderDiff,
+  getDiff,
+  getLadderDiff,
+} from "./diff";
 import type { Rung } from "./compare";
-import type { IRRoutineLadderDiff } from "./diff";
+import type { ChangeSet, IRRoutineLadderDiff } from "./diff";
+import { deriveChangeView, summarizeChangeSet } from "../lib/changeset";
 
 export type MRStatus = "open" | "review" | "approved" | "changes" | "merged";
 
@@ -289,31 +297,72 @@ export async function createComment(
   );
 }
 
-// Map a backend pull request (+ its comments) onto the page's view model.
-// The rich review fields (reviewers, checks, tags, ladder/structured-text
-// diffs) aren't in the backend contract yet, so they come back empty and the
-// page renders empty states for them — same convention as ProjectRow.
-function mapPull(mrId: string, pull: PullOut, comments: CommentOut[]): MergeRequest {
+const EMPTY_CHANGESET: ChangeSet = {
+  controller: [],
+  modules: [],
+  data_types: [],
+  add_on_instructions: [],
+  controller_tags: [],
+  programs: [],
+  tasks: [],
+};
+
+// Group the PR's changed routines under their controller (the L5X file). A
+// project is one controller file, so every changed routine falls under a single
+// file entry — the same grouping the commit-review page uses.
+function ladderFiles(ladder: IRRoutineLadderDiff[]): PRFile[] {
+  if (ladder.length === 0) return [];
+  return [
+    {
+      name: ladder[0].controller ?? "Controller",
+      changes: ladder.map<PRRoutineChange>((r) => ({
+        routine: r.routine ?? "Routine",
+        kind: "ladder",
+        controller: r.controller ?? undefined,
+        program: r.program ?? undefined,
+        ladder: r,
+      })),
+    },
+  ];
+}
+
+// Map a backend pull request onto the page's view model. The changed files,
+// ladder diffs, summary bullets, impacted tags and headline counts are derived
+// from the PR's target -> source diff, so they reflect the real change. Reviewers
+// and checks aren't in the backend contract yet, so they come back empty and the
+// page renders empty states for them.
+function mapPull(
+  mrId: string,
+  pull: PullOut,
+  comments: CommentOut[],
+  ladder: IRRoutineLadderDiff[],
+  changeSet: ChangeSet,
+  prCommits: MRCommitRow[],
+  targetSha?: string,
+): MergeRequest {
+  const view = deriveChangeView(changeSet);
   return {
     id: mrId || `MR-${pull.number}`,
     title: pull.title,
     status: PULL_STATUS[pull.status] ?? "open",
     sourceBranch: pull.source_branch,
     targetBranch: pull.target_branch,
-    sourceCommits: 0,
+    sourceCommits: prCommits.length,
     targetCommits: 0,
+    sourceSha: prCommits[0]?.hash,
+    targetSha,
     author: pull.author.name,
     authorAt: pull.created_at,
-    updatedAt: pull.created_at,
+    updatedAt: prCommits[0]?.at ?? pull.created_at,
     reviewers: [],
     summary: pull.description,
-    bullets: [],
-    rungsChanged: 0,
-    routinesModified: 0,
+    bullets: summarizeChangeSet(changeSet),
+    rungsChanged: view.summary.rungsChanged,
+    routinesModified: view.summary.routinesChanged,
     commentCount: comments.length,
     safetyReview: false,
-    files: [],
-    commits: [],
+    files: ladderFiles(ladder),
+    commits: prCommits,
     comments: comments.map((c) => ({
       author: c.author.name,
       role: c.author.id === pull.author.id ? "Author" : "Reviewer",
@@ -322,12 +371,13 @@ function mapPull(mrId: string, pull: PullOut, comments: CommentOut[]): MergeRequ
       body: c.body,
     })),
     checks: [],
-    impactedTags: [],
+    impactedTags: view.symbols,
   };
 }
 
-// Load a merge request for the page: resolve the project by slug, then fetch
-// the pull request and its comments.
+// Load a merge request for the page: resolve the project by slug, fetch the pull
+// request, its comments, the target -> source diff (ladder + change-set), and the
+// commits the request would merge (source minus target).
 export async function getMergeRequest(
   slug: string,
   mrId: string,
@@ -338,9 +388,47 @@ export async function getMergeRequest(
   if (!project) throw new Error("Project not found");
 
   const base = `/projects/${project.id}/pulls/${number}`;
-  const [pull, comments] = await Promise.all([
-    apiFetch<PullOut>(base),
+  const pull = await apiFetch<PullOut>(base);
+
+  // Once merged, the target branch already contains the change, so a
+  // target -> source diff is empty. For a merged PR diff its merge commit against
+  // its parent (what actually landed); for an open one diff target -> source.
+  const merged = pull.status === "merged" && Boolean(pull.merge_sha);
+  const ladderReq = merged
+    ? getCommitLadderDiff(project.id, pull.merge_sha as string)
+    : getLadderDiff(project.id, pull.target_branch, pull.source_branch);
+  const changeReq = merged
+    ? getCommitDiff(project.id, pull.merge_sha as string)
+    : getDiff(project.id, pull.target_branch, pull.source_branch);
+
+  const [comments, ladder, changeSet, srcCommits, tgtCommits] = await Promise.all([
     apiFetch<CommentOut[]>(`${base}/comments`).catch(() => [] as CommentOut[]),
+    ladderReq.then((d) => d.routines).catch(() => [] as IRRoutineLadderDiff[]),
+    changeReq.catch(() => EMPTY_CHANGESET),
+    listCommits(project.id, pull.source_branch).catch(() => []),
+    listCommits(project.id, pull.target_branch).catch(() => []),
   ]);
-  return mapPull(mrId, pull, comments);
+
+  // The commits this PR would merge: those on the source branch not already on
+  // the target.
+  const targetShas = new Set(tgtCommits.map((c) => c.sha));
+  const prCommits: MRCommitRow[] = srcCommits
+    .filter((c) => !targetShas.has(c.sha))
+    .map((c) => ({
+      sha: c.sha,
+      hash: c.hash,
+      message: c.message,
+      author: c.author,
+      at: c.at,
+    }));
+
+  return mapPull(
+    mrId,
+    pull,
+    comments,
+    ladder,
+    changeSet,
+    prCommits,
+    tgtCommits[0]?.hash,
+  );
 }
