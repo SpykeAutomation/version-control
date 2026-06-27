@@ -1,0 +1,6081 @@
+:root {
+  /* Fonts */
+  --sans: Inter, "Google Sans", system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", sans-serif;
+  --mono: Inter, ui-monospace, monospace;
+
+  /* Surfaces — bg and cards share one warm off-white; outlines do the separating */
+  --bg: #fbfaf7;
+  --panel: #fbfaf7;
+  --panel2: #f3f2ef; /* subtle warm fill (table header, chips) */
+  --hover: #f5f4f1; /* row / hover */
+
+  /* Text */
+  --ink-title: #111315;
+  --ink: #111315;
+  --ink2: #555b61;
+  --ink3: #7a8087;
+  --ink4: #a7abb0; /* disabled */
+
+  /* Borders: --line2 subtle divider, --line default, --border strong */
+  --line2: #eceef0;
+  --line: #dfe2e5;
+  --border: #c9ced3;
+  --wire: #707783; /* ladder rail / wire colour */
+
+  /* Brand / action */
+  --black: #050505;
+  --accent: #0b57d0;
+  --accent-hover: #0842a0;
+  --accent-weak: #e8f0fe;
+
+  /* Status: production / healthy */
+  --add: #188038;
+  --add-bg: #e6f4ea;
+  --add-line: #c7e8d0;
+  /* Status: commissioning / informational */
+  --blue: #185abc;
+  --blue-bg: #e8f0fe;
+  --blue-line: #c6dafc;
+  /* Status: review / warning */
+  --mod: #b75c00;
+  --mod-bg: #fff4e5;
+  --mod-line: #ffd8a8;
+  /* Status: draft / neutral */
+  --gray: #5f6368;
+  --gray-bg: #f1f3f4;
+  --gray-line: #dadce0;
+  /* Status: error / safety-critical */
+  --danger: #d93025;
+  --danger-bg: #fceeee;
+  /* Accent: purple */
+  --purple: #6f42c1;
+  --purple-bg: #f3efff;
+  --purple-line: #ddd3ff;
+
+  /* Sidebar */
+  --sidebar: #020303;
+  --sidebar-surface: #111213;
+  --sidebar-selected: #1b1c1e;
+  --text-sidebar: #f4f4f5;
+  --text-sidebar-muted: #a7abb0;
+
+  /* Radius */
+  --r-sm: 6px;
+  --r-md: 8px;
+  --r-lg: 10px;
+
+  /* Shadow — cards are separated by their outline only, no elevation */
+  --shadow-card: none;
+}
+
+* {
+  box-sizing: border-box;
+}
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+body {
+  font-family: var(--sans);
+  color: var(--ink);
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  background: var(--bg);
+}
+input,
+select,
+button,
+textarea {
+  font-family: inherit;
+}
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-weak);
+}
+a {
+  color: inherit;
+}
+
+/* ===== Split layout ===== */
+.split {
+  height: 100vh;
+  display: flex;
+}
+
+/* ===== Brand panel ===== */
+.brand {
+  width: 42%;
+  max-width: 560px;
+  flex: none;
+  background: #000;
+  color: #fff;
+  padding: 40px 44px;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+}
+.brand > * {
+  position: relative;
+  z-index: 1;
+}
+.brand-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.brand-mark {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.brand-mark > div {
+  width: 12px;
+  height: 12px;
+  border: 2.5px solid var(--ink);
+  border-radius: 3px;
+  transform: rotate(45deg);
+}
+.brand-wordmark {
+  font-weight: 600;
+  font-size: 34px;
+  letter-spacing: -0.02em;
+}
+.brand-body {
+  margin-top: auto;
+  margin-bottom: auto;
+}
+.brand-body h1 {
+  margin: 0;
+  font-size: 34px;
+  line-height: 1.12;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  max-width: 440px;
+}
+.brand-body p {
+  margin: 18px 0 0;
+  font-size: 15px;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.62);
+  max-width: 380px;
+}
+.brand-features {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 34px;
+}
+.brand-feature {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.brand-feature-check {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.brand-feature span:last-child {
+  font-size: 13.5px;
+  color: rgba(255, 255, 255, 0.85);
+}
+.brand-footer {
+  font: 500 11px/1 var(--mono);
+  color: rgba(255, 255, 255, 0.4);
+}
+/* Faint field of ascending chevrons across the bottom of the brand panel,
+   echoing the footer of spykeautomation.com. */
+.brand-chevrons {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 62%;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.08;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 -2 100 100'%3E%3Cg fill='none' stroke='%23ffffff' stroke-width='13' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M22 46 50 22 78 46'/%3E%3Cpath d='M22 74 50 50 78 74'/%3E%3C/g%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-position: bottom center;
+  background-size: 34px 34px;
+  -webkit-mask-image: linear-gradient(to top, #000 0%, #000 28%, transparent 100%);
+  mask-image: linear-gradient(to top, #000 0%, #000 28%, transparent 100%);
+}
+
+/* ===== Flow (right side) ===== */
+.flow {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+.center-pane {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+}
+.auth-card {
+  width: 100%;
+  max-width: 372px;
+}
+.auth-logo {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+.auth-mark {
+  width: 42px;
+  height: 42px;
+  border-radius: 11px;
+  background: var(--ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.auth-mark > div {
+  width: 17px;
+  height: 17px;
+  border: 3px solid #fff;
+  border-radius: 4px;
+  transform: rotate(45deg);
+}
+.auth-title {
+  margin: 0 0 28px;
+  font-size: 23px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  text-align: center;
+  color: var(--ink-title);
+}
+
+/* ===== Form primitives ===== */
+.field {
+  margin-bottom: 16px;
+}
+.label {
+  display: block;
+  font: 600 13px/1 var(--sans);
+  margin-bottom: 8px;
+}
+.label-weak {
+  font-weight: 500;
+  color: var(--ink2);
+}
+.input,
+.textarea,
+.select {
+  width: 100%;
+  height: 42px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--panel);
+  font-size: 14.5px;
+  font-weight: 400;
+  color: var(--ink);
+}
+.textarea::placeholder,
+.input::placeholder {
+  color: var(--ink3);
+}
+.input.mono {
+  font-family: var(--mono);
+}
+.textarea {
+  height: 64px;
+  padding: 11px 12px;
+  resize: none;
+  line-height: 1.5;
+}
+.textarea.tall {
+  height: 88px;
+}
+
+/* helper line under a field label */
+.field-hint {
+  font: 400 13px/1.4 var(--sans);
+  color: var(--ink2);
+  margin: 0 0 9px;
+}
+
+/* live project URL preview under the name field */
+.url-preview {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 9px;
+}
+.url-label {
+  font: 600 12px/1 var(--sans);
+  color: var(--ink2);
+}
+.url-value {
+  font: 500 13px/1 var(--mono);
+  color: var(--ink);
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 6px 8px;
+}
+
+/* visibility selection cards */
+.vis-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.vis-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  text-align: left;
+  padding: 13px 14px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--panel);
+  cursor: pointer;
+  font-family: var(--sans);
+}
+.vis-card.selected {
+  border-color: var(--ink);
+  background: var(--panel);
+  box-shadow: 0 0 0 1px var(--ink);
+}
+.vis-card.disabled {
+  background: var(--panel2);
+  cursor: not-allowed;
+}
+.vis-radio {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  margin-top: 1px;
+  border-radius: 50%;
+  border: 1.5px solid var(--ink3);
+  position: relative;
+}
+.vis-radio.on {
+  border-color: var(--ink);
+  background: var(--ink);
+}
+.vis-card-main {
+  display: flex;
+  flex-direction: column;
+}
+.vis-card-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font: 600 14px/1 var(--sans);
+  color: var(--ink);
+}
+.vis-card.disabled .vis-card-title {
+  color: var(--ink2);
+}
+.vis-card-sub {
+  font: 400 13px/1.4 var(--sans);
+  color: var(--ink2);
+  margin-top: 6px;
+}
+
+/* README sections preview */
+.readme-preview {
+  margin-top: 14px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--panel);
+  padding: 13px 14px;
+}
+.readme-preview-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font: 600 12.5px/1 var(--sans);
+  color: var(--ink2);
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 11px;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  font: 500 13px/1 var(--sans);
+  color: var(--ink);
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 6px 9px;
+}
+.chip::before {
+  content: "+";
+  color: var(--ink3);
+  margin-right: 5px;
+}
+.grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+.select-wrap {
+  position: relative;
+}
+.select {
+  appearance: none;
+  cursor: pointer;
+}
+.select-caret {
+  position: absolute;
+  right: 12px;
+  top: 15px;
+  pointer-events: none;
+}
+.row-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 7px;
+}
+.link {
+  font: 500 12px/1 var(--sans);
+  color: var(--accent);
+  text-decoration: none;
+  cursor: pointer;
+}
+.accent-link {
+  color: var(--accent);
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+/* ===== Buttons ===== */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: none;
+  border-radius: var(--r-md);
+  font: 600 14px/20px var(--sans);
+  cursor: pointer;
+  height: 40px;
+  padding: 0 18px;
+  text-decoration: none;
+}
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.btn-primary {
+  background: var(--black);
+  color: #fff;
+}
+.btn-primary:hover {
+  background: #1a1a1a;
+}
+.btn-block {
+  width: 100%;
+}
+.btn-ghost {
+  height: 38px;
+  padding: 0 16px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--ink);
+  border-radius: 9px;
+  font: 600 13px/1 var(--sans);
+}
+.btn-sm {
+  height: 38px;
+  padding: 0 14px;
+  border-radius: var(--r-md);
+  font-size: 13px;
+}
+.btn-quiet {
+  height: 38px;
+  padding: 0 12px;
+  border: none;
+  background: none;
+  font: 600 13px/1 var(--sans);
+  color: var(--ink2);
+  cursor: pointer;
+}
+.btn-quiet:hover {
+  color: var(--ink);
+}
+
+.muted {
+  color: var(--ink2);
+}
+.helper {
+  margin: 24px 0 0;
+  text-align: center;
+  font: 500 12.5px/1.5 var(--sans);
+  color: var(--ink2);
+}
+.fineprint {
+  margin: 18px 0 0;
+  text-align: center;
+  font: 500 11.5px/1.5 var(--sans);
+  color: var(--ink3);
+}
+.fineprint u {
+  color: var(--ink2);
+  cursor: pointer;
+}
+.form-error {
+  background: #fdecea;
+  border: 1px solid #f4c4bd;
+  color: var(--danger);
+  border-radius: 9px;
+  padding: 9px 12px;
+  font: 500 12.5px/1.45 var(--sans);
+  margin-bottom: 16px;
+}
+
+/* ===== Password requirements ===== */
+.pw-reqs {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 13px 0 22px;
+}
+.pw-req {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.pw-req-dot {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid var(--line);
+}
+.pw-req-dot.ok {
+  background: var(--add);
+  border-color: var(--add);
+}
+.pw-req span {
+  font: 500 11.5px/1 var(--sans);
+  color: var(--ink3);
+}
+.pw-req span.ok {
+  color: var(--add);
+}
+
+/* ===== Onboarding ===== */
+.onboard {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+.onboard-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 40px 48px;
+  max-width: 620px;
+  margin: 0 auto;
+  width: 100%;
+}
+.onboard-body h2 {
+  margin: 0;
+  font-size: 29px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--ink-title);
+}
+.onboard-lede {
+  margin: 9px 0 28px;
+  color: var(--ink2);
+  font-size: 15.5px;
+  font-weight: 400;
+  line-height: 1.5;
+}
+.onboard-footer {
+  border-top: 1px solid var(--line);
+  background: var(--panel);
+  padding: 16px 48px;
+}
+.onboard-foot-inner {
+  max-width: 620px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.foot-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* segmented toggle */
+.seg {
+  display: flex;
+  gap: 3px;
+  padding: 3px;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  flex: none;
+}
+.seg-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 14px;
+  border: none;
+  border-radius: 6px;
+  font: 600 13px/1 var(--sans);
+  cursor: pointer;
+  background: transparent;
+  color: var(--ink2);
+}
+.seg-btn.active {
+  background: var(--panel);
+  color: var(--ink);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+.setting-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+.setting-row.boxed {
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--panel);
+  padding: 13px 15px;
+  margin-bottom: 0;
+}
+.setting-title {
+  font: 600 13px/1 var(--sans);
+}
+.setting-sub {
+  font: 500 12.5px/1.45 var(--sans);
+  color: var(--ink2);
+  margin-top: 5px;
+}
+.coming-soon {
+  display: inline-block;
+  margin-left: 8px;
+  font: 600 10px/1 var(--mono);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink2);
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 3px 6px;
+  vertical-align: middle;
+}
+
+/* toggle switch */
+.toggle {
+  width: 42px;
+  height: 24px;
+  border-radius: 999px;
+  border: none;
+  background: var(--line);
+  position: relative;
+  flex: none;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.toggle.on {
+  background: var(--add);
+}
+.toggle-knob {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  transition: left 0.15s;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+.toggle.on .toggle-knob {
+  left: 21px;
+}
+
+/* ===== Done ===== */
+.done {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 40px;
+}
+.done-card {
+  text-align: center;
+  max-width: 400px;
+}
+.done-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 22px;
+}
+.done-card h2 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--ink-title);
+}
+.done-card p {
+  margin: 11px 0 26px;
+  color: var(--ink2);
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+.docs {
+  width: 100%;
+  max-width: 680px;
+  margin-top: 44px;
+}
+.docs-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.docs-head span {
+  font: 600 13px/1 var(--sans);
+  color: var(--ink2);
+}
+.docs-head .rule {
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+.docs-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+.doc-card {
+  text-align: left;
+  text-decoration: none;
+  padding: 15px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  border-radius: 12px;
+  cursor: pointer;
+  display: block;
+  transition: border-color 0.12s;
+}
+.doc-card:hover {
+  border-color: var(--accent);
+}
+.doc-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: var(--panel2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 11px;
+  color: var(--ink2);
+}
+.doc-title {
+  font: 600 13px/1.3 var(--sans);
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+.doc-sub {
+  font: 500 11.5px/1.45 var(--sans);
+  color: var(--ink3);
+  margin-top: 5px;
+}
+
+/* ===== misc ===== */
+.center-screen {
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink2);
+  font-size: 13.5px;
+}
+
+/* ============ Signed-in app shell ============ */
+.app-shell {
+  height: 100vh;
+  display: flex;
+}
+
+/* sidebar */
+.sidebar {
+  position: relative;
+  width: 258px;
+  flex: none;
+  background: var(--sidebar);
+  color: var(--text-sidebar-muted);
+  display: flex;
+  flex-direction: column;
+  padding: 20px 12px 16px;
+  overflow: hidden;
+}
+/* Low-contrast ascending-chevron texture, confined to the lower sidebar so it
+   never competes with navigation. Mirrors the brand-panel motif. */
+.sidebar::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 46%;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.1;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 -2 100 100'%3E%3Cg fill='none' stroke='%23ffffff' stroke-width='13' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M22 46 50 22 78 46'/%3E%3Cpath d='M22 74 50 50 78 74'/%3E%3C/g%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-position: bottom center;
+  background-size: 30px 30px;
+  -webkit-mask-image: linear-gradient(to top, #000 0%, #000 24%, transparent 100%);
+  mask-image: linear-gradient(to top, #000 0%, #000 24%, transparent 100%);
+}
+.sidebar > * {
+  position: relative;
+  z-index: 1;
+}
+.sidebar-logo {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 8px 20px;
+  color: #fff;
+  font-weight: 650;
+  font-size: 28px;
+  line-height: 32px;
+  letter-spacing: -0.02em;
+}
+.sidebar-mark {
+  display: flex;
+  flex: none;
+}
+/* collapsed: the logo itself expands the sidebar, turned to point right */
+.sidebar-mark-btn {
+  height: 32px;
+  align-items: center;
+  border: none;
+  background: none;
+  padding: 0;
+  color: #fff;
+  cursor: pointer;
+}
+.sidebar-mark-btn svg {
+  transform: rotate(90deg);
+  transition: opacity 0.15s ease;
+}
+.sidebar-mark-btn:hover {
+  opacity: 0.7;
+}
+.sidebar-word {
+  margin-right: auto;
+}
+/* collapse / expand toggle — the two sideways chevrons */
+.sidebar-collapse {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.55);
+  cursor: pointer;
+}
+.sidebar-collapse:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+/* collapsed rail: icons only */
+.sidebar.collapsed {
+  width: 72px;
+  padding-left: 12px;
+  padding-right: 12px;
+}
+.sidebar.collapsed .sidebar-logo {
+  justify-content: center;
+  padding: 6px 0 20px;
+}
+.sidebar.collapsed .nav-item {
+  justify-content: center;
+  padding-left: 0;
+  padding-right: 0;
+}
+.sidebar.collapsed .user-block {
+  justify-content: center;
+  padding: 8px;
+}
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 42px;
+  padding: 0 14px;
+  border-radius: var(--r-md);
+  color: var(--text-sidebar);
+  font: 500 14px/20px var(--sans);
+  text-decoration: none;
+  cursor: pointer;
+}
+.nav-item:hover {
+  background: var(--sidebar-surface);
+  color: #fff;
+}
+.nav-item.active {
+  position: relative;
+  background: var(--sidebar-selected);
+  color: #fff;
+  font-weight: 550;
+}
+/* green left-accent bar on the active item */
+.nav-item.active::before {
+  content: "";
+  position: absolute;
+  left: -14px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 22px;
+  border-radius: 0 3px 3px 0;
+  background: var(--add);
+}
+.sidebar.collapsed .nav-item.active::before {
+  left: -12px;
+}
+.sidebar-foot {
+  margin-top: auto;
+  padding-top: 14px;
+}
+/* boxed user identity card, bottom-left */
+.user-block {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: var(--r-lg);
+  background: rgba(255, 255, 255, 0.13);
+}
+.avatar {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font: 600 12px/1 var(--sans);
+}
+.user-meta {
+  min-width: 0;
+}
+.user-name {
+  color: #fff;
+  font: 600 13px/1.2 var(--sans);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.user-sub {
+  color: rgba(255, 255, 255, 0.45);
+  font: 500 12px/1.3 var(--sans);
+}
+
+/* main column */
+.app-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  overflow: hidden;
+}
+.topbar {
+  height: 64px;
+  flex: none;
+  border-bottom: 1px solid var(--line2);
+  background: var(--panel);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 16px;
+  padding: 0 40px;
+}
+.topbar-col {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+.topbar-search {
+  justify-self: center;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 420px;
+  max-width: 100%;
+  height: 38px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--panel);
+  color: var(--ink3);
+}
+.topbar-search:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-weak);
+}
+.topbar-search input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: none;
+  font-size: 13px;
+  color: #202124;
+}
+.topbar-search input:focus {
+  outline: none;
+  box-shadow: none;
+}
+.topbar-search kbd {
+  font: 500 11px/1 var(--mono);
+  color: var(--ink3);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 3px 5px;
+}
+.topbar-actions {
+  justify-self: end;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.app-scroll {
+  flex: 1;
+  overflow-y: auto;
+}
+.page-grid {
+  padding: 32px 36px 40px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 296px;
+  gap: 24px;
+  align-items: start;
+}
+/* Inline (full-width) variant of the files list: chips flow in a row rather
+   than stacking in a narrow rail column. */
+.commit-files {
+  margin-bottom: 20px;
+}
+.commit-files .file-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.commit-files .file-row {
+  flex: 0 0 auto;
+}
+.page-pad {
+  padding: 32px 36px 40px;
+}
+.page-header {
+  margin-bottom: 24px;
+}
+.page-header h1 {
+  margin: 0;
+  font-size: 24px;
+  line-height: 30px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  color: var(--ink-title);
+}
+.page-header p {
+  margin: 4px 0 0;
+  font-size: 14px;
+  line-height: 22px;
+  color: var(--ink2);
+}
+
+/* stat cards */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.stat-card {
+  height: auto;
+  min-height: 104px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-card);
+  padding: 20px 24px;
+  display: flex;
+  align-items: flex-start;
+  gap: 18px;
+}
+.stat-icon {
+  margin-top: 2px;
+}
+.stat-icon {
+  flex: none;
+  display: inline-flex;
+  color: var(--black);
+}
+.stat-body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.stat-label {
+  font: 500 12px/16px var(--sans);
+  color: var(--ink3);
+}
+.stat-value {
+  margin-top: 4px;
+  font: 650 24px/30px var(--sans);
+  letter-spacing: -0.02em;
+  color: var(--ink-title);
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.stat-delta {
+  font: 600 12px/1 var(--sans);
+  color: var(--add);
+}
+
+/* data table */
+.table-wrap {
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--panel);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+.dtable {
+  width: 100%;
+  border-collapse: collapse;
+}
+.dtable th {
+  text-align: left;
+  height: 44px;
+  font: 500 12px/16px var(--sans);
+  color: var(--ink2);
+  padding: 0 24px;
+  background: var(--panel2);
+  border-bottom: 1px solid var(--line2);
+}
+.dtable td {
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--line2);
+  font: 400 13px/18px var(--sans);
+  color: #202124;
+  vertical-align: middle;
+}
+.table-wrap .dtable tbody tr {
+  height: 74px;
+}
+.dtable tbody tr:last-child td {
+  border-bottom: none;
+}
+.dtable tbody tr:hover {
+  background: var(--hover);
+}
+.repo-cell {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  text-decoration: none;
+  color: inherit;
+}
+a.repo-cell:hover .repo-name {
+  color: var(--accent);
+}
+.repo-ico {
+  width: 36px;
+  height: 36px;
+  flex: none;
+  border-radius: var(--r-md);
+  background: transparent;
+  border: 1px solid var(--line);
+  display: grid;
+  place-items: center;
+  color: #202124;
+}
+/* Per-repository colour tones, shared by the table and rail list icons. */
+.repo-ico.tone-blue,
+.rail-ico.tone-blue {
+  color: var(--blue);
+  background: var(--blue-bg);
+  border-color: var(--blue-line);
+}
+.repo-ico.tone-green,
+.rail-ico.tone-green {
+  color: var(--add);
+  background: var(--add-bg);
+  border-color: var(--add-line);
+}
+.repo-ico.tone-amber,
+.rail-ico.tone-amber {
+  color: var(--mod);
+  background: var(--mod-bg);
+  border-color: var(--mod-line);
+}
+.repo-ico.tone-violet,
+.rail-ico.tone-violet {
+  color: var(--purple);
+  background: var(--purple-bg);
+  border-color: var(--purple-line);
+}
+.repo-ico.tone-slate,
+.rail-ico.tone-slate {
+  color: var(--gray);
+  background: var(--gray-bg);
+  border-color: var(--gray-line);
+}
+.repo-name {
+  font: 650 14px/20px var(--sans);
+  color: var(--ink-title);
+}
+.repo-sub {
+  font: 400 12px/17px var(--mono);
+  color: #6f747a;
+  margin-top: 2px;
+}
+.branch-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: 500 13px/1 var(--sans);
+  color: #202124;
+}
+.muted-cell {
+  color: var(--ink2);
+}
+.row-action {
+  text-align: right;
+}
+.icon-btn {
+  border: none;
+  background: none;
+  color: var(--ink3);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+}
+.icon-btn:hover {
+  background: var(--panel2);
+  color: var(--ink);
+}
+
+/* status badge — small, calm, color-coded; a dot carries status alongside
+   color so meaning never depends on color alone. */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 9px;
+  font: 500 12px/16px var(--sans);
+  border-radius: var(--r-sm);
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+.badge .badge-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: none;
+}
+.badge.green {
+  color: var(--add);
+  background: var(--add-bg);
+  border-color: var(--add-line);
+}
+.badge.blue {
+  color: var(--blue);
+  background: var(--blue-bg);
+  border-color: var(--blue-line);
+}
+.badge.orange {
+  color: var(--mod);
+  background: var(--mod-bg);
+  border-color: var(--mod-line);
+}
+.badge.red {
+  color: var(--danger);
+  background: var(--danger-bg);
+  border-color: #f3cdc9;
+}
+.badge.gray {
+  color: var(--gray);
+  background: var(--gray-bg);
+  border-color: var(--gray-line);
+}
+
+/* right rail */
+.page-rail {
+  position: sticky;
+  top: 20px;
+}
+.rail-section {
+  border: 1px solid var(--line);
+  background: var(--panel);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-card);
+  padding: 18px;
+  margin-bottom: 16px;
+}
+.rail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.rail-title {
+  font: 650 14px/20px var(--sans);
+  color: var(--ink-title);
+}
+.rail-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.rail-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  border-radius: 8px;
+  text-decoration: none;
+}
+a.rail-item:hover,
+.rail-item.action:hover {
+  background: var(--panel2);
+}
+.rail-item.disabled {
+  opacity: 0.55;
+}
+.rail-ico {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  border-radius: var(--r-md);
+  background: transparent;
+  border: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #202124;
+}
+.rail-label {
+  font: 550 13px/18px var(--sans);
+  color: #202124;
+}
+.rail-sub {
+  font: 400 12px/17px var(--sans);
+  color: #6f747a;
+  margin-top: 2px;
+}
+.rail-empty {
+  font: 500 12.5px/1.4 var(--sans);
+  color: var(--ink3);
+  padding: 4px 8px;
+}
+
+/* message + empty states */
+.panel-msg {
+  border: 1px solid var(--line);
+  background: var(--panel);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-card);
+  padding: 28px;
+  text-align: center;
+  color: var(--ink2);
+  font-size: 13.5px;
+}
+.panel-msg.error {
+  color: var(--danger);
+}
+.empty-state {
+  border: 1px solid var(--line);
+  background: var(--panel);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-card);
+  padding: 48px 28px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.empty-ico {
+  width: 52px;
+  height: 52px;
+  border-radius: 13px;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #202124;
+  margin-bottom: 16px;
+}
+.empty-state h3 {
+  margin: 0;
+  font: 600 16px/1.2 var(--sans);
+  color: var(--ink-title);
+}
+.empty-state p {
+  margin: 8px 0 18px;
+  font-size: 13.5px;
+  color: var(--ink2);
+  max-width: 360px;
+}
+
+/* outline button variant */
+.btn-outline {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  color: var(--ink);
+}
+.btn-outline:hover {
+  background: var(--panel2);
+}
+
+/* ===== keyboard focus rings ===== */
+.btn:focus-visible,
+.icon-btn:focus-visible,
+.toolbar-select:focus-visible,
+a.rail-item:focus-visible,
+.seg-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.nav-item:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.7);
+  outline-offset: -2px;
+}
+
+/* ===== list toolbar (filters + search above a table) ===== */
+.list-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.toolbar-select-wrap {
+  position: relative;
+  flex: none;
+}
+.toolbar-select {
+  height: 36px;
+  padding: 0 30px 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: #202124;
+  font: 500 13px/1 var(--sans);
+  cursor: pointer;
+  appearance: none;
+}
+.toolbar-select:hover {
+  border-color: var(--border);
+}
+.toolbar-select-wrap .select-caret {
+  top: 11px;
+  right: 11px;
+  color: var(--ink3);
+}
+.toolbar-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--ink3);
+}
+.toolbar-search:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-weak);
+}
+.toolbar-search input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: none;
+  font-size: 13.5px;
+  color: var(--ink);
+}
+.toolbar-search input:focus {
+  outline: none;
+  box-shadow: none;
+}
+
+/* ===== richer repository-table cells ===== */
+.cell-controller {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.cc-platform {
+  font: 500 13px/1.2 var(--sans);
+  color: var(--ink);
+}
+.cc-cpu {
+  font: 500 12px/1.2 var(--mono);
+  color: var(--ink3);
+}
+.release-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font: 600 12.5px/1 var(--mono);
+  color: var(--ink);
+}
+.activity-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ac-time {
+  font: 500 13px/1.2 var(--sans);
+  color: var(--ink);
+}
+.ac-who {
+  font: 500 12px/1.2 var(--sans);
+  color: var(--ink3);
+}
+.cell-empty {
+  color: var(--ink3);
+  font-size: 13.5px;
+}
+
+/* table footer strip (counts / scope) */
+.table-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 11px 16px;
+  border-top: 1px solid var(--line);
+  background: var(--panel);
+  font: 500 12.5px/1 var(--sans);
+  color: var(--ink2);
+}
+
+/* ============ Compare page ============ */
+/* uniform 20px vertical rhythm between the stacked sections */
+.compare-grid .page-header {
+  margin-bottom: 20px;
+}
+/* controls bar */
+.cmp-bar {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  border-radius: var(--r-lg);
+  padding: 14px 16px;
+  margin-bottom: 20px;
+}
+.cmp-field {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.cmp-field-label {
+  font: 500 12px/1 var(--sans);
+  color: var(--ink3);
+}
+.cmp-select {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 40px;
+  width: 100%;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--panel);
+  cursor: pointer;
+  text-align: left;
+}
+.cmp-select:hover {
+  border-color: var(--border);
+}
+/* read-only field (commit page): fixed comparison, not a picker */
+.cmp-select.cmp-static {
+  cursor: default;
+}
+.cmp-select.cmp-static:hover {
+  border-color: var(--line);
+}
+/* a native <select> sitting inside a .cmp-select box, styled to blend in */
+.cmp-bare-select {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  appearance: none;
+  -webkit-appearance: none;
+  border: none;
+  background: transparent;
+  /* line-height "normal" (not 1) so descenders like g/p/y aren't clipped */
+  font: 600 13px/normal var(--sans);
+  color: var(--ink-title);
+  cursor: pointer;
+  outline: none;
+}
+
+/* commit page diff bar (own class — .commit-bar is taken by another component).
+   A tighter bar with no grey fill behind the fields; keeps its border. */
+.cd-bar {
+  padding: 9px 14px;
+  margin-bottom: 16px;
+  background: transparent;
+}
+.cd-bar .cmp-field {
+  gap: 4px;
+}
+.cd-bar .cmp-field-label {
+  font-size: 11px;
+}
+.cd-bar .cmp-select {
+  height: 34px;
+}
+.cmp-select-ico {
+  display: inline-flex;
+  color: #202124;
+  flex: none;
+}
+.cmp-select-val {
+  font: 600 13px/1 var(--sans);
+  color: var(--ink-title);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cmp-select-ph {
+  font: 500 13.5px/1 var(--sans);
+  color: var(--ink3);
+}
+.cmp-select-caret {
+  margin-left: auto;
+  color: var(--ink3);
+  flex: none;
+}
+.cmp-swap {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--panel);
+  color: var(--ink2);
+  cursor: pointer;
+}
+.cmp-swap:hover {
+  border-color: var(--border);
+  color: var(--ink);
+}
+
+/* change-summary cards */
+.cmp-summary {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 20px;
+}
+.cmp-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  border-radius: var(--r-lg);
+  padding: 16px 18px;
+}
+.cmp-ico {
+  width: 38px;
+  height: 38px;
+  flex: none;
+  border-radius: var(--r-md);
+  display: grid;
+  place-items: center;
+  border: 1px solid transparent;
+}
+.cmp-ico.red {
+  color: var(--danger);
+  background: var(--danger-bg);
+  border-color: #f3cdc9;
+}
+.cmp-ico.green {
+  color: var(--add);
+  background: var(--add-bg);
+  border-color: var(--add-line);
+}
+.cmp-ico.blue {
+  color: var(--accent);
+  background: var(--accent-weak);
+  border-color: var(--blue-line);
+}
+.cmp-ico.orange {
+  color: var(--mod);
+  background: var(--mod-bg);
+  border-color: var(--mod-line);
+}
+.cmp-card-body {
+  min-width: 0;
+}
+.cmp-num {
+  font: 650 24px/1 var(--sans);
+  letter-spacing: -0.02em;
+  color: var(--ink-title);
+}
+.cmp-card-label {
+  font: 500 12.5px/1.3 var(--sans);
+  color: var(--ink2);
+  margin-top: 5px;
+}
+.cmp-card-sub {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+  font: 600 12px/1 var(--sans);
+}
+.t-mod {
+  color: var(--mod);
+}
+.t-add {
+  color: var(--add);
+}
+.t-rem {
+  color: var(--danger);
+}
+
+/* diff toolbar */
+.diff-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-bottom: 20px;
+}
+.zoom {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--panel);
+}
+.zoom-btn {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: none;
+  border-radius: 6px;
+  color: var(--ink2);
+  cursor: pointer;
+}
+.zoom-btn:hover {
+  background: var(--panel2);
+  color: var(--ink);
+}
+.zoom-val {
+  font: 600 12.5px/1 var(--sans);
+  color: var(--ink2);
+  padding: 0 6px;
+  min-width: 44px;
+  text-align: center;
+}
+
+/* diff panels */
+.diff-panels {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+.diff-panel {
+  border: 1px solid var(--line);
+  background: var(--panel);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+}
+.diff-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 40px;
+  padding: 0 14px;
+  background: var(--panel2);
+  border-bottom: 1px solid var(--line);
+}
+.dph-ref {
+  font: 600 13px/1 var(--sans);
+  color: var(--ink-title);
+}
+.dph-ver {
+  font: 600 11.5px/1 var(--mono);
+  border-radius: var(--r-sm);
+  padding: 4px 8px;
+}
+.dph-ver.gray {
+  color: var(--ink2);
+  background: var(--panel);
+  border: 1px solid var(--line);
+}
+.dph-ver.green {
+  color: var(--add);
+  background: var(--add-bg);
+  border: 1px solid var(--add-line);
+}
+.diff-panel-body {
+  padding: 12px 10px;
+  overflow-x: auto;
+}
+
+/* ladder */
+.rung {
+  display: flex;
+  align-items: stretch;
+  border-radius: var(--r-md);
+  margin-bottom: 4px;
+}
+.diff-left .rung-modified,
+.diff-left .rung-removed {
+  background: var(--danger-bg);
+}
+.diff-right .rung-modified,
+.diff-right .rung-added {
+  background: var(--add-bg);
+}
+.rung-num {
+  width: 30px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font: 500 12px/1 var(--mono);
+  color: var(--ink3);
+}
+.rung-net {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  padding: 6px 6px;
+  min-width: 0;
+}
+.rail {
+  width: 2px;
+  align-self: stretch;
+  background: #b9bec3;
+  flex: none;
+  border-radius: 1px;
+}
+.rung-els {
+  display: flex;
+  align-items: center;
+  flex: 1;
+}
+.ladder-el {
+  width: 84px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  border-radius: 6px;
+}
+.el-tag {
+  max-width: 84px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: center;
+  font: 500 10px/1.3 var(--mono);
+  color: var(--ink2);
+  margin-bottom: 1px;
+}
+.el-symbol {
+  color: #202124;
+  display: block;
+}
+.el-addr {
+  font: 500 10px/1.3 var(--mono);
+  color: var(--ink3);
+  margin-top: 1px;
+}
+.el-added {
+  background: var(--add-bg);
+}
+.el-added .el-symbol,
+.el-added .el-tag,
+.el-added .el-addr {
+  color: var(--add);
+}
+.el-removed {
+  background: var(--danger-bg);
+}
+.el-removed .el-symbol,
+.el-removed .el-tag,
+.el-removed .el-addr {
+  color: var(--danger);
+}
+
+/* text view */
+.diff-text {
+  font: 400 12.5px/1.5 var(--mono);
+  color: var(--ink);
+}
+.txt-rung {
+  display: flex;
+  gap: 10px;
+  padding: 5px 6px;
+  border-radius: 6px;
+}
+.txt-num {
+  flex: none;
+  width: 26px;
+  color: var(--ink3);
+}
+.txt-body {
+  min-width: 0;
+}
+.diff-left .txt-rung.rung-modified,
+.diff-left .txt-rung.rung-removed {
+  background: var(--danger-bg);
+}
+.diff-right .txt-rung.rung-modified,
+.diff-right .txt-rung.rung-added {
+  background: var(--add-bg);
+}
+
+/* change-summary table */
+.cmp-table-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line2);
+}
+.cmp-table-title {
+  font: 650 14px/1 var(--sans);
+  color: var(--ink-title);
+}
+.cmp-table-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 20px;
+  padding: 0 6px;
+  margin-left: 6px;
+  border-radius: 999px;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  font: 600 11.5px/1 var(--sans);
+  color: var(--ink2);
+}
+.type-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font: 600 12.5px/1 var(--sans);
+}
+.type-ico {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  border-radius: 6px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+}
+.type-tag.add {
+  color: var(--add);
+}
+.type-tag.add .type-ico {
+  background: var(--add);
+}
+.type-tag.mod {
+  color: var(--mod);
+}
+.type-tag.mod .type-ico {
+  background: var(--mod);
+}
+.type-tag.rem {
+  color: var(--danger);
+}
+.type-tag.rem .type-ico {
+  background: var(--danger);
+}
+.cmp-change {
+  font: 600 13px/1.3 var(--sans);
+  color: var(--ink);
+}
+.cmp-desc {
+  color: var(--ink2);
+}
+.impact {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font: 500 13px/1 var(--sans);
+  color: var(--ink2);
+}
+.impact-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+}
+.impact-dot.green {
+  background: var(--add);
+}
+.impact-dot.orange {
+  background: var(--mod);
+}
+.impact-dot.red {
+  background: var(--danger);
+}
+.author {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font: 500 13px/1 var(--sans);
+  color: var(--ink);
+  white-space: nowrap;
+}
+.author-av {
+  width: 24px;
+  height: 24px;
+  flex: none;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  font: 600 10px/1 var(--sans);
+  color: var(--ink2);
+}
+.when-cell {
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* rail: comments / symbols / files */
+.link-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  font: 600 12px/1 var(--sans);
+  color: var(--accent);
+}
+.link-btn:hover {
+  color: var(--accent-hover);
+  text-decoration: underline;
+}
+.cmt-list {
+  display: flex;
+  flex-direction: column;
+}
+.cmt {
+  padding: 12px 0;
+  border-top: 1px solid var(--line2);
+}
+.cmt:first-child {
+  padding-top: 4px;
+  border-top: none;
+}
+.cmt-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.cmt-av {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  font: 600 9.5px/1 var(--sans);
+  color: var(--ink2);
+}
+.cmt-who {
+  font: 600 12.5px/1 var(--sans);
+  color: var(--ink-title);
+}
+.cmt-time {
+  margin-left: auto;
+  font: 500 11.5px/1 var(--sans);
+  color: var(--ink3);
+}
+.cmt-body {
+  margin: 8px 0 8px;
+  font: 400 12.5px/1.5 var(--sans);
+  color: var(--ink2);
+}
+.sym-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.sym-chip {
+  font: 500 12px/1 var(--mono);
+  color: var(--ink2);
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 5px 8px;
+}
+.file-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.file-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 0;
+}
+.file-ico {
+  width: 30px;
+  height: 30px;
+  flex: none;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line);
+  display: grid;
+  place-items: center;
+  color: #202124;
+}
+.file-name {
+  font: 600 12.5px/1.3 var(--mono);
+  color: var(--ink-title);
+}
+.file-detail {
+  font: 400 11.5px/1.3 var(--sans);
+  color: var(--ink3);
+  margin-top: 2px;
+}
+.rail-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.btn-approve {
+  background: var(--add);
+  color: #fff;
+}
+.btn-approve:hover {
+  background: #14702f;
+}
+
+/* ============ Repository detail page ============ */
+.crumb {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font: 500 13px/1 var(--sans);
+  color: var(--ink3);
+  margin-bottom: 16px;
+}
+.crumb a {
+  color: var(--ink2);
+  text-decoration: none;
+}
+.crumb a:hover {
+  color: var(--ink);
+}
+.crumb span {
+  color: var(--ink-title);
+  font-weight: 600;
+}
+.crumb .crumb-sep {
+  color: var(--ink3);
+  font-weight: 400;
+}
+
+/* tabs */
+.repo-tabs {
+  display: flex;
+  gap: 2px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 20px;
+  overflow-x: auto;
+}
+.repo-tab {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: none;
+  background: none;
+  padding: 10px 12px;
+  margin-bottom: -1px;
+  border-bottom: 3px solid transparent;
+  font: 500 13.5px/1 var(--sans);
+  color: var(--ink2);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.repo-tab svg {
+  color: var(--ink3);
+}
+.repo-tab.active svg {
+  color: var(--ink-title);
+}
+.repo-tab:hover {
+  color: var(--ink);
+}
+.repo-tab.active {
+  color: var(--ink-title);
+  font-weight: 600;
+  border-bottom-color: var(--ink-title);
+}
+
+/* content grid */
+.repo-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 24px;
+  align-items: start;
+}
+.repo-col {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+.repo-rail {
+  position: sticky;
+  top: 20px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* cards */
+.rcard {
+  border: 1px solid var(--line);
+  background: var(--panel);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+}
+.rcard-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 13px 16px;
+  border-bottom: 1px solid var(--line2);
+}
+.rcard-title {
+  font: 650 14px/1 var(--sans);
+  color: var(--ink-title);
+}
+.rcard-empty {
+  padding: 20px 16px;
+  font: 400 13px/1.5 var(--sans);
+  color: var(--ink3);
+}
+.rcard .dtable th {
+  padding: 0 16px;
+  height: 40px;
+}
+.rcard .dtable td {
+  padding: 12px 16px;
+}
+
+/* table cells specific to repo */
+.hash {
+  font: 500 12.5px/1 var(--mono);
+  color: var(--ink2);
+}
+.cell-strong {
+  font: 500 13px/1.4 var(--sans);
+  color: var(--ink);
+}
+.branch-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: 500 13px/1 var(--sans);
+  color: var(--ink);
+}
+.mini-badge {
+  font: 600 10.5px/1 var(--sans);
+  color: var(--ink2);
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 3px 6px;
+}
+.branch-msg {
+  margin-left: 8px;
+  font: 400 12.5px/1 var(--sans);
+  color: var(--ink3);
+}
+/* badge: merged */
+.badge.purple {
+  color: var(--purple);
+  background: var(--purple-bg);
+  border-color: var(--purple-line);
+}
+
+.mini-badge.accent {
+  color: var(--accent);
+  background: var(--accent-weak);
+  border-color: var(--blue-line);
+}
+.ba {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  font: 500 12.5px/1 var(--sans);
+  color: var(--ink2);
+}
+.commit-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.commit-msg {
+  font: 400 12.5px/1.3 var(--sans);
+  color: var(--ink3);
+}
+.branches-toolbar .toolbar-search {
+  flex: none;
+  width: 260px;
+}
+.branches-toolbar .btn {
+  margin-left: auto;
+}
+.branches-rail {
+  gap: 16px;
+}
+.branch-link {
+  color: var(--ink);
+  text-decoration: none;
+}
+.branch-link:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+/* ===== branch view (code at a branch) ===== */
+.branch-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--panel);
+  font: 600 13px/1 var(--sans);
+  color: var(--ink);
+  cursor: pointer;
+}
+.branch-switch:hover {
+  background: var(--hover);
+}
+.branch-files {
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--panel);
+  overflow: hidden;
+}
+.commit-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel2);
+}
+.commit-bar-msg {
+  flex: 1;
+  min-width: 0;
+  font: 400 13px/1.4 var(--sans);
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.commit-bar-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  flex: none;
+}
+.commit-bar-time {
+  font: 400 12.5px/1 var(--sans);
+  color: var(--ink3);
+}
+
+/* ===== code tab (files + commits + branch picker) ===== */
+.code-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.code-bar-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+/* Explorer view — single full-width column of stacked cards */
+.explorer {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+/* The info banner spans the column, so the parent gap owns its spacing. */
+.explorer .rail-callout {
+  margin-top: 0;
+}
+/* keyboard hint chip inside the Explorer search field */
+.search-kbd {
+  flex: none;
+  font: 500 11px/1 var(--mono);
+  color: var(--ink3);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 3px 5px;
+}
+.pager {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink2);
+}
+.pager-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--panel);
+  color: var(--ink2);
+  cursor: pointer;
+}
+.pager-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.branch-picker {
+  position: relative;
+  flex: none;
+}
+.branch-switch-name {
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.branch-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 20;
+  width: 290px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.13);
+  overflow: hidden;
+}
+.branch-menu-head {
+  padding: 10px 12px;
+  font: 600 12px/1 var(--sans);
+  color: var(--ink2);
+  border-bottom: 1px solid var(--line2);
+  background: var(--panel2);
+}
+.branch-menu-list {
+  max-height: 300px;
+  overflow-y: auto;
+  padding: 4px;
+}
+.branch-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 9px;
+  border: none;
+  background: none;
+  border-radius: var(--r-sm);
+  font: 500 13px/1 var(--sans);
+  color: var(--ink);
+  cursor: pointer;
+  text-align: left;
+}
+.branch-menu-item svg {
+  flex: none;
+  color: var(--ink3);
+}
+.branch-menu-item:hover {
+  background: var(--hover);
+}
+.branch-menu-item.active {
+  background: var(--accent-weak);
+}
+.bmi-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.branch-menu-item .bmi-check {
+  color: var(--accent);
+}
+.about-body {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.about-intro {
+  margin: 0;
+  font: 400 13px/1.55 var(--sans);
+  color: var(--ink);
+}
+.about-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+}
+.about-ico {
+  flex: none;
+  margin-top: 1px;
+  color: var(--ink);
+}
+.about-item-title {
+  font: 600 13px/1.3 var(--sans);
+  color: var(--ink-title);
+  margin-bottom: 2px;
+}
+.about-item-desc {
+  font: 400 12.5px/1.5 var(--sans);
+  color: var(--ink);
+}
+.merged-body {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.merged-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.merged-name {
+  font: 600 13px/1.3 var(--sans);
+  color: var(--ink-title);
+}
+.merged-sub {
+  font: 400 12.5px/1 var(--sans);
+  color: var(--ink3);
+}
+.merged-all {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+/* rail: key/value */
+.kv {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+}
+.kv-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 8px 0;
+  border-top: 1px solid var(--line2);
+}
+.kv-row:first-child {
+  border-top: none;
+  padding-top: 2px;
+}
+.kv-row dt {
+  font: 500 12.5px/1.4 var(--sans);
+  color: var(--ink3);
+  flex: none;
+}
+.kv-row dd {
+  margin: 0;
+  font: 500 12.5px/1.4 var(--sans);
+  color: var(--ink);
+  text-align: right;
+  min-width: 0;
+}
+
+/* rail: tags */
+.tag-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.tag-chip {
+  font: 500 12px/1 var(--sans);
+  color: var(--ink2);
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 5px 9px;
+}
+.tag-chip.green {
+  color: var(--add);
+  background: var(--add-bg);
+  border-color: var(--add-line);
+}
+.tag-chip.red {
+  color: var(--danger);
+  background: var(--danger-bg);
+  border-color: #f3cdc9;
+}
+.tag-chip.blue {
+  color: var(--accent);
+  background: var(--accent-weak);
+  border-color: var(--blue-line);
+}
+.tag-add {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  padding: 0;
+  border: 1px dashed var(--border);
+  border-radius: var(--r-sm);
+  background: none;
+  color: var(--ink3);
+  cursor: pointer;
+}
+.tag-add:hover {
+  color: var(--ink);
+  border-color: var(--ink3);
+}
+
+/* rail: controller connection */
+.conn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: 600 12.5px/1 var(--sans);
+}
+.conn-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: none;
+}
+.conn.online {
+  color: var(--add);
+}
+.conn.online .conn-dot {
+  background: var(--add);
+}
+.conn.offline {
+  color: var(--ink3);
+}
+.conn.offline .conn-dot {
+  background: var(--ink3);
+}
+.sync-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+  font: 500 12px/1 var(--sans);
+  color: var(--add);
+}
+.sync-note .conn-dot {
+  background: var(--add);
+}
+
+/* files table — compact rows */
+.files-table .dtable th {
+  height: 38px;
+  padding: 0 18px;
+}
+.files-table .dtable td {
+  padding: 9px 18px;
+}
+.files-table .dtable tbody tr {
+  height: 44px;
+}
+.file-cell {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+.file-kind {
+  display: inline-flex;
+  flex: none;
+  color: var(--ink2);
+}
+.file-cell-name {
+  font: 500 13px/1 var(--mono);
+  color: var(--ink-title);
+}
+a.file-cell {
+  text-decoration: none;
+}
+a.file-cell:hover .file-cell-name {
+  color: var(--accent);
+}
+
+/* file view */
+.fv-routines {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.fv-rungs {
+  padding: 12px 14px;
+}
+.fv-rung-count {
+  font: 500 12px/1 var(--mono);
+  color: var(--ink3);
+}
+.fv-key {
+  font: 500 12.5px/1 var(--mono) !important;
+  color: var(--ink-title) !important;
+}
+.fv-text {
+  margin: 0;
+  padding: 18px 20px;
+  font: 400 13px/1.7 var(--mono);
+  color: var(--ink);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* rail: files */
+.files-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.files-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font: 500 13px/1 var(--sans);
+  color: var(--ink);
+}
+.files-size {
+  font: 400 12px/1 var(--sans);
+  color: var(--ink3);
+}
+
+.crlink {
+  text-decoration: none;
+}
+.crlink:hover {
+  color: var(--accent);
+}
+.crtitle {
+  color: inherit;
+  text-decoration: none;
+}
+.crtitle:hover {
+  color: var(--accent);
+}
+
+/* ============ Merge request page ============ */
+.mr-page {
+  padding: 20px 36px 44px;
+}
+
+/* header */
+.mr-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+.mr-back {
+  width: 34px;
+  height: 34px;
+  flex: none;
+  margin-top: 2px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line);
+  background: var(--panel);
+  display: grid;
+  place-items: center;
+  color: var(--ink2);
+  text-decoration: none;
+}
+.mr-back:hover {
+  background: var(--panel2);
+  color: var(--ink);
+}
+.mr-head-main {
+  flex: 1;
+  min-width: 0;
+}
+.mr-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.mr-id {
+  font: 600 12.5px/1 var(--mono);
+  color: var(--ink2);
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 5px 8px;
+}
+.mr-title {
+  margin: 0;
+  font: 650 24px/1.15 var(--sans);
+  letter-spacing: -0.02em;
+  color: var(--ink-title);
+}
+.mr-sub {
+  margin: 7px 0 0;
+  font: 400 13.5px/1.4 var(--sans);
+  color: var(--ink2);
+}
+.mr-branch {
+  font: 600 12.5px/1 var(--mono);
+  color: var(--ink);
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 2px 6px;
+}
+.mr-actions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+/* meta row */
+.mr-meta {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--panel);
+  overflow: hidden;
+  margin-bottom: 24px;
+}
+/* Four-up variant used for the page-level stat strip. */
+.mr-meta.stat-meta {
+  grid-template-columns: repeat(4, 1fr);
+  margin-bottom: 16px;
+}
+/* Five-up stat strip used on the repository detail page. */
+.mr-meta.stat-meta.repo-meta {
+  grid-template-columns: repeat(3, 1fr);
+}
+/* Smaller stat value for cells that hold a longer string. */
+.stat-value.stat-value-sm {
+  font: 650 15px/22px var(--sans);
+  letter-spacing: -0.01em;
+}
+
+/* Repository header icon tile — larger than the list-row icon. */
+.repo-ico.repo-head-tile {
+  width: 38px;
+  height: 38px;
+  border-radius: var(--r-md);
+  flex: none;
+  margin-top: 2px;
+}
+
+/* Star/watch toggle beside the repository title. */
+.repo-star {
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--panel);
+  color: var(--ink3);
+  cursor: pointer;
+}
+.repo-star:hover {
+  color: var(--ink);
+  border-color: var(--border);
+}
+.repo-star.active {
+  color: var(--mod);
+  border-color: var(--mod-line);
+  background: var(--mod-bg);
+}
+
+/* Controller + status chips under the repository description. */
+.repo-head-chips {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+.repo-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 9px;
+  font: 500 12px/16px var(--sans);
+  color: var(--blue);
+  background: var(--blue-bg);
+  border: 1px solid var(--blue-line);
+  border-radius: var(--r-sm);
+}
+
+/* Repository tab strip — allow horizontal scroll when the tabs overflow. */
+.pr-tabs.repo-tabs2 {
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.pr-tabs.repo-tabs2::-webkit-scrollbar {
+  display: none;
+}
+
+/* Branch ahead / behind cell on the repository detail page. */
+.branch-ab {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+.ab-ahead,
+.ab-behind {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font: 500 12.5px/1 var(--sans);
+}
+.ab-ahead {
+  color: var(--add);
+}
+.ab-behind {
+  color: var(--ink3);
+}
+.stat-meta .mr-meta-card {
+  display: flex;
+  flex-direction: column;
+}
+.mr-meta-card {
+  padding: 14px 16px;
+  border-right: 1px solid var(--line2);
+  min-width: 0;
+}
+.mr-meta-card:last-child {
+  border-right: none;
+}
+.mr-meta-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font: 500 11.5px/1 var(--sans);
+  color: var(--ink3);
+  margin-bottom: 10px;
+}
+.mr-meta-ico {
+  display: inline-flex;
+  color: var(--ink3);
+}
+.mr-meta-val {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.mr-meta-mono {
+  font: 600 13px/1.2 var(--mono);
+  color: var(--ink-title);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mr-meta-strong {
+  font: 600 13px/1.2 var(--sans);
+  color: var(--ink-title);
+}
+.mr-meta-sub {
+  font: 400 11.5px/1.3 var(--sans);
+  color: var(--ink3);
+}
+.mr-avstack {
+  display: flex;
+}
+.mr-av {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--panel2);
+  border: 1px solid var(--panel);
+  box-shadow: 0 0 0 1px var(--line);
+  font: 600 9.5px/1 var(--sans);
+  color: var(--ink2);
+  margin-left: -6px;
+}
+.mr-av:first-child {
+  margin-left: 0;
+}
+
+/* main grid reuses repo-grid; widen the rail slightly */
+.mr-grid {
+  grid-template-columns: minmax(0, 1fr) 296px;
+}
+
+/* merge summary card */
+.mr-summary-body {
+  display: flex;
+  gap: 24px;
+  padding: 16px;
+}
+.mr-summary-text {
+  flex: 1;
+  min-width: 0;
+}
+.mr-summary-lede {
+  margin: 0;
+  font: 400 13.5px/1.6 var(--sans);
+  color: var(--ink2);
+}
+.mr-summary-list {
+  margin: 12px 0 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.mr-summary-list li {
+  font: 400 13px/1.5 var(--sans);
+  color: var(--ink2);
+}
+.mr-summary-stats {
+  flex: none;
+  width: 168px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.mr-sstat {
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--panel);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.mr-sstat-ico {
+  color: var(--ink3);
+  margin-bottom: 2px;
+}
+.mr-sstat.orange {
+  border-color: var(--mod-line);
+  background: var(--mod-bg);
+}
+.mr-sstat.orange .mr-sstat-ico,
+.mr-sstat.orange .mr-sstat-num {
+  color: var(--mod);
+}
+.mr-sstat-num {
+  font: 650 18px/1 var(--sans);
+  letter-spacing: -0.02em;
+  color: var(--ink-title);
+}
+.mr-sstat-label {
+  font: 500 10.5px/1.3 var(--sans);
+  color: var(--ink3);
+}
+
+/* section blocks (ladder / structured text / discussion) */
+.mr-section {
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--panel);
+  overflow: hidden;
+}
+.mr-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 13px 16px;
+  border-bottom: 1px solid var(--line2);
+}
+.mr-section-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font: 650 14px/1 var(--sans);
+  color: var(--ink-title);
+}
+.mr-section-count {
+  font: 500 11.5px/1 var(--sans);
+  color: var(--ink3);
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 3px 9px;
+}
+.mr-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font: 500 12.5px/1 var(--sans);
+  color: var(--ink2);
+  cursor: pointer;
+  user-select: none;
+}
+.mr-toggle input {
+  width: 14px;
+  height: 14px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+/* diff panels inside a section: drop their own outline, sit flush */
+.mr-section .diff-panels {
+  margin: 0;
+  padding: 14px;
+  gap: 14px;
+}
+
+/* structured-text code diff */
+.code-diff {
+  padding: 8px 0;
+  overflow-x: auto;
+  font: 400 12.5px/1.7 var(--mono);
+}
+.code-line {
+  display: flex;
+  align-items: baseline;
+  padding: 0 12px;
+  white-space: pre;
+}
+.cl-num {
+  flex: none;
+  width: 30px;
+  text-align: right;
+  margin-right: 12px;
+  color: var(--ink4);
+  user-select: none;
+}
+.cl-sign {
+  flex: none;
+  width: 12px;
+  color: var(--ink4);
+}
+.cl-text {
+  color: var(--ink);
+}
+.diff-left .cl-removed {
+  background: var(--danger-bg);
+}
+.diff-left .cl-removed .cl-text,
+.diff-left .cl-removed .cl-sign {
+  color: var(--danger);
+}
+.diff-right .cl-added {
+  background: var(--add-bg);
+}
+.diff-right .cl-added .cl-text,
+.diff-right .cl-added .cl-sign {
+  color: var(--add);
+}
+
+/* discussion */
+.disc-list {
+  padding: 4px 16px 16px;
+}
+.disc-item {
+  display: flex;
+  gap: 12px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--line2);
+}
+.disc-item:last-of-type {
+  border-bottom: none;
+}
+.disc-av {
+  width: 30px;
+  height: 30px;
+  flex: none;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  font: 600 11px/1 var(--sans);
+  color: var(--ink2);
+}
+.disc-main {
+  flex: 1;
+  min-width: 0;
+}
+.disc-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.disc-who {
+  font: 600 13px/1 var(--sans);
+  color: var(--ink-title);
+}
+.disc-role {
+  font: 500 10.5px/1 var(--sans);
+  color: var(--ink3);
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 3px 6px;
+}
+.disc-role.author {
+  color: var(--accent);
+  background: var(--accent-weak);
+  border-color: var(--blue-line);
+}
+.disc-on {
+  font: 500 12px/1 var(--sans);
+  color: var(--accent);
+}
+.disc-time {
+  margin-left: auto;
+  font: 500 11.5px/1 var(--sans);
+  color: var(--ink3);
+}
+.disc-body {
+  margin: 8px 0 0;
+  font: 400 13px/1.55 var(--sans);
+  color: var(--ink2);
+}
+.disc-reply {
+  padding-top: 16px;
+}
+
+/* rail: checks banner */
+.mr-checkbanner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.mr-checkbanner-ico {
+  width: 34px;
+  height: 34px;
+  flex: none;
+  border-radius: var(--r-md);
+  display: grid;
+  place-items: center;
+}
+.mr-checkbanner.green .mr-checkbanner-ico {
+  color: var(--add);
+  background: var(--add-bg);
+}
+.mr-checkbanner.orange .mr-checkbanner-ico {
+  color: var(--mod);
+  background: var(--mod-bg);
+}
+.mr-checkbanner.red .mr-checkbanner-ico {
+  color: var(--danger);
+  background: var(--danger-bg);
+}
+.mr-checkbanner-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.mr-checkbanner-text {
+  font: 600 13px/1.2 var(--sans);
+  color: var(--ink-title);
+}
+
+/* rail: reviewers */
+.rv-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.rv-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.rv-meta {
+  flex: 1;
+  min-width: 0;
+}
+.rv-name {
+  font: 600 12.5px/1.2 var(--sans);
+  color: var(--ink-title);
+}
+.rv-role {
+  font: 400 11px/1.3 var(--sans);
+  color: var(--ink3);
+  margin-top: 1px;
+}
+.mr-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font: 500 11.5px/1 var(--sans);
+  white-space: nowrap;
+}
+.mr-state-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.mr-state.green {
+  color: var(--add);
+}
+.mr-state.orange {
+  color: var(--mod);
+}
+.mr-state.red {
+  color: var(--danger);
+}
+.mr-state.gray {
+  color: var(--ink3);
+}
+
+/* rail: checks list */
+.chk-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.chk-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.chk-ico {
+  display: inline-flex;
+}
+.chk-ico.green {
+  color: var(--add);
+}
+.chk-ico.orange,
+.chk-ico.gray {
+  color: var(--ink3);
+}
+.chk-ico.red {
+  color: var(--danger);
+}
+.chk-label {
+  flex: 1;
+  font: 500 12.5px/1.3 var(--sans);
+  color: var(--ink);
+}
+.chk-state {
+  font: 500 11.5px/1 var(--sans);
+}
+.chk-state.green {
+  color: var(--add);
+}
+.chk-state.orange,
+.chk-state.gray {
+  color: var(--ink3);
+}
+.chk-state.red {
+  color: var(--danger);
+}
+
+/* rail: merge details */
+.md-rows {
+  margin: 0 0 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.md-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.md-label {
+  font: 400 12.5px/1.3 var(--sans);
+  color: var(--ink3);
+}
+.md-val {
+  margin: 0;
+  font: 500 12.5px/1.3 var(--sans);
+  color: var(--ink);
+  text-align: right;
+}
+.md-val.mono {
+  font-family: var(--mono);
+  font-weight: 600;
+}
+.md-changed-head {
+  font: 500 11.5px/1 var(--sans);
+  color: var(--ink3);
+  padding-top: 12px;
+  border-top: 1px solid var(--line2);
+  margin-bottom: 10px;
+}
+.md-changed {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.md-changed-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink3);
+}
+.md-changed-name {
+  font: 500 12.5px/1.3 var(--sans);
+  color: var(--ink);
+}
+.md-changed-val {
+  margin-left: auto;
+  font: 400 11.5px/1.3 var(--sans);
+  color: var(--ink3);
+}
+
+/* rail: ready to merge */
+.mr-merge-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.mr-merge-title {
+  font: 650 14px/1.2 var(--sans);
+  color: var(--ink-title);
+}
+.mr-merge-note {
+  margin: 0 0 2px;
+  font: 400 12px/1.5 var(--sans);
+  color: var(--ink3);
+}
+
+@media (max-width: 1080px) {
+  .page-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .page-rail {
+    position: static;
+  }
+  .commit-tree-diff {
+    grid-template-columns: minmax(0, 1fr);
+    /* Stacked single column: drop the row floor so the tree doesn't carry a
+       forced gap above the stage. */
+    min-height: 0;
+  }
+  .tree-rail {
+    position: static;
+  }
+  /* Single column: the tree stacks above the diff, so it can't borrow the
+     diff's height — cap it directly and scroll inside. */
+  .tree-rail > .project-tree {
+    position: static;
+    max-height: 340px;
+  }
+  .repo-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .repo-rail {
+    position: static;
+  }
+  .mr-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ============ Pull request page (refined review view) ============ */
+/* Header: decorative PR glyph, bold id beside the title, inline status. */
+.mr-glyph {
+  width: 34px;
+  height: 34px;
+  flex: none;
+  margin-top: 2px;
+  display: grid;
+  place-items: center;
+  color: var(--accent);
+}
+.pr-id {
+  font: 650 24px/1.15 var(--sans);
+  letter-spacing: -0.02em;
+  color: var(--ink-title);
+}
+.pr-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: 600 13px/1 var(--sans);
+}
+.pr-status.blue {
+  color: var(--accent);
+}
+.pr-status.green {
+  color: var(--add);
+}
+.pr-status.orange {
+  color: var(--mod);
+}
+.pr-status.red {
+  color: var(--danger);
+}
+.pr-status.purple {
+  color: var(--purple);
+}
+.pr-status.gray {
+  color: var(--ink2);
+}
+
+/* Meta row: five cards, reviewers shows an avatar stack over names. */
+.mr-meta {
+  grid-template-columns: repeat(5, 1fr);
+}
+.mr-rev-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 24px;
+  min-width: 0;
+}
+.mr-rev-names {
+  font: 500 12.5px/1.3 var(--sans);
+  color: var(--ink2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Branch names read as bold sans (not mono) in the meta cards. */
+.mr-meta-mono {
+  font-family: var(--sans);
+}
+/* Lead reviewer avatar is solid dark with white initials. */
+.mr-av:first-child {
+  background: var(--ink-title);
+  color: #fff;
+}
+
+/* Pull request summary: borderless block, stats in a horizontal strip. */
+.pr-summary {
+  margin-bottom: 22px;
+}
+.pr-summary-title {
+  margin: 0 0 12px;
+  font: 650 15px/1 var(--sans);
+  color: var(--ink-title);
+}
+.pr-summary-body {
+  display: flex;
+  gap: 36px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+.pr-summary-text {
+  flex: 1;
+  min-width: 0;
+}
+.pr-summary-stats {
+  flex: none;
+  display: flex;
+  gap: 28px;
+  padding-top: 2px;
+}
+.pr-sstat {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.pr-sstat-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 20px;
+}
+.pr-sstat-ico {
+  display: inline-flex;
+  color: var(--ink3);
+}
+.pr-sstat-num {
+  font: 650 20px/1 var(--sans);
+  letter-spacing: -0.02em;
+  color: var(--ink-title);
+}
+.pr-sstat-label {
+  font: 500 11.5px/1.35 var(--sans);
+  color: var(--ink3);
+  max-width: 96px;
+}
+.pr-sstat.orange .pr-sstat-ico,
+.pr-sstat.orange .pr-sstat-label {
+  color: var(--mod);
+}
+
+/* Tab strip above the change content. */
+.pr-tabs {
+  display: flex;
+  align-items: center;
+  gap: 26px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 4px;
+}
+.pr-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 11px 1px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font: 600 13.5px/1 var(--sans);
+  color: var(--ink3);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+.pr-tab:hover {
+  color: var(--ink);
+}
+.pr-tab.active {
+  color: var(--ink-title);
+  border-bottom-color: var(--ink-title);
+}
+.pr-tab-count {
+  font: 600 11.5px/1 var(--sans);
+  color: var(--ink3);
+}
+
+/* Commits tab: commit rows grouped by day, each linking to its review page. */
+.mr-commits {
+  border: none;
+  background: none;
+  overflow: visible;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.mr-commits-day {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.mr-commits-daylabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font: 600 12.5px/1 var(--sans);
+  color: var(--ink3);
+}
+.mr-commits-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--panel);
+  overflow: hidden;
+}
+.mr-commits-rows > li + li {
+  border-top: 1px solid var(--line2);
+}
+.mr-commit-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+  padding: 12px 16px;
+  text-decoration: none;
+  color: inherit;
+}
+a.mr-commit-row:hover {
+  background: var(--panel2);
+}
+.mr-commit-main {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.mr-commit-msg {
+  font: 600 13.5px/1.3 var(--sans);
+  color: var(--ink-title);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mr-commit-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font: 500 12px/1 var(--sans);
+  color: var(--ink3);
+}
+.mr-commit-dot {
+  color: var(--ink4);
+}
+.mr-commit-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  flex: none;
+}
+.mr-commit-diffstat {
+  display: inline-flex;
+  gap: 7px;
+  font: 600 12px/1 var(--mono);
+}
+.mr-commit-diffstat .dadd {
+  color: var(--add);
+}
+.mr-commit-diffstat .ddel {
+  color: var(--danger);
+}
+.mr-commit-sha {
+  font: 600 12px/1 var(--mono);
+  color: var(--ink2);
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 4px 8px;
+}
+
+/* Files tab: a compact list of the changed files. */
+.mr-files {
+  border: none;
+  background: none;
+  overflow: visible;
+}
+.mr-files-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--panel);
+  overflow: hidden;
+}
+.mr-files-rows > li + li {
+  border-top: 1px solid var(--line2);
+}
+.mr-file-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 16px;
+  border: none;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+.mr-file-row:hover {
+  background: var(--panel2);
+}
+.mr-file-name {
+  font: 650 13px/1 var(--mono);
+  color: var(--ink-title);
+}
+.mr-file-stat {
+  margin-left: auto;
+  font: 500 12px/1 var(--sans);
+  color: var(--ink3);
+}
+.mr-empty {
+  padding: 28px 16px;
+  text-align: center;
+  font: 500 13px/1.5 var(--sans);
+  color: var(--ink3);
+}
+
+/* Section heads: numbered prefix, plain-text counts, right-aligned tools. */
+.mr-section-num {
+  color: var(--ink-title);
+  font-weight: 650;
+  margin-right: -4px;
+}
+.mr-section-count {
+  background: none;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  font: 500 12.5px/1 var(--sans);
+  color: var(--ink3);
+}
+.mr-section-file {
+  font: 600 12.5px/1 var(--mono);
+  color: var(--ink2);
+}
+.mr-section-tools {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.mr-section-tools .zoom {
+  margin-left: 0;
+}
+.mr-fs {
+  display: inline-flex;
+  border: none;
+  background: none;
+  padding: 4px;
+  border-radius: 6px;
+  color: var(--ink3);
+  cursor: pointer;
+}
+.mr-fs:hover {
+  background: var(--panel2);
+  color: var(--ink);
+}
+/* Wraps the shared LadderDiff renderer inside the numbered section card. */
+.mr-ladderwrap {
+  padding: 14px;
+}
+.mr-ladderwrap .ladder-diff-doc {
+  gap: 0;
+}
+/* On this page the diff header is smaller and drops the rung count. */
+.mr-ladderwrap .lad-col-ver {
+  font-size: 12.5px;
+}
+.mr-ladderwrap .lad-col-count {
+  display: none;
+}
+
+/* Changes grouped by file: toolbar, file cards, per-routine blocks. */
+.pr-changes-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.pr-changes-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font: 650 14px/1 var(--sans);
+  color: var(--ink-title);
+}
+.pr-file-ico {
+  display: inline-flex;
+  color: var(--ink2);
+}
+.pr-file-name {
+  font: 650 13.5px/1 var(--mono);
+  color: var(--ink-title);
+}
+.pr-file-body {
+  display: flex;
+  flex-direction: column;
+}
+/* Routine block within a file: a quiet sub-header, then its diff. */
+.pr-routine + .pr-routine {
+  border-top: 1px solid var(--line);
+}
+.pr-routine-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: var(--panel2);
+  border-bottom: 1px solid var(--line2);
+}
+.pr-routine-name {
+  font: 600 13px/1 var(--sans);
+  color: var(--ink-title);
+}
+
+/* Side-by-side diff: two outlined panels with a transparent centre channel
+   carrying per-row change markers. Per-cell borders keep each row's two sides
+   and its marker on the same baseline. */
+.mr-sxs {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 14px minmax(0, 1fr);
+  align-items: stretch;
+  padding: 16px;
+}
+/* Dark header bar, matching the ladder diff's .lad-col-head design. */
+.sxs-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 16px;
+  background: #1f242b;
+}
+.sxs-head-l {
+  border: 1px solid #1f242b;
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
+}
+.sxs-head-r {
+  border: 1px solid #1f242b;
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
+}
+.sxs-head-ver {
+  font: 700 12.5px/1 var(--mono);
+  color: #fff;
+}
+.sxs-head.sxs-gut {
+  background: transparent;
+  border: none;
+}
+.sxs-cell {
+  padding: 8px 12px;
+  background: var(--panel);
+  border-left: 1px solid var(--line);
+  border-right: 1px solid var(--line);
+  overflow-x: auto;
+}
+.sxs-cell.sxs-last {
+  border-bottom: 1px solid var(--line);
+  border-radius: 0 0 var(--r-lg) var(--r-lg);
+}
+.sxs-gut {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+/* Inside a panel cell the rung shouldn't carry its own bottom gap. */
+.sxs-cell .rung {
+  margin-bottom: 0;
+}
+/* Darker rung numbers and sans-serif instruction tags, scoped to this view. */
+.mr-sxs .rung-num {
+  color: var(--ink2);
+  font-weight: 600;
+}
+.mr-sxs .el-tag {
+  font-family: var(--sans);
+}
+
+/* Structured-text variant of the side-by-side grid. */
+.mr-sxs-code .sxs-cell {
+  padding: 3px 12px;
+}
+.mr-sxs-code .sxs-l.sxs-last,
+.mr-sxs-code .sxs-r.sxs-last {
+  padding-bottom: 10px;
+}
+.cd-line {
+  display: flex;
+  align-items: baseline;
+  font: 400 12.5px/1.75 var(--mono);
+  white-space: pre;
+}
+.cd-num {
+  flex: none;
+  width: 26px;
+  text-align: right;
+  margin-right: 16px;
+  color: var(--ink4);
+  user-select: none;
+}
+.cd-code {
+  color: var(--ink);
+}
+.tok-kw {
+  color: var(--accent);
+  font-weight: 600;
+}
+.tok-add {
+  color: var(--add);
+  font-weight: 600;
+}
+.tok-rem {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+/* Discussion: comment body on the left, time + actions stacked on the right. */
+.disc-main {
+  display: flex;
+  gap: 18px;
+  align-items: flex-start;
+}
+.disc-content {
+  flex: 1;
+  min-width: 0;
+}
+.disc-role {
+  background: none;
+  border: none;
+  padding: 0;
+  font: 500 12px/1 var(--sans);
+  color: var(--ink3);
+}
+.disc-role.author {
+  background: none;
+  border: none;
+  color: var(--ink3);
+}
+.disc-time {
+  margin-left: 0;
+}
+.disc-aside {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 16px;
+}
+.disc-aside-top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.disc-aside-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.disc-kebab,
+.disc-like {
+  display: inline-flex;
+  border: none;
+  background: none;
+  padding: 2px;
+  border-radius: 6px;
+  color: var(--ink3);
+  cursor: pointer;
+}
+.disc-kebab:hover,
+.disc-like:hover {
+  background: var(--panel2);
+  color: var(--ink);
+}
+.disc-reply-btn {
+  border: none;
+  background: none;
+  padding: 0;
+  font: 600 12.5px/1 var(--sans);
+  color: var(--ink2);
+  cursor: pointer;
+}
+.disc-reply-btn:hover {
+  color: var(--ink);
+}
+
+/* Comment composer at the foot of the discussion. */
+.disc-composer {
+  display: flex;
+  gap: 12px;
+  padding-top: 16px;
+  margin-top: 4px;
+  border-top: 1px solid var(--line2);
+}
+.disc-composer-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.disc-composer-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+.disc-composer-error {
+  font: 500 12.5px/1.4 var(--sans);
+  color: var(--danger);
+}
+
+/* Rail reviewer / check rows use an icon to carry state. */
+.mr-state {
+  gap: 5px;
+}
+.chk-ico.orange {
+  color: var(--mod);
+}
+
+/* Impacted tags render as plain spaced text, not pills, on this rail. */
+.pr-tags {
+  column-gap: 22px;
+  row-gap: 13px;
+}
+.pr-tags .sym-chip {
+  background: none;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  color: var(--ink2);
+}
+
+/* Pull request details: label + value as two left-aligned columns. */
+.md-row {
+  display: grid;
+  grid-template-columns: 104px 1fr;
+  gap: 12px;
+  align-items: baseline;
+}
+.md-val {
+  text-align: left;
+}
+
+/* Borderless, full-width text button (rail "Request changes"). */
+.btn-text {
+  background: none;
+  border: none;
+  color: var(--ink);
+}
+.btn-text:hover {
+  background: var(--panel2);
+}
+/* Give the merge actions some breathing room below the note. */
+.mr-merge-card .btn-approve {
+  margin-top: 14px;
+}
+
+@media (max-width: 1080px) {
+  .pr-summary-body {
+    flex-direction: column;
+    gap: 18px;
+  }
+  .pr-summary-stats {
+    flex-wrap: wrap;
+  }
+}
+@media (max-width: 980px) {
+  .mr-meta:not(.stat-meta) {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .mr-meta:not(.stat-meta) .mr-meta-card:nth-child(3n) {
+    border-right: none;
+  }
+  .mr-meta:not(.stat-meta) .mr-meta-card:nth-child(-n + 3) {
+    border-bottom: 1px solid var(--line2);
+  }
+  .mr-meta.stat-meta {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .mr-meta.stat-meta.repo-meta {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .mr-meta.stat-meta .mr-meta-card:nth-child(2n) {
+    border-right: none;
+  }
+  .mr-meta.stat-meta .mr-meta-card:nth-child(-n + 2) {
+    border-bottom: 1px solid var(--line2);
+  }
+  .mr-summary-body {
+    flex-direction: column;
+  }
+  .mr-summary-stats {
+    width: 100%;
+    grid-template-columns: repeat(4, 1fr);
+  }
+  .repo-stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .cmp-summary {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .diff-panels {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 720px) {
+  .stat-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .list-toolbar {
+    flex-wrap: wrap;
+  }
+}
+
+/* ============ Upload & commit page ============ */
+.commit-branch {
+  max-width: 320px;
+  margin-bottom: 20px;
+}
+.commit-error {
+  margin-bottom: 18px;
+}
+
+/* Commit page: the side-by-side ladder diff is the focus and needs the full
+   page width, so this layout drops the right rail and runs a single column. */
+.commit-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* With the organizer tree, the commit page runs a fixed left sidebar plus the
+   diff. The diff column stays minmax(0,1fr) so wide rungs scroll inside it
+   rather than stretching the grid. */
+/* ---- Project organizer tree + diff (commit page) ---- */
+/* The tree and the diff sit side by side, below the full-width header, stats,
+   and files. The row stretches both columns to the same height; the tree
+   contributes no intrinsic height (its content is absolutely positioned), so
+   the row height is the diff visual's and a long organizer scrolls inside the
+   tree card rather than making it taller than the diff. */
+.commit-tree-diff {
+  display: grid;
+  grid-template-columns: 264px minmax(0, 1fr);
+  gap: 20px;
+  align-items: stretch;
+  margin-bottom: 18px;
+  /* The tree fills the row height (its content is absolutely positioned), so the
+     row height comes from the stage. Give it a floor so a short stage (an
+     unchanged-routine placeholder) can't collapse the tree to a sliver. */
+  min-height: 420px;
+}
+.commit-tree-diff > .commit-diff-stage {
+  /* Let wide rungs scroll inside this column instead of stretching the grid. */
+  min-width: 0;
+  /* Drop the standalone bottom margin: as a grid item it would shrink this
+     column's box and leave the tree (no margin) stretching lower. The row's
+     own margin-bottom provides the spacing below. */
+  margin-bottom: 0;
+  /* Card chrome so the stage reads as a pair with the bordered tree rail. */
+  background: var(--panel);
+  border: 1px solid var(--line2);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.tree-rail {
+  position: relative;
+  align-self: stretch;
+  overflow: hidden;
+  background: var(--panel);
+  border: 1px solid var(--line2);
+  border-radius: 12px;
+}
+.tree-rail > .project-tree {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+  padding: 10px 8px;
+}
+.project-tree {
+  font: 400 13px/1.4 var(--sans);
+}
+.tree-children {
+  display: flex;
+  flex-direction: column;
+}
+.tree-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 4px 8px 4px 8px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  text-align: left;
+  color: var(--ink2);
+  cursor: pointer;
+}
+.tree-row:hover {
+  background: var(--gray-bg);
+}
+.tree-row-active {
+  background: var(--accent-weak);
+  color: var(--ink-title);
+  font-weight: 600;
+}
+.tree-toggle {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink3);
+}
+.tree-ico {
+  flex: none;
+  display: flex;
+  align-items: center;
+  color: var(--ink3);
+}
+.tree-ico-controller {
+  color: var(--accent);
+}
+.tree-ico-routine {
+  color: var(--blue);
+}
+.tree-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* One small black dot marks a change — on a changed node, or on a collapsed
+   container hiding a change below it. */
+.tree-dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  margin-right: 4px;
+  border-radius: 999px;
+  background: var(--black);
+}
+/* Banner above the diff when the tree has narrowed it to one routine/entity. */
+.tree-filter-note {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding: 8px 14px;
+  border: 1px solid var(--accent-line, var(--line2));
+  border-radius: 9px;
+  background: var(--accent-weak);
+  font: 400 13px/1.4 var(--sans);
+  color: var(--ink2);
+}
+.tree-filter-clear {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: 600 13px/1 var(--sans);
+  cursor: pointer;
+}
+.tree-filter-clear:hover {
+  text-decoration: underline;
+}
+
+/* numbered step header inside a card */
+.step-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 13px 16px;
+  border-bottom: 1px solid var(--line2);
+}
+.step-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  font: 600 12px/1 var(--sans);
+  flex: none;
+}
+.step-title {
+  font: 650 14px/1 var(--sans);
+  color: var(--ink-title);
+}
+.step-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--panel2);
+  color: var(--ink2);
+  font: 600 12px/1 var(--sans);
+}
+
+.rcard-body {
+  padding: 16px;
+}
+
+/* leading icon inside the branch select */
+.select.has-lead {
+  padding-left: 34px;
+}
+.select-lead {
+  position: absolute;
+  left: 12px;
+  top: 13px;
+  color: var(--ink3);
+  pointer-events: none;
+}
+
+/* dropzone */
+.dropzone {
+  margin: 16px;
+  border: 1.5px dashed var(--border);
+  border-radius: var(--r-lg);
+  background: var(--panel2);
+  padding: 30px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  cursor: pointer;
+  transition:
+    border-color 0.12s ease,
+    background 0.12s ease;
+}
+.dropzone:hover {
+  border-color: var(--add-line);
+  background: var(--add-bg);
+}
+.dropzone.drag {
+  border-color: var(--add);
+  background: var(--add-bg);
+}
+.dropzone-cloud {
+  color: var(--add);
+  margin-bottom: 10px;
+}
+.dropzone-title {
+  font: 600 14.5px/1 var(--sans);
+  color: var(--ink-title);
+  margin: 0 0 5px;
+}
+.dropzone-hint {
+  font: 400 12.5px/1 var(--sans);
+  color: var(--ink3);
+  margin: 0 0 14px;
+}
+
+/* selected files table */
+.file-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+}
+.file-ico {
+  color: var(--ink3);
+  flex: none;
+}
+.file-remove-cell {
+  width: 44px;
+  text-align: right;
+}
+.file-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: none;
+  border-radius: var(--r-sm);
+  color: var(--ink3);
+  cursor: pointer;
+}
+.file-remove:hover {
+  background: var(--hover);
+  color: var(--danger);
+}
+.req {
+  color: var(--danger);
+}
+
+/* change summary */
+.summary {
+  padding: 6px 16px 14px;
+  display: flex;
+  flex-direction: column;
+}
+.summary-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+}
+.summary-ico {
+  display: inline-flex;
+  color: var(--ink3);
+  flex: none;
+}
+.summary-value {
+  font: 650 15px/1 var(--sans);
+  color: var(--ink-title);
+  min-width: 44px;
+}
+.summary-label {
+  font: 400 13px/1 var(--sans);
+  color: var(--ink2);
+}
+
+/* action stack */
+.commit-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.commit-actions .btn {
+  height: 42px;
+}
+.commit-actions-hint {
+  font: 400 12px/1.4 var(--sans);
+  color: var(--ink3);
+  margin: -4px 0 2px;
+  text-align: center;
+}
+
+/* ============================================================
+   IR-faithful ladder diff (LadderDiff.tsx)
+   One card per routine; one aligned row per rung; left = before,
+   right = after. Reuses .rung-net / .rail / .ladder-el / .el-tag
+   and the .dph-ver version chips from the Compare panels.
+   ============================================================ */
+
+/* full-width stage for the commit-page diff (not the Compare half-width grid) */
+.commit-diff-stage {
+  margin-bottom: 20px;
+}
+.ladder-diff-doc {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.ladder-diff-card {
+  background: transparent;
+  border-radius: var(--r-lg);
+  overflow-x: auto;
+  overflow-y: visible;
+}
+/* Headers and rows share one fixed 50/50 grid so the before/after divider runs
+   straight down the whole card. When a busy rung is wider than the page, the
+   whole card scrolls as one aligned unit via .ladder-diff-card's overflow-x. */
+.ladder-diff-head,
+.lad-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 14px;
+}
+.lad-cell {
+  min-width: 0;
+  background: var(--panel);
+  border-left: 1px solid var(--line);
+  border-right: 1px solid var(--line);
+}
+.lad-row:first-child .lad-cell {
+  border-top: 1px solid var(--line);
+}
+.lad-row + .lad-row .lad-cell {
+  border-top: 1px solid var(--line2);
+}
+.lad-row:last-child .lad-cell {
+  border-bottom: 1px solid var(--line);
+  border-radius: 0 0 var(--r-lg) var(--r-lg);
+}
+.lad-col-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  padding: 11px 16px;
+  background: #1f242b;
+  border: 1px solid #1f242b;
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
+}
+.lad-col-ver {
+  font: 750 15px/1 var(--mono);
+  color: #fff;
+}
+.lad-col-count {
+  font: 700 11px/1 var(--sans);
+  color: #d6dae0;
+  background: rgba(255, 255, 255, 0.14);
+  padding: 4px 10px;
+  border-radius: 999px;
+}
+/* one rung line within a column */
+.lad-rung {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-height: 118px;
+  height: 100%;
+  padding: 12px 16px 14px;
+}
+.lad-rung-branched {
+  min-height: 156px;
+}
+/* a wholly added/removed rung tints its whole row; a modified rung gets no row
+   styling — the changed element's badge/outline carries the colour */
+.lad-rung-add {
+  background: var(--add-bg);
+}
+.lad-rung-rem {
+  background: var(--danger-bg);
+}
+.lad-rung-cmt {
+  background: var(--blue-bg);
+}
+.lad-rung-empty {
+  background: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 7px,
+    var(--panel2) 7px,
+    var(--panel2) 14px
+  );
+}
+.lad-rung-main {
+  flex: 1;
+  min-width: 0;
+}
+.lad-empty {
+  flex: 1;
+  text-align: center;
+  font: 500 13px/1 var(--mono);
+  color: var(--ink3);
+}
+.lad-rung-caption {
+  margin: 0 0 8px;
+  padding: 0 2px;
+  font: 650 11.5px/1.35 var(--sans);
+  font-style: italic;
+  color: var(--ink2);
+}
+
+/* boxed rung number in the left gutter (reference style) */
+.lad-rung .rung-num {
+  width: 26px;
+  height: 26px;
+  flex: none;
+  align-self: flex-start;
+  margin-top: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--panel2);
+  font: 600 11px/1 var(--mono);
+  color: var(--ink3);
+}
+/* Placeholder side: keep the gutter width for alignment but show no box. */
+.lad-rung .rung-num-empty {
+  border-color: transparent;
+  background: none;
+}
+
+/* Each instruction sits in a slot: wire | chip | wire. The flexible wires fill
+   the gaps so the rung is one continuous rail; the chip carries the highlight. */
+.rung-els {
+  align-items: center;
+}
+/* The rung is one wrapping flex line. A busy rung wraps onto more rows instead
+   of overflowing the panel; the rails sit inline (first/last items) so the left
+   rail leads the first row and the right rail closes the last. */
+.ladder-diff-card .rung-net,
+.ladder-full-card .rung-net {
+  width: 100%;
+  min-width: 0;
+  padding: 4px 0;
+  flex-wrap: wrap;
+  align-items: center;
+  row-gap: 6px;
+  position: relative;
+}
+/* Continuation arrows at a wrap point: a right-pointing chevron where a row
+   runs off the right edge, and where the rung resumes at the next row's left. */
+.wrap-arrow {
+  position: absolute;
+  width: 0;
+  height: 0;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-left: 6px solid var(--wire);
+  opacity: 0.85;
+  pointer-events: none;
+}
+.wrap-out {
+  transform: translate(-100%, -50%);
+}
+.wrap-in {
+  transform: translate(0, -50%);
+}
+/* Per-row fill wire: a measured overlay from a row's rightmost element to the
+   row's right edge (the right rail on the last row, the wrap point otherwise),
+   so every row reaches the edge without growing flex items (which would spread
+   the elements). Sits on the measured row centre line, so it never reflows. */
+.rung-fill {
+  position: absolute;
+  height: 2px;
+  background: var(--wire);
+  opacity: 0.85;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+/* Overlaid right rail: one per row, placed by measurement at the row's true
+   right edge (the panel edge) on the row centre line, so the rail always closes
+   the row at its right edge — never stranded mid-row by the wrapping flow. The
+   in-flow .rail-r is removed; this overlay replaces it. Wrapped rows get an
+   "out" continuation arrow instead (the rail only closes the final row). */
+.rung-rail-r {
+  position: absolute;
+  width: 2px;
+  height: 26px;
+  background: var(--wire);
+  opacity: 0.85;
+  border-radius: 1px;
+  transform: translate(-100%, -50%);
+  pointer-events: none;
+}
+.ladder-diff-card .rail,
+.ladder-full-card .rail {
+  background: var(--wire);
+  opacity: 0.85;
+}
+/* The first write's slot is the ONLY growable item on the line, and its leading
+   wire absorbs all the slot's slack. So whatever row holds the first write gets
+   one long bridging wire ahead of it: on a single-row rung that pushes the
+   writes to the right (reads cluster left); on a wrapped write row it pushes the
+   write to the right rail. All other rows have no growable item, so their reads
+   pack tight-left and reach the right edge via the measured overlay (.rung-fill)
+   plus the overlaid right rail. */
+.el-slot {
+  /* Slots do NOT grow (except the boundary slot below): reads pack tight against
+     the left rail and writes against the right rail (source order is
+     reads-then-writes). The rung's slack goes to the single growing boundary
+     wire; each row is then filled to its right edge by a measured overlay wire
+     (.rung-fill) and closed by the overlaid right rail. */
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+/* The boundary slot (the first write) is the ONLY growable item on the line, and
+   its leading wire absorbs all the slot's slack. So whatever row holds the first
+   write gets one long bridging wire ahead of it: on a single-row rung that
+   pushes the writes to the right (reads cluster left); on a wrapped write row it
+   pushes the write to the right rail. All other rows have no growable item, so
+   their reads pack tight-left and reach the right edge via the measured overlay
+   (.rung-fill) plus the overlaid right rail. Declared after .el-slot so it wins
+   (equal specificity). */
+.el-slot.el-slot-boundary {
+  flex: 1 1 auto;
+}
+.el-slot-boundary > .el-wire:first-child {
+  flex: 1 1 0;
+  min-width: 24px;
+}
+.el-slot-box {
+  min-width: 106px;
+}
+.el-wire {
+  flex: 0 0 8px;
+  width: 8px;
+  min-width: 8px;
+  height: 2px;
+  background: var(--wire);
+  align-self: center;
+  opacity: 0.85;
+}
+.el-iwire {
+  flex: 1 1 6px;
+  height: 2px;
+  background: var(--wire);
+  opacity: 0.85;
+}
+
+/* contact / coil chip: tag above, glyph on the rail. Lifted so the wire row
+   (below the tag) lands on the slot centre line, level with the boxes. */
+.el-chip {
+  position: relative;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  border-radius: 7px;
+  /* No horizontal padding: the wire row reaches the chip edge so the rung line
+     stays unbroken across the glyph. Breathing room for the change highlight
+     comes from the tag's own padding instead. */
+  padding: 2px 0 1px;
+  transform: translateY(-7.8px);
+}
+.el-chip .el-tag {
+  max-width: 126px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: center;
+  font: 600 10.5px/1.3 var(--mono);
+  color: var(--ink2);
+  margin-bottom: 1px;
+  padding: 0 6px;
+}
+.el-wirerow {
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+.el-chip .el-symbol {
+  color: #202124;
+  display: block;
+  flex: none;
+}
+
+/* change highlight hugs the chip; the rail wires run outside it */
+.el-chip.el-added {
+  background: var(--add-bg);
+  box-shadow:
+    inset 0 0 0 1px var(--add-line),
+    0 0 0 1px rgba(24, 128, 56, 0.18);
+}
+.el-chip.el-removed {
+  background: var(--danger-bg);
+  box-shadow:
+    inset 0 0 0 1px #f0c6c3,
+    0 0 0 1px rgba(217, 48, 37, 0.16);
+}
+.el-chip.el-modified {
+  background: var(--mod-bg);
+  box-shadow:
+    inset 0 0 0 1px var(--mod-line),
+    0 0 0 1px rgba(183, 92, 0, 0.16);
+}
+/* Changed elements keep a neutral-dark glyph and tag; status is shown only by
+   the chip fill, outline, and corner badge (matching the reference). */
+.ladder-diff-card .ladder-box {
+  position: relative;
+}
+.el-slot-box .ladder-box {
+  margin: 0;
+}
+
+/* corner badge on a changed element */
+.el-badge {
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  width: 15px;
+  height: 15px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font: 800 10px/1 var(--sans);
+  color: #fff;
+  border: 2px solid var(--panel);
+  z-index: 1;
+}
+.el-badge-added {
+  background: var(--add);
+}
+.el-badge-removed {
+  background: var(--danger);
+}
+.el-badge-modified {
+  background: var(--mod);
+}
+
+/* box instruction: titled rectangle, one row per operand */
+.ladder-box {
+  flex: none;
+  min-width: 98px;
+  margin: 0 2px;
+  border: 1.25px solid #b9bec3;
+  border-radius: var(--r-sm);
+  background: var(--panel);
+}
+.box-title {
+  padding: 3px 9px;
+  font: 750 10.5px/1.2 var(--mono);
+  color: var(--ink-title);
+  text-align: center;
+  background: var(--panel2);
+  border-bottom: 1px solid var(--line);
+  border-radius: calc(var(--r-sm) - 2px) calc(var(--r-sm) - 2px) 0 0;
+}
+.box-operands {
+  display: flex;
+  flex-direction: column;
+}
+.box-operand {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 3px 9px;
+  font: 550 10.5px/1.3 var(--mono);
+}
+.box-operand + .box-operand {
+  border-top: 1px solid var(--line2);
+}
+.operand-label {
+  color: var(--ink3);
+  flex: none;
+}
+.operand-value {
+  color: var(--ink);
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.box-operand.operand-changed {
+  background: var(--mod-bg);
+}
+.box-operand.operand-changed .operand-label,
+.box-operand.operand-changed .operand-value {
+  color: var(--mod);
+}
+/* box-level tint follows the element status */
+.ladder-box.el-added {
+  border-color: var(--add);
+  background: var(--add-bg);
+}
+.ladder-box.el-removed {
+  border-color: var(--danger);
+  background: var(--danger-bg);
+}
+.ladder-box.el-modified {
+  border-color: var(--mod-line);
+  /* Keep the box body neutral so the per-operand tint shows WHICH operand changed. */
+  background: var(--panel);
+}
+/* tint the box header to match the change colour */
+.ladder-box.el-added .box-title {
+  background: rgba(24, 128, 56, 0.1);
+  color: var(--add);
+  border-bottom-color: var(--add-line);
+}
+.ladder-box.el-removed .box-title {
+  background: rgba(217, 48, 37, 0.08);
+  color: var(--danger);
+}
+.ladder-box.el-modified .box-title {
+  background: var(--mod-bg);
+  color: var(--mod);
+  border-bottom-color: var(--mod-line);
+}
+
+/* branch: parallel legs stacked vertically, joined on both ends */
+.ladder-branch {
+  flex: none;
+  display: flex;
+  align-items: stretch;
+  /* The transform drops the branch so its top leg sits on the rail, but a
+     transform paints outside the layout box without reserving space — so the
+     lower leg would hang below the slot and collide with a wrapped
+     continuation row. Reserve the drop symmetrically (top + bottom) so the
+     slot grows to contain the dropped branch and stays centred on the rail
+     (which keeps the wrap measurement, keyed on slot centres, correct). No
+     horizontal margin: the slot's own wire stubs butt against the join bars,
+     so there's no gap between the branch and the wires on either side. */
+  margin: var(--branch-drop, 0px) 0;
+  min-height: 0;
+  background: transparent;
+  overflow: visible;
+  transform: translateY(var(--branch-drop, 0px));
+}
+.ladder-diff-card .ladder-branch.el-added,
+.ladder-diff-card .ladder-branch.el-removed,
+.ladder-diff-card .ladder-branch.el-modified {
+  background: transparent;
+}
+.branch-join {
+  width: 2px;
+  /* Span only from the top leg's wire line to the bottom leg's, so the
+     connectors enclose the legs as a branch box. Stretching the full grid
+     height made the bars overshoot above and below the contacts (the 54px
+     rows + 8px gap are taller than the ~30px contacts), reading as ladder
+     rails. Leg centres are (lanes - 1) * (54 + 8) = (lanes - 1) * 62px apart. */
+  align-self: center;
+  height: calc((var(--branch-lanes, 2) - 1) * 62px);
+  background: var(--wire);
+  flex: none;
+  border-radius: 1px;
+}
+.branch-legs {
+  display: grid;
+  grid-auto-rows: 54px;
+  gap: 8px;
+  align-content: center;
+  padding: 3px 0;
+}
+.branch-leg {
+  display: flex;
+  align-items: center;
+  min-height: 54px;
+  height: 54px;
+  overflow: visible;
+}
+.branch-leg-elements {
+  display: flex;
+  align-items: center;
+  flex: none;
+}
+.branch-leg .el-iwire {
+  /* Grow to fill the chip width (like a stand-alone contact) so the contact's
+     wire reaches the chip edge and meets the branch wire. Fixed at 5px it fell
+     short whenever the tag was wider than the symbol, leaving a gap in the leg. */
+  flex: 1 1 5px;
+  min-width: 5px;
+}
+.branch-leg .ladder-box {
+  min-width: 112px;
+}
+.branch-leg .el-chip {
+  /* Same lift as a stand-alone contact (.el-chip) so the branch leg's glyph
+     sits exactly on its wire line — -6px left it 1.8px low, kinking the wire. */
+  transform: translateY(-7.8px);
+}
+/* an empty (pass-through) branch leg drawn as a plain horizontal wire */
+.branch-wire {
+  flex: 1 1 14px;
+  min-width: 14px;
+  height: 2px;
+  align-self: center;
+  background: var(--wire);
+  opacity: 0.85;
+  border-radius: 1px;
+}
+.branch-mid-wire,
+.branch-pass {
+  flex: none;
+  width: 18px;
+  height: 2px;
+  background: var(--wire);
+  opacity: 0.85;
+  border-radius: 1px;
+}
+.ladder-branch.el-added .branch-join {
+  background: var(--add);
+}
+.ladder-branch.el-removed .branch-join {
+  background: var(--danger);
+}
+
+/* raw fallback: verbatim text in a monospace pill */
+.ladder-raw {
+  flex: none;
+  margin: 0 6px;
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--panel2);
+  font: 500 11px/1.3 var(--mono);
+  color: var(--ink2);
+  white-space: pre;
+}
+.ladder-raw.el-added {
+  border-color: var(--add-line);
+  background: var(--add-bg);
+  color: var(--add);
+}
+.ladder-raw.el-removed {
+  border-color: var(--danger-line, #f0c6c3);
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+.ladder-raw.el-modified {
+  border-color: var(--mod-line);
+  background: var(--mod-bg);
+  color: var(--mod);
+}
+
+/* rung comment text, shown for comment-changed / comment-only rungs */
+.rung-comment {
+  padding: 4px 10px 6px;
+  font: 400 12px/1.4 var(--sans);
+  color: var(--ink2);
+}
+.rung-comment-l .comment-text {
+  color: var(--danger);
+}
+.rung-comment-r .comment-text {
+  color: var(--add);
+}
+.drow-comment_changed .rung-comment .comment-text {
+  color: var(--blue);
+}
+
+@media (max-width: 880px) {
+  .drow {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ============ Commit review page ============ */
+/* Header: "Commit <sha>  <title>" with a subtitle line. */
+.cm-commit-word {
+  font: 650 24px/1.15 var(--sans);
+  letter-spacing: -0.02em;
+  color: var(--ink-title);
+}
+.cm-commit-sha {
+  font: 650 24px/1.15 var(--mono);
+  letter-spacing: -0.01em;
+  color: var(--ink-title);
+}
+.cm-branch-text {
+  font-weight: 400;
+  color: var(--ink2);
+}
+/* Commit glyph sits in a pale, rounded boxed badge (not a bare accent icon). */
+.cm-glyph {
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  color: var(--ink2);
+}
+/* Author meta cell uses a small initials avatar in the label-icon slot. */
+.mr-meta-av {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: inline-grid;
+  place-items: center;
+  background: var(--ink-title);
+  color: #fff;
+  font: 600 9px/1 var(--sans);
+}
+
+/* Meta row: six cards (override the 5-col PR variant); mono hashes. */
+.cm-meta {
+  grid-template-columns: repeat(6, 1fr);
+}
+.cm-meta .mr-meta-mono {
+  font-family: var(--mono);
+}
+.cm-link {
+  color: var(--accent);
+}
+.cm-diffstat .t-add {
+  color: var(--add);
+  font-weight: 600;
+}
+.cm-diffstat .t-rem {
+  color: var(--danger);
+  font-weight: 600;
+}
+.cm-hash-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.cm-copy {
+  display: inline-flex;
+  border: none;
+  background: none;
+  padding: 2px;
+  border-radius: 5px;
+  color: var(--ink3);
+  cursor: pointer;
+}
+.cm-copy:hover {
+  background: var(--panel2);
+  color: var(--ink);
+}
+
+/* Overview card: commit message | summary | stats strip. */
+.cm-overview {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr;
+  gap: 40px;
+  align-items: start;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--panel);
+  padding: 18px 20px;
+}
+.cm-ov-label {
+  font: 500 11.5px/1 var(--sans);
+  color: var(--ink3);
+  margin-bottom: 10px;
+}
+.cm-ov-message {
+  margin: 0;
+  font: 600 14px/1.4 var(--sans);
+  color: var(--ink-title);
+}
+.cm-ov-message.muted {
+  font-weight: 400;
+  color: var(--ink3);
+}
+.cm-ov-list {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.cm-ov-list li {
+  font: 400 13px/1.5 var(--sans);
+  color: var(--ink2);
+}
+
+/* Ladder + structured-text diffs reuse the merge-request page's visuals
+   (.mr-ladderwrap / .mr-sxs) so the two pages stay consistent. */
+
+/* Full (non-diff) routine views in the Files tab: a single column under one
+   dark header, reusing the diff renderer's rung/element styling. */
+.ladder-full-card .lad-col-head {
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
+}
+.ladder-full-body {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-top: none;
+  border-radius: 0 0 var(--r-lg) var(--r-lg);
+  overflow: hidden;
+}
+.ladfull-cell {
+  background: var(--panel);
+}
+.ladfull-cell + .ladfull-cell {
+  border-top: 1px solid var(--line2);
+}
+.cmfull {
+  padding: 14px;
+}
+.cmfull-head {
+  background: #1f242b;
+  padding: 11px 16px;
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
+}
+.cmfull-body {
+  border: 1px solid var(--line);
+  border-top: none;
+  border-radius: 0 0 var(--r-lg) var(--r-lg);
+  background: var(--panel);
+  padding: 8px 14px;
+  overflow-x: auto;
+}
+
+/* Files tab drops the right rail and runs the content full-width so the routine
+   viewer has more room. */
+.cm-grid-full {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* Right rail: stacked cards. */
+.cm-rail {
+  gap: 16px;
+}
+/* The "About commits" rail card reuses the .about-* pattern; the rail-section
+   already pads, so drop the about-body's own padding. */
+.rail-section .about-body {
+  padding: 0;
+}
+/* "Go to docs" link at the foot of an About card, aligned to the right. */
+.about-docs {
+  align-self: flex-end;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font: 600 12.5px/1 var(--sans);
+  color: var(--accent);
+  text-decoration: none;
+}
+.about-docs:hover {
+  text-decoration: underline;
+}
+
+/* Files-changed card: file name + green/red line tally. */
+.cm-files {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.cm-file-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.cm-file-ico {
+  color: var(--ink3);
+  flex: none;
+}
+.cm-file-name {
+  flex: 1;
+  min-width: 0;
+  font: 500 12.5px/1.3 var(--mono);
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cm-file-stat {
+  flex: none;
+  font: 500 12px/1 var(--mono);
+  white-space: nowrap;
+  color: var(--ink3);
+}
+.cm-file-stat .t-add {
+  color: var(--add);
+}
+.cm-file-stat .t-rem {
+  color: var(--danger);
+}
+.cm-viewall {
+  margin-top: 14px;
+}
+
+/* Actions card: stacked buttons (icon + label left-aligned), danger revert. */
+.cm-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.cm-actions .rail-head {
+  margin-bottom: 2px;
+}
+.cm-actions .btn {
+  justify-content: flex-start;
+  gap: 10px;
+  padding-left: 14px;
+}
+.cm-revert {
+  background: var(--panel);
+  border: 1px solid #f0c6c3;
+  color: var(--danger);
+}
+.cm-revert:hover {
+  background: var(--danger-bg);
+}
+
+/* Zoom label inside the section toolbar. */
+.zoom-word {
+  font: 500 12.5px/1 var(--sans);
+  color: var(--ink3);
+  margin-right: 4px;
+}
+/* Commit-page zoom: discrete outlined −/+ boxes with plain text between them
+   (not one grouped pill), so it reads as three elements after "Zoom:". */
+.cm-zoom {
+  margin-left: 0;
+  border: none;
+  background: none;
+  padding: 0;
+  gap: 6px;
+}
+.cm-zoom .zoom-btn {
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  border-radius: var(--r-md);
+  color: var(--ink2);
+}
+.cm-zoom .zoom-btn:hover {
+  background: var(--panel2);
+  color: var(--ink);
+}
+.cm-zoom .zoom-val {
+  min-width: 40px;
+}
+
+/* Commit-page tabs: the count renders as a filled gray pill. */
+.cm-tabs .pr-tab-count {
+  background: var(--panel2);
+  border-radius: 999px;
+  padding: 2px 8px;
+  color: var(--ink3);
+}
+
+@media (max-width: 1080px) {
+  .cm-overview {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+}
+@media (max-width: 980px) {
+  .cm-meta {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+@media (max-width: 720px) {
+  .cm-meta {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Stat card sub / trend lines (third row under the value) */
+.stat-sub {
+  margin-top: 4px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font: 500 12px/16px var(--sans);
+  color: var(--ink3);
+}
+
+/* Last-commit meta card: value on the left, author/branch pushed to the right. */
+.stat-meta .mr-meta-card.lc-card {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.lc-card .lc-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.lc-sub {
+  margin-top: 0;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+.stat-trend {
+  margin-top: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font: 600 12px/16px var(--sans);
+}
+.stat-trend.up {
+  color: var(--add);
+}
+.stat-trend.down {
+  color: var(--danger);
+}
+
+/* Latest-release cell: green version tag over a muted date line */
+.release-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.release-tag.green {
+  color: var(--add);
+}
+.release-date {
+  font: 500 12px/1.2 var(--sans);
+  color: var(--ink3);
+}
+
+/* Activity column: two stacked inline counters */
+.act-counts {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.act-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font: 500 12.5px/1 var(--sans);
+  color: var(--ink2);
+}
+.act-count.has {
+  color: var(--accent);
+}
+
+/* Numeric pagination buttons in the table footer */
+.pager-num {
+  min-width: 26px;
+  height: 26px;
+  padding: 0 7px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--panel);
+  color: var(--ink2);
+  font: 600 12.5px/1 var(--sans);
+  cursor: pointer;
+}
+.pager-num:hover {
+  border-color: var(--border);
+}
+.pager-num.active {
+  background: var(--black);
+  border-color: var(--black);
+  color: #fff;
+}
+
+/* Toolbar select with a leading icon (e.g. the sort control's calendar) */
+.toolbar-select-wrap.has-ico .toolbar-select {
+  padding-left: 32px;
+}
+.toolbar-select-ico {
+  position: absolute;
+  left: 11px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  color: var(--ink3);
+  pointer-events: none;
+}
+
+/* Rail extras: trailing time, trailing chevron, vendor callout */
+.rail-item .rail-time {
+  flex: none;
+  margin-left: auto;
+  font: 500 12px/1.2 var(--sans);
+  color: var(--ink3);
+}
+.rail-chev {
+  flex: none;
+  margin-left: auto;
+  color: var(--ink3);
+}
+.rail-callout {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 12px;
+  border: 1px solid var(--blue-line, var(--line));
+  background: var(--accent-weak);
+  border-radius: var(--r-md);
+  font: 500 12.5px/1.5 var(--sans);
+  color: var(--ink2);
+}
+.rail-callout svg {
+  flex: none;
+  margin-top: 1px;
+  color: var(--accent);
+}
+
+/* ============================================================
+   Create merge request page
+   ============================================================ */
+
+/* Branch selector bar — full-width card under the page header. */
+.cmr-branchbar {
+  display: flex;
+  align-items: stretch;
+  gap: 20px;
+  padding: 16px 18px;
+  margin-bottom: 24px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--panel);
+}
+.cmr-branch-block {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  flex: 1;
+  min-width: 0;
+}
+.cmr-branch-label {
+  font: 600 11.5px/1 var(--sans);
+  letter-spacing: 0.01em;
+  color: var(--ink3);
+  text-transform: uppercase;
+}
+.cmr-branch-name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.cmr-branch-ico {
+  display: inline-flex;
+  color: var(--ink2);
+  flex: none;
+}
+.cmr-branch-name {
+  font: 650 14px/1 var(--mono);
+  color: var(--ink-title);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cmr-branch-sub {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  font: 400 12.5px/1.3 var(--sans);
+  color: var(--ink3);
+}
+.cmr-branch-sha {
+  font-family: var(--mono);
+  color: var(--ink2);
+  flex: none;
+}
+.cmr-branch-sep {
+  color: var(--ink4);
+  flex: none;
+}
+.cmr-branch-subject {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cmr-branch-av {
+  width: 18px;
+  height: 18px;
+  font-size: 8.5px;
+  flex: none;
+}
+.cmr-branch-author {
+  flex: none;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--ink2);
+}
+.cmr-branch-empty {
+  color: var(--ink3);
+}
+.cmr-branch-arrow {
+  display: flex;
+  align-items: center;
+  color: var(--ink3);
+  flex: none;
+}
+.cmr-branch-edit {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: none;
+  margin-left: auto;
+}
+.cmr-branch-selects {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.cmr-select {
+  width: auto;
+  min-width: 150px;
+  height: 38px;
+}
+.cmr-select-arrow {
+  display: inline-flex;
+  align-items: center;
+  color: var(--ink3);
+  flex: none;
+}
+
+/* Overview form. */
+.cmr-form {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 4px 0;
+}
+.cmr-field {
+  display: flex;
+  flex-direction: column;
+}
+.cmr-field-toprow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.cmr-field-toprow .label {
+  margin-bottom: 8px;
+}
+.cmr-req {
+  color: var(--danger);
+  font-weight: 600;
+}
+.cmr-counter {
+  font: 400 12px/1 var(--mono);
+  color: var(--ink3);
+}
+.cmr-hint {
+  margin: 8px 0 0;
+}
+
+/* Rich-text editor (toolbar + textarea/preview). */
+.cmr-editor {
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--panel);
+  overflow: hidden;
+}
+.cmr-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--line2);
+  background: var(--panel2);
+}
+.cmr-toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.cmr-toolbar-div {
+  width: 1px;
+  height: 18px;
+  margin: 0 6px;
+  background: var(--line);
+}
+.cmr-tool {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: var(--r-sm);
+  background: none;
+  color: var(--ink2);
+  cursor: pointer;
+}
+.cmr-tool:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+.cmr-preview-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--panel);
+  color: var(--ink2);
+  font: 600 12.5px/1 var(--sans);
+  cursor: pointer;
+}
+.cmr-preview-toggle:hover {
+  color: var(--ink);
+}
+.cmr-preview-toggle.active {
+  color: var(--ink-title);
+  border-color: var(--border);
+  background: var(--panel2);
+}
+.cmr-textarea {
+  display: block;
+  width: 100%;
+  min-height: 132px;
+  padding: 12px 14px;
+  border: none;
+  background: var(--panel);
+  font: 400 14px/1.55 var(--sans);
+  color: var(--ink);
+  resize: vertical;
+}
+.cmr-textarea:focus {
+  outline: none;
+}
+.cmr-textarea::placeholder {
+  color: var(--ink3);
+}
+.cmr-preview-body {
+  min-height: 132px;
+  padding: 12px 14px;
+}
+.cmr-preview-text {
+  margin: 0;
+  font: 400 14px/1.55 var(--sans);
+  color: var(--ink);
+  white-space: pre-wrap;
+}
+.cmr-preview-empty {
+  font: 400 13px/1.4 var(--sans);
+  color: var(--ink3);
+}
+
+/* Chips (reviewers) + add controls. */
+.cmr-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.cmr-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 30px;
+  padding: 0 6px 0 6px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel2);
+  font: 500 13px/1 var(--sans);
+  color: var(--ink);
+}
+.cmr-chip-x {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: var(--ink3);
+  cursor: pointer;
+}
+.cmr-chip-x:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+.cmr-add-wrap {
+  position: relative;
+}
+.cmr-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 11px;
+  border: 1px dashed var(--border);
+  border-radius: 999px;
+  background: none;
+  color: var(--ink2);
+  font: 600 12.5px/1 var(--sans);
+  cursor: pointer;
+}
+.cmr-add:hover:not(:disabled) {
+  background: var(--panel2);
+  color: var(--ink);
+}
+.cmr-add:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.cmr-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 20;
+  min-width: 220px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--panel);
+  box-shadow: 0 8px 24px rgba(17, 19, 21, 0.1);
+}
+.cmr-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 7px 8px;
+  border: none;
+  border-radius: var(--r-sm);
+  background: none;
+  cursor: pointer;
+  text-align: left;
+}
+.cmr-menu-item:hover {
+  background: var(--panel2);
+}
+.cmr-menu-name {
+  font: 500 13px/1 var(--sans);
+  color: var(--ink);
+}
+.cmr-menu-role {
+  margin-left: auto;
+  font: 400 12px/1 var(--sans);
+  color: var(--ink3);
+}
+
+/* Footer actions. */
+.cmr-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 18px;
+  border-top: 1px solid var(--line2);
+  margin-top: 4px;
+}
+
+/* Rail: changes summary additions / deletions, sitting under the
+   files-changed count (indented past the icon column to align with its value). */
+.cmr-diffstat {
+  display: flex;
+  gap: 12px;
+  margin: -2px 0 4px 28px;
+  font: 600 12.5px/1 var(--mono);
+}
+.cmr-add-val {
+  color: var(--add);
+}
+.cmr-del-val {
+  color: var(--danger);
+}
+
+/* Rail: files-changed rows. */
+.cmr-file-group {
+  display: flex;
+  flex-direction: column;
+}
+.cmr-file-folder {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 0 2px;
+  font: 600 11.5px/1 var(--sans);
+  color: var(--ink3);
+}
+.cmr-file-folder svg {
+  color: var(--ink4);
+  flex: none;
+}
+.cmr-file-item {
+  cursor: default;
+}
+.cmr-file-ico {
+  display: inline-flex;
+  color: var(--ink3);
+  flex: none;
+}
+.cmr-file-name {
+  font: 500 12.5px/1.3 var(--mono);
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Rail: commit timeline with connector dots. */
+.cmr-timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.cmr-tl-item {
+  position: relative;
+}
+.cmr-tl-link {
+  display: flex;
+  gap: 12px;
+  padding: 8px 0;
+  text-decoration: none;
+  color: inherit;
+}
+.cmr-tl-dot {
+  position: relative;
+  flex: none;
+  width: 9px;
+  height: 9px;
+  margin-top: 4px;
+  border-radius: 50%;
+  background: var(--panel);
+  border: 2px solid var(--border);
+}
+/* Connector line linking the dots, drawn behind all but the last row. */
+.cmr-tl-item:not(:last-child) .cmr-tl-dot::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 2px);
+  transform: translateX(-50%);
+  width: 2px;
+  height: calc(100% + 12px);
+  background: var(--line);
+}
+.cmr-tl-main {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.cmr-tl-top {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+.cmr-tl-sha {
+  font: 600 11.5px/1 var(--mono);
+  color: var(--ink2);
+  flex: none;
+}
+.cmr-tl-msg {
+  font: 500 13px/1.3 var(--sans);
+  color: var(--ink-title);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cmr-tl-meta {
+  font: 400 12px/1 var(--sans);
+  color: var(--ink3);
+}
+a.cmr-tl-link:hover .cmr-tl-msg {
+  color: var(--accent);
+}
