@@ -5,6 +5,7 @@ import { LoginPage } from "./pages/LoginPage";
 import { SignupPage } from "./pages/SignupPage";
 import { OnboardingPage } from "./pages/OnboardingPage";
 import { DonePage } from "./pages/DonePage";
+import { CliAuthPage } from "./pages/CliAuthPage";
 import { ProjectsPage } from "./pages/ProjectsPage";
 import { RepositoryPage } from "./pages/RepositoryPage";
 import { CommitPage } from "./pages/CommitPage";
@@ -38,6 +39,14 @@ export function App() {
           element={
             <RequireAuth>
               <DonePage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="cli-auth"
+          element={
+            <RequireAuth>
+              <CliAuthPage />
             </RequireAuth>
           }
         />

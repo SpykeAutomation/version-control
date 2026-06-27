@@ -44,3 +44,13 @@ export async function login(email: string, password: string): Promise<Token> {
 export function me(): Promise<User> {
   return apiFetch<User>("/auth/me");
 }
+
+// Approve a CLI device sign-in. The CLI prints a short user code and polls the
+// backend for a token; a 200 here releases that token. Throws ApiError on 400
+// (invalid/expired code) or 409 (already approved).
+export function approveDevice(userCode: string): Promise<void> {
+  return apiFetch<void>("/auth/device/approve", {
+    method: "POST",
+    json: { user_code: userCode },
+  });
+}
