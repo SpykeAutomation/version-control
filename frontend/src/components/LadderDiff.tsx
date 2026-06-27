@@ -49,12 +49,23 @@ function CoilSymbol({ form }: { form?: string | null }) {
   const letter = form === "otl" ? "L" : form === "otu" ? "U" : null;
   return (
     <svg className="el-symbol" width={40} height={GLYPH_H} aria-hidden="true">
-      <line x1={0} y1={GMID} x2={16} y2={GMID} stroke="currentColor" strokeWidth={1.6} />
-      <line x1={24} y1={GMID} x2={40} y2={GMID} stroke="currentColor" strokeWidth={1.6} />
-      <path d="M16 2 Q3 15 16 28" fill="none" stroke="currentColor" strokeWidth={1.9} />
-      <path d="M24 2 Q37 15 24 28" fill="none" stroke="currentColor" strokeWidth={1.9} />
+      {/* The two parens are semicircular arcs (radius 11, centred at x=16 / x=24)
+          so the coil reads as a round circle. Stubs stop at the arcs' convex
+          backs (x=5 / x=35) — the wire meets the coil there, not through it. */}
+      <line x1={0} y1={GMID} x2={5} y2={GMID} stroke="currentColor" strokeWidth={1.6} />
+      <line x1={35} y1={GMID} x2={40} y2={GMID} stroke="currentColor" strokeWidth={1.6} />
+      <path d="M16 4 A11 11 0 0 0 16 26" fill="none" stroke="currentColor" strokeWidth={1.9} />
+      <path d="M24 4 A11 11 0 0 1 24 26" fill="none" stroke="currentColor" strokeWidth={1.9} />
       {letter && (
-        <text x={20} y={19} textAnchor="middle" fontSize={10} fontWeight={700} fill="currentColor">
+        <text
+          x={20}
+          y={GMID}
+          textAnchor="middle"
+          dominantBaseline="central"
+          fontSize={15}
+          fontWeight={700}
+          fill="currentColor"
+        >
           {letter}
         </text>
       )}

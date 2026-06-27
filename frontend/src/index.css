@@ -5038,7 +5038,15 @@ a.mr-commit-row:hover {
   flex: none;
   display: flex;
   align-items: stretch;
-  margin: 0 4px;
+  /* The transform drops the branch so its top leg sits on the rail, but a
+     transform paints outside the layout box without reserving space — so the
+     lower leg would hang below the slot and collide with a wrapped
+     continuation row. Reserve the drop symmetrically (top + bottom) so the
+     slot grows to contain the dropped branch and stays centred on the rail
+     (which keeps the wrap measurement, keyed on slot centres, correct). No
+     horizontal margin: the slot's own wire stubs butt against the join bars,
+     so there's no gap between the branch and the wires on either side. */
+  margin: var(--branch-drop, 0px) 0;
   min-height: 0;
   background: transparent;
   overflow: visible;
@@ -5051,8 +5059,14 @@ a.mr-commit-row:hover {
 }
 .branch-join {
   width: 2px;
-  align-self: stretch;
-  background: #b9bec3;
+  /* Span only from the top leg's wire line to the bottom leg's, so the
+     connectors enclose the legs as a branch box. Stretching the full grid
+     height made the bars overshoot above and below the contacts (the 54px
+     rows + 8px gap are taller than the ~30px contacts), reading as ladder
+     rails. Leg centres are (lanes - 1) * (54 + 8) = (lanes - 1) * 62px apart. */
+  align-self: center;
+  height: calc((var(--branch-lanes, 2) - 1) * 62px);
+  background: var(--wire);
   flex: none;
   border-radius: 1px;
 }
@@ -5076,14 +5090,19 @@ a.mr-commit-row:hover {
   flex: none;
 }
 .branch-leg .el-iwire {
-  flex: 0 0 5px;
+  /* Grow to fill the chip width (like a stand-alone contact) so the contact's
+     wire reaches the chip edge and meets the branch wire. Fixed at 5px it fell
+     short whenever the tag was wider than the symbol, leaving a gap in the leg. */
+  flex: 1 1 5px;
   min-width: 5px;
 }
 .branch-leg .ladder-box {
   min-width: 112px;
 }
 .branch-leg .el-chip {
-  transform: translateY(-6px);
+  /* Same lift as a stand-alone contact (.el-chip) so the branch leg's glyph
+     sits exactly on its wire line — -6px left it 1.8px low, kinking the wire. */
+  transform: translateY(-7.8px);
 }
 /* an empty (pass-through) branch leg drawn as a plain horizontal wire */
 .branch-wire {
@@ -5091,7 +5110,7 @@ a.mr-commit-row:hover {
   min-width: 14px;
   height: 2px;
   align-self: center;
-  background: #b9bec3;
+  background: var(--wire);
   opacity: 0.85;
   border-radius: 1px;
 }
@@ -5100,7 +5119,7 @@ a.mr-commit-row:hover {
   flex: none;
   width: 18px;
   height: 2px;
-  background: #b9bec3;
+  background: var(--wire);
   opacity: 0.85;
   border-radius: 1px;
 }
