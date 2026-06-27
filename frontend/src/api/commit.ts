@@ -9,6 +9,7 @@ import { listCommits } from "./commits";
 import { getCommitDiff, getCommitLadderDiff } from "./diff";
 import type {
   ChangeSet,
+  IRElement,
   IRRoutineLadderDiff,
 } from "./diff";
 import { getCommitTree } from "./tree";
@@ -105,6 +106,33 @@ const emptyTree = (label: string): ProjectTree => ({
   },
 });
 
+// Count leaf elements (contacts, coils, boxes), recursing into branch legs.
+function countElements(els: IRElement[]): number {
+  let n = 0;
+  for (const e of els) {
+    if (e.kind === "branch") {
+      for (const leg of e.legs ?? []) n += countElements(leg);
+    } else {
+      n += 1;
+    }
+  }
+  return n;
+}
+
+// Count leaf elements with a given status (used for the changed parts of a
+// modified rung), recursing into branch legs.
+function countByStatus(els: IRElement[], status: string): number {
+  let n = 0;
+  for (const e of els) {
+    if (e.kind === "branch") {
+      for (const leg of e.legs ?? []) n += countByStatus(leg, status);
+    } else if (e.status === status) {
+      n += 1;
+    }
+  }
+  return n;
+}
+
 // Map a real commit (meta + ladder diff + semantic change-set) onto the page's
 // view model. The summary bullets, impacted tags and headline counts are derived
 // from the change-set (the semantic diff), so they reflect the actual commit.
@@ -143,6 +171,28 @@ function mapCommit(
 
   const view = deriveChangeView(changeSet);
   const message = meta?.message ?? `Commit ${shortSha(sha)}`;
+  // Per-file +/- counts from the ladder diff: a wholly added or removed rung
+  // counts all of its elements, a modified rung only those that changed. The
+  // headline totals are the sum, so the tally is never misleadingly zero.
+  const fileStats: CommitFileStat[] = files.map((f) => {
+    let add = 0;
+    let del = 0;
+    for (const change of f.changes) {
+      for (const rung of change.ladder?.rungs ?? []) {
+        add +=
+          rung.status === "added"
+            ? countElements(rung.after)
+            : countByStatus(rung.after, "added");
+        del +=
+          rung.status === "removed"
+            ? countElements(rung.before)
+            : countByStatus(rung.before, "removed");
+      }
+    }
+    return { name: f.name, additions: add, deletions: del };
+  });
+  const additions = fileStats.reduce((n, f) => n + f.additions, 0);
+  const deletions = fileStats.reduce((n, f) => n + f.deletions, 0);
   return {
     sha: shortSha(sha),
     title: message,
@@ -152,8 +202,8 @@ function mapCommit(
     authoredAt: meta?.at ?? new Date(0).toISOString(),
     parentSha: parent ? shortSha(parent.sha) : "—",
     filesChanged: view.files.length || files.length,
-    additions: 0,
-    deletions: 0,
+    additions,
+    deletions,
     message,
     summary: summarizeChangeSet(changeSet),
     rungsChanged: view.summary.rungsChanged,
@@ -162,7 +212,7 @@ function mapCommit(
     files,
     comments: [],
     impactedTags: view.symbols,
-    fileStats: [],
+    fileStats,
     tree,
     // Real commits fetch full routine content on demand via getRoutineContent.
     fullContent: {},
@@ -188,14 +238,33 @@ export async function getCommit(slug: string, sha: string): Promise<CommitDetail
   const projects = await listProjects();
   const project = projects.find((p) => p.slug === slug);
   if (!project) throw new Error("Project not found");
-  const branch = project.branches[0] ?? "main";
-  const [commits, ladder, changeSet, tree] = await Promise.all([
-    listCommits(project.id, branch).catch(() => [] as CommitOut[]),
+  const branches = project.branches.length > 0 ? project.branches : ["main"];
+
+  // The commit's metadata and parent live in its branch history, which may not be
+  // the first branch — so fetch every branch's log and use the one that contains
+  // the commit. Otherwise author/date fall back to placeholders ("Unknown" / 1970).
+  const [perBranch, ladder, changeSet, tree] = await Promise.all([
+    Promise.all(
+      branches.map((b) =>
+        listCommits(project.id, b).catch(() => [] as CommitOut[]),
+      ),
+    ),
     getCommitLadderDiff(project.id, sha)
       .then((d) => d.routines)
       .catch(() => [] as IRRoutineLadderDiff[]),
     getCommitDiff(project.id, sha).catch(() => EMPTY_CHANGESET),
     getCommitTree(project.id, sha).catch(() => emptyTree("Controller")),
   ]);
+
+  let branch = branches[0];
+  let commits = perBranch[0] ?? [];
+  for (let i = 0; i < branches.length; i++) {
+    const list = perBranch[i] ?? [];
+    if (list.some((c) => c.sha === sha || shortSha(c.sha) === sha)) {
+      branch = branches[i];
+      commits = list;
+      break;
+    }
+  }
   return mapCommit(sha, branch, commits as CommitOut[], ladder, changeSet, tree);
 }
