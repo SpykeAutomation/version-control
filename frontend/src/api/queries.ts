@@ -31,7 +31,9 @@ import {
   createComment,
   getMergeRequest,
   listChangeRequests,
+  mergeChangeRequest,
   type ChangeRequestSummary,
+  type MergeOutcome,
   type MergeRequest,
 } from "./mergeRequest";
 import {
@@ -214,8 +216,7 @@ export function useMergeRequest(
   });
 }
 
-// One commit's review detail (meta, grouped diffs, discussion). Falls back to
-// demo data inside getCommit when the backend is unreachable.
+// One commit's review detail (meta, grouped diffs, discussion).
 export function useCommit(
   slug: string | undefined,
   sha: string | undefined,
@@ -227,8 +228,7 @@ export function useCommit(
   });
 }
 
-// One repository's rich detail (controller, tags, linked controller). Falls
-// back to demo data inside getRepository when the backend is unreachable.
+// One repository's rich detail (controller, tags, linked controller).
 export function useRepository(slug: string | undefined) {
   return useQuery<RepositoryDetail>({
     queryKey: queryKeys.repository(slug ?? ""),
@@ -239,8 +239,8 @@ export function useRepository(slug: string | undefined) {
 
 // One routine's full content at a commit, for the Files tab. Disabled unless
 // all keys are known and `enabled` is set (the caller skips it when the content
-// is already available from demo data). No retry: a missing backend endpoint
-// should fall back to the placeholder quickly, not hammer.
+// is already loaded). No retry: a missing backend endpoint should fall back to
+// the placeholder quickly, not hammer.
 export function useRoutineContent(
   projectId: number | undefined,
   sha: string | undefined,
@@ -274,6 +274,29 @@ export function useCreateComment(
       qc.invalidateQueries({
         queryKey: queryKeys.mergeRequest(slug ?? "", mrId ?? ""),
       });
+    },
+  });
+}
+
+// Merging a change request lands the source branch on its target, so refresh
+// both this merge request and the project's data (commits, branches, requests).
+// Only meaningful when projectId is known; callers thread it through.
+export function useMergePull(
+  slug: string | undefined,
+  mrId: string | undefined,
+  projectId: number | undefined,
+) {
+  const qc = useQueryClient();
+  // Derive the numeric pull number from the id's digits, as mergeRequest.ts does.
+  const match = (mrId ?? "").match(/\d+/);
+  const number = match ? parseInt(match[0], 10) : NaN;
+  return useMutation<MergeOutcome, Error, void>({
+    mutationFn: () => mergeChangeRequest(projectId!, number),
+    onSuccess: () => {
+      qc.invalidateQueries({
+        queryKey: queryKeys.mergeRequest(slug ?? "", mrId ?? ""),
+      });
+      qc.invalidateQueries({ queryKey: ["projects", projectId] });
     },
   });
 }

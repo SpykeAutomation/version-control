@@ -1,11 +1,11 @@
 // Types and data access for the merge-request review view. The page reads a
-// MergeRequest from getMergeRequest(): in demo mode it's canned data; against
-// the real API it's mapped from the backend pull-request endpoints. Ladder
-// rungs reuse the diff model from ./compare so the panels share one renderer.
-import { apiFetch, ApiError } from "./client";
+// MergeRequest from getMergeRequest(), mapped from the backend pull-request
+// endpoints. Ladder rungs reuse the diff model from ./compare so the panels
+// share one renderer.
+import { apiFetch } from "./client";
 import { listProjects } from "./projects";
 import type { Rung } from "./compare";
-import type { IRElement, IRRoutineLadderDiff, IRRungDiff } from "./diff";
+import type { IRRoutineLadderDiff } from "./diff";
 
 export type MRStatus = "open" | "review" | "approved" | "changes" | "merged";
 
@@ -250,6 +250,27 @@ export async function createChangeRequest(
   });
 }
 
+// Result of merging a change request: either it landed (merged) or it stopped
+// on conflicts. Mirrors the backend MergeResult schema.
+export interface MergeOutcome {
+  status: "merged" | "conflict";
+  message: string;
+  merge_sha?: string | null;
+  conflicts?: string[];
+}
+
+// Merge a change request into its target branch. POSTs with no body; the
+// backend reads the source/target from the stored pull request.
+export async function mergeChangeRequest(
+  projectId: number,
+  number: number,
+): Promise<MergeOutcome> {
+  return apiFetch<MergeOutcome>(
+    `/projects/${projectId}/pulls/${number}/merge`,
+    { method: "POST" },
+  );
+}
+
 // Post a thread-level comment on a merge request. Resolves the project by slug
 // (same as getMergeRequest), derives the pull number from the id, then POSTs to
 // the pull request's comments endpoint.
@@ -306,335 +327,20 @@ function mapPull(mrId: string, pull: PullOut, comments: CommentOut[]): MergeRequ
 }
 
 // Load a merge request for the page: resolve the project by slug, then fetch
-// the pull request and its comments. When the backend can't be reached the page
-// falls back to a self-contained demo request so the review view is still
-// explorable without a running server.
+// the pull request and its comments.
 export async function getMergeRequest(
   slug: string,
   mrId: string,
 ): Promise<MergeRequest> {
-  try {
-    const number = pullNumber(mrId);
-    const projects = await listProjects();
-    const project = projects.find((p) => p.slug === slug);
-    if (!project) throw new Error("Project not found");
+  const number = pullNumber(mrId);
+  const projects = await listProjects();
+  const project = projects.find((p) => p.slug === slug);
+  if (!project) throw new Error("Project not found");
 
-    const base = `/projects/${project.id}/pulls/${number}`;
-    const [pull, comments] = await Promise.all([
-      apiFetch<PullOut>(base),
-      apiFetch<CommentOut[]>(`${base}/comments`).catch(() => [] as CommentOut[]),
-    ]);
-    return mapPull(mrId, pull, comments);
-  } catch (err) {
-    // A status-0 ApiError means the server is unreachable (e.g. no backend in
-    // local dev) — show the demo request rather than an error banner.
-    if (err instanceof ApiError && err.status === 0) return demoPull(mrId);
-    throw err;
-  }
-}
-
-// --- Demo data ---
-// A fully populated, synthetic pull request used when no backend is reachable.
-// Everything here is invented sample content, not derived from any real file.
-function prettyId(mrId: string): string {
-  const m = mrId.match(/\d+/);
-  return m ? `MR-${m[0].padStart(3, "0")}` : "MR-027";
-}
-
-// --- IR ladder builders (feed the shared LadderDiff renderer) ---
-type ElStatus = IRElement["status"];
-
-function contact(
-  label: string,
-  form: "no" | "nc",
-  status: ElStatus = "unchanged",
-): IRElement {
-  return { kind: "contact", status, io: "input", form, label };
-}
-
-function coil(label: string, status: ElStatus = "unchanged"): IRElement {
-  return { kind: "coil", status, io: "output", form: "ote", label };
-}
-
-function tonBox(preset: string, status: ElStatus): IRElement {
-  return {
-    kind: "box",
-    status,
-    io: "output",
-    mnemonic: "TON",
-    operands: [
-      { label: "Timer", value: "Reject_Delay", changed: false },
-      { label: "Preset", value: preset, changed: status !== "unchanged" },
-      { label: "Accum", value: "0", changed: false },
-    ],
-  };
-}
-
-function modRung(
-  oldNumber: number,
-  before: IRElement[],
-  after: IRElement[],
-): IRRungDiff {
-  return {
-    status: "modified",
-    old_number: oldNumber,
-    new_number: oldNumber,
-    before,
-    after,
-  };
-}
-
-function ladderRoutine(routine: string, rungs: IRRungDiff[]): IRRoutineLadderDiff {
-  return {
-    routine,
-    routine_type: "rll",
-    old_label: "main",
-    new_label: "feature/reject-station",
-    summary: {
-      rungs_modified: rungs.length,
-      rungs_added: 0,
-      rungs_removed: 0,
-      additions: 0,
-      removals: 0,
-    },
-    rungs,
-  };
-}
-
-export function demoPull(mrId: string): MergeRequest {
-  const now = Date.now();
-  const ago = (minutes: number) =>
-    new Date(now - minutes * 60_000).toISOString();
-
-  return {
-    id: prettyId(mrId),
-    title: "Add reject station logic",
-    status: "review",
-    sourceBranch: "feature/reject-station",
-    targetBranch: "main",
-    sourceCommits: 5,
-    targetCommits: 128,
-    sourceSha: "a1bc3d4",
-    targetSha: "9f8e7d6",
-    author: "Jamie Wilson",
-    authorAt: ago(180),
-    updatedAt: ago(120),
-    reviewers: [
-      { name: "Alex Davis", role: "Controls Engineer", state: "approved" },
-      { name: "Morgan Green", role: "Senior Engineer", state: "review" },
-      { name: "Sam Clark", role: "Controls Engineer", state: "pending" },
-    ],
-    summary:
-      "Adds reject station control logic with photoeye interlock, increases reject delay to 3000 ms, and adds safety interlock before motor run.",
-    bullets: [
-      "Added reject photoeye interlock",
-      "Increased reject delay from 2500 ms to 3000 ms",
-      "Added E_Stop_OK safety interlock before Motor_Run",
-    ],
-    rungsChanged: 28,
-    routinesModified: 1,
-    commentCount: 7,
-    safetyReview: true,
-    files: [
-      {
-        name: "MainController.L5X",
-        rungsChanged: 28,
-        linesChanged: 2,
-        changes: [
-          {
-            routine: "RejectControl",
-            kind: "ladder",
-            ladder: ladderRoutine("RejectControl", [
-              modRung(
-                13,
-                [
-                  contact("Conveyor_Run_Cmd", "no"),
-                  contact("Reject_Enable", "no"),
-                  contact("Jam_Sensor", "nc"),
-                  coil("Reject_Active"),
-                ],
-                [
-                  contact("Conveyor_Run_Cmd", "no"),
-                  contact("Reject_Enable", "no"),
-                  contact("Reject_Photoeye", "no", "added"),
-                  contact("Jam_Sensor", "nc"),
-                  coil("Reject_Active"),
-                ],
-              ),
-              modRung(
-                26,
-                [
-                  contact("Reject_Active", "no"),
-                  tonBox("T#2500ms", "modified"),
-                  coil("Reject_Delay_DN"),
-                ],
-                [
-                  contact("Reject_Active", "no"),
-                  tonBox("T#3000ms", "modified"),
-                  coil("Reject_Delay_DN"),
-                ],
-              ),
-              modRung(
-                44,
-                [
-                  contact("Safety_OK", "no"),
-                  contact("Conveyor_Run_Cmd", "no"),
-                  coil("Motor_Run"),
-                ],
-                [
-                  contact("Safety_OK", "no"),
-                  contact("E_Stop_OK", "no", "added"),
-                  contact("Conveyor_Run_Cmd", "no"),
-                  coil("Motor_Run"),
-                ],
-              ),
-            ]),
-          },
-          {
-            routine: "RejectControl",
-            kind: "structured",
-            code: {
-              routine: "RejectControl",
-              changes: 1,
-              marks: [null, "mod", null, null, null, "add"],
-              left: {
-                ref: "main",
-                version: "main",
-                lines: [
-                  { ln: 28, kind: "context", text: "IF Reject_Active AND NOT Reject_Delay_DN THEN" },
-                  { ln: 29, kind: "context", text: "    Reject_Delay(IN := TRUE, PT := ⟦T#2500ms⟧);" },
-                  { ln: 30, kind: "context", text: "ELSE" },
-                  { ln: 31, kind: "context", text: "    Reject_Delay(IN := FALSE);" },
-                  { ln: 32, kind: "context", text: "END_IF;" },
-                  { ln: 33, kind: "context", text: "Motor_Run := Safety_OK AND Conveyor_Run_Cmd;" },
-                ],
-              },
-              right: {
-                ref: "feature/reject-station",
-                version: "latest",
-                lines: [
-                  { ln: 28, kind: "context", text: "IF Reject_Active AND NOT Reject_Delay_DN THEN" },
-                  { ln: 29, kind: "context", text: "    Reject_Delay(IN := TRUE, PT := ⟦T#3000ms⟧);" },
-                  { ln: 30, kind: "context", text: "ELSE" },
-                  { ln: 31, kind: "context", text: "    Reject_Delay(IN := FALSE);" },
-                  { ln: 32, kind: "context", text: "END_IF;" },
-                  { ln: 33, kind: "context", text: "Motor_Run := Safety_OK AND ⟦E_Stop_OK⟧ AND Conveyor_Run_Cmd;" },
-                ],
-              },
-            },
-          },
-        ],
-      },
-      {
-        name: "SafetyController.L5X",
-        rungsChanged: 1,
-        changes: [
-          {
-            routine: "SafetyMonitor",
-            kind: "ladder",
-            ladder: ladderRoutine("SafetyMonitor", [
-              modRung(
-                6,
-                [contact("E_Stop_OK", "no"), coil("Safety_OK")],
-                [
-                  contact("E_Stop_OK", "no"),
-                  contact("Guard_Closed", "no", "added"),
-                  coil("Safety_OK"),
-                ],
-              ),
-            ]),
-          },
-        ],
-      },
-    ],
-    commits: [
-      {
-        sha: "a1bc3d4e9f02",
-        hash: "a1bc3d4",
-        message: "Add reject photoeye interlock",
-        author: "Jamie Wilson",
-        at: ago(120),
-        filesChanged: 1,
-        additions: 18,
-        deletions: 2,
-      },
-      {
-        sha: "7e2f9a16b3c8",
-        hash: "7e2f9a1",
-        message: "Increase reject delay to 3000 ms",
-        author: "Jamie Wilson",
-        at: ago(160),
-        filesChanged: 1,
-        additions: 4,
-        deletions: 2,
-      },
-      {
-        sha: "c4d8b60a1e57",
-        hash: "c4d8b60",
-        message: "Add E_Stop_OK safety interlock before Motor_Run",
-        author: "Jamie Wilson",
-        at: ago(210),
-        filesChanged: 1,
-        additions: 6,
-        deletions: 1,
-      },
-      {
-        sha: "f10a2c5d7b94",
-        hash: "f10a2c5",
-        message: "Add guard-closed check to SafetyMonitor",
-        author: "Jamie Wilson",
-        at: ago(1490),
-        filesChanged: 1,
-        additions: 3,
-        deletions: 0,
-      },
-      {
-        sha: "9b3e7d2c08af",
-        hash: "9b3e7d2",
-        message: "Scaffold reject station routine",
-        author: "Jamie Wilson",
-        at: ago(1550),
-        filesChanged: 2,
-        additions: 40,
-        deletions: 0,
-      },
-    ],
-    comments: [
-      {
-        author: "Morgan Green",
-        role: "Controls Engineer",
-        on: "lines 28-33",
-        at: ago(120),
-        body: "Please confirm reject delay increase is validated on Line 3. 3 seconds will impact throughput.",
-      },
-      {
-        author: "Jamie Wilson",
-        role: "Author",
-        isAuthor: true,
-        on: "lines 45",
-        at: ago(60),
-        body: "Validated during bench test on Line 3 during FAT. No rejects missed with a 3s delay at max speed.",
-      },
-      {
-        author: "Alex Davis",
-        role: "Safety Engineer",
-        on: "Network 45",
-        at: ago(45),
-        body: "E_Stop_OK interlock meets safety requirements. Please ensure the safety review is approved before merge.",
-      },
-    ],
-    checks: [
-      { label: "Lint passed", state: "passed" },
-      { label: "Naming convention passed", state: "passed" },
-      { label: "Safety review required", state: "warning" },
-    ],
-    impactedTags: [
-      "Reject_Active",
-      "Reject_Photoeye",
-      "Reject_Delay",
-      "E_Stop_OK",
-      "Motor_Run",
-      "Safety_OK",
-    ],
-  };
+  const base = `/projects/${project.id}/pulls/${number}`;
+  const [pull, comments] = await Promise.all([
+    apiFetch<PullOut>(base),
+    apiFetch<CommentOut[]>(`${base}/comments`).catch(() => [] as CommentOut[]),
+  ]);
+  return mapPull(mrId, pull, comments);
 }

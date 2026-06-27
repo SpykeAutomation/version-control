@@ -2250,9 +2250,6 @@ a.rail-item:focus-visible,
 }
 
 /* ============ Repository detail page ============ */
-.repo-page {
-  padding: 20px 36px 40px;
-}
 .crumb {
   display: flex;
   align-items: center;
@@ -2407,29 +2404,12 @@ a.rail-item:focus-visible,
   background: var(--accent-weak);
   border-color: var(--blue-line);
 }
-.br-status {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font: 500 12.5px/1 var(--sans);
-}
-.br-status.protected {
-  color: var(--add);
-}
-.br-status.unprotected {
-  color: var(--ink3);
-}
 .ba {
   display: inline-flex;
   align-items: center;
   gap: 14px;
   font: 500 12.5px/1 var(--sans);
   color: var(--ink2);
-}
-.ba-part {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
 }
 .commit-cell {
   display: flex;
@@ -2460,12 +2440,6 @@ a.rail-item:focus-visible,
 }
 
 /* ===== branch view (code at a branch) ===== */
-.branch-bar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 18px;
-}
 .branch-switch {
   display: inline-flex;
   align-items: center;
@@ -2481,16 +2455,6 @@ a.rail-item:focus-visible,
 }
 .branch-switch:hover {
   background: var(--hover);
-}
-.branch-rel {
-  display: inline-flex;
-  align-items: center;
-  gap: 12px;
-  font: 500 12.5px/1 var(--sans);
-  color: var(--ink2);
-}
-.branch-compare {
-  margin-left: auto;
 }
 .branch-files {
   border: 1px solid var(--line);
@@ -2852,49 +2816,6 @@ a.file-cell:hover .file-cell-name {
 }
 
 /* file view */
-.fv-head {
-  display: flex;
-  align-items: flex-start;
-  gap: 14px;
-  margin-bottom: 22px;
-}
-.fv-head-ico {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  flex: none;
-  border: 1px solid var(--line);
-  border-radius: var(--r-md);
-  background: var(--panel2);
-  color: var(--ink);
-}
-.fv-head-main {
-  min-width: 0;
-}
-.fv-name {
-  font: 600 20px/1.2 var(--mono);
-  letter-spacing: -0.01em;
-  color: var(--ink-title);
-  margin: 2px 0 7px;
-  word-break: break-all;
-}
-.fv-meta {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  font: 400 13px/1 var(--sans);
-  color: var(--ink2);
-}
-.fv-kind {
-  font-weight: 500;
-  color: var(--ink);
-}
-.fv-dot {
-  color: var(--ink4);
-}
 .fv-routines {
   display: flex;
   flex-direction: column;
@@ -4355,22 +4276,6 @@ a.mr-commit-row:hover {
 }
 
 /* ============ Upload & commit page ============ */
-.commit-page {
-  padding: 20px 36px 48px;
-}
-.commit-head {
-  margin: 6px 0 20px;
-}
-.commit-head h1 {
-  font: 700 23px/1.2 var(--sans);
-  color: var(--ink-title);
-  margin: 0 0 5px;
-}
-.commit-head p {
-  font: 400 14px/1.5 var(--sans);
-  color: var(--ink2);
-  margin: 0;
-}
 .commit-branch {
   max-width: 320px;
   margin-bottom: 20px;
@@ -4693,12 +4598,6 @@ a.mr-commit-row:hover {
   color: var(--ink3);
   margin: -4px 0 2px;
   text-align: center;
-}
-
-@media (max-width: 880px) {
-  .commit-page {
-    padding: 18px 20px 40px;
-  }
 }
 
 /* ============================================================
@@ -5561,8 +5460,31 @@ a.mr-commit-row:hover {
 /* Stat card sub / trend lines (third row under the value) */
 .stat-sub {
   margin-top: 4px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
   font: 500 12px/16px var(--sans);
   color: var(--ink3);
+}
+
+/* Last-commit meta card: value on the left, author/branch pushed to the right. */
+.stat-meta .mr-meta-card.lc-card {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.lc-card .lc-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.lc-sub {
+  margin-top: 0;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
 }
 .stat-trend {
   margin-top: 4px;

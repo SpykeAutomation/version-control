@@ -1,15 +1,11 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
-  Boxes,
-  Braces,
   Download,
   FileCode2,
-  FileSpreadsheet,
   FileText,
   GitBranch,
   Monitor,
-  Tag,
 } from "lucide-react";
 import { TopBar } from "../app/TopBar";
 import { RungView } from "../components/Ladder";
@@ -17,20 +13,9 @@ import { errorText, useProject } from "../api/queries";
 import {
   FILE_KIND_LABEL,
   type FileEntry,
-  type FileKind,
   type RepositoryDetail,
 } from "../api/repository";
 import { timeAgo } from "../lib/time";
-
-const FILE_ICON: Record<FileKind, typeof Tag> = {
-  program: Boxes,
-  routine: FileCode2,
-  tags: Tag,
-  io: FileSpreadsheet,
-  hmi: Monitor,
-  document: FileText,
-  udt: Braces,
-};
 
 function initials(name: string): string {
   const p = name.trim().split(/\s+/);
@@ -38,28 +23,22 @@ function initials(name: string): string {
 }
 
 export function FileViewPage() {
-  const { slug, fileName } = useParams();
-  const name = fileName ? decodeURIComponent(fileName) : "";
-  const { isPending, error, project } = useProject(slug);
+  const params = useParams();
+  const name = params.fileName ? decodeURIComponent(params.fileName) : "";
+  const slug = params.slug;
+  const { project, isPending, error } = useProject(params.slug);
 
   // The backend doesn't expose this rich detail yet; until it does, the page
   // renders empty states.
-  const [detail] = useState<RepositoryDetail | null>(null);
+  const detail = null as RepositoryDetail | null;
   const file = useMemo(
     () => detail?.fileList.find((f) => f.name === name) ?? null,
     [detail, name],
   );
 
-  const actions = file && (
-    <button className="btn btn-outline btn-sm">
-      <Download size={15} strokeWidth={1.8} />
-      Download
-    </button>
-  );
-
   return (
     <>
-      <TopBar actions={actions} />
+      <TopBar />
       <div className="app-scroll">
         {error ? (
           <div className="page-pad">
@@ -85,9 +64,9 @@ export function FileViewPage() {
             </div>
           </div>
         ) : (
-          <div className="repo-page">
+          <div className="mr-page">
             <nav className="crumb">
-              <Link to="/projects">Projects</Link>
+              <Link to="/projects">Repositories</Link>
               <span className="crumb-sep">/</span>
               <Link to={`/projects/${slug}`}>{project.name}</Link>
               <span className="crumb-sep">/</span>
@@ -104,28 +83,61 @@ export function FileViewPage() {
 }
 
 function FileHeader({ file }: { file: FileEntry }) {
-  const Icon = FILE_ICON[file.kind];
   return (
-    <header className="fv-head">
-      <span className="fv-head-ico">
-        <Icon size={22} strokeWidth={1.9} />
-      </span>
-      <div className="fv-head-main">
-        <h1 className="fv-name">{file.name}</h1>
-        <div className="fv-meta">
-          <span className="fv-kind">{FILE_KIND_LABEL[file.kind]}</span>
-          <span className="fv-dot">·</span>
-          <span>{file.size}</span>
-          <span className="fv-dot">·</span>
-          <span>Updated {timeAgo(file.modifiedAt)}</span>
-          <span className="fv-dot">·</span>
-          <span className="author">
-            <span className="author-av">{initials(file.modifiedBy)}</span>
-            {file.modifiedBy}
+    <>
+      <header className="mr-head">
+        <span className="repo-ico repo-head-tile tone-slate">
+          <FileCode2 size={24} strokeWidth={1.9} />
+        </span>
+        <div className="mr-head-main">
+          <div className="mr-title-row">
+            <h1 className="mr-title">{file.name}</h1>
+          </div>
+        </div>
+        <div className="mr-actions">
+          <button className="btn btn-outline btn-sm">
+            <Download size={15} strokeWidth={1.8} />
+            Download
+          </button>
+        </div>
+      </header>
+
+      <div className="mr-meta stat-meta">
+        <div className="mr-meta-card">
+          <div className="mr-meta-label">
+            <span className="mr-meta-ico">
+              <FileText size={14} strokeWidth={1.8} />
+            </span>
+            Kind
+          </div>
+          <span className="stat-value">{FILE_KIND_LABEL[file.kind]}</span>
+        </div>
+        <div className="mr-meta-card">
+          <div className="mr-meta-label">
+            <span className="mr-meta-ico">
+              <FileText size={14} strokeWidth={1.8} />
+            </span>
+            Size
+          </div>
+          <span className="stat-value">{file.size}</span>
+        </div>
+        <div className="mr-meta-card">
+          <div className="mr-meta-label">
+            <span className="mr-meta-ico">
+              <FileText size={14} strokeWidth={1.8} />
+            </span>
+            Last modified
+          </div>
+          <span className="stat-value">{timeAgo(file.modifiedAt)}</span>
+          <span className="stat-sub">
+            <span className="author">
+              <span className="author-av">{initials(file.modifiedBy)}</span>
+              by {file.modifiedBy}
+            </span>
           </span>
         </div>
       </div>
-    </header>
+    </>
   );
 }
 

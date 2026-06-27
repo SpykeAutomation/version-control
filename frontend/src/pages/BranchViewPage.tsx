@@ -1,27 +1,30 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
   ArrowDown,
   ArrowLeftRight,
   ArrowUp,
-  ChevronDown,
   GitBranch,
   ShieldCheck,
 } from "lucide-react";
 import { TopBar } from "../app/TopBar";
 import { FilesTable, initials } from "../components/FilesTable";
 import { errorText, useProject } from "../api/queries";
-import type { BranchInfo, RepositoryDetail } from "../api/repository";
+import {
+  type BranchInfo,
+  type RepositoryDetail,
+} from "../api/repository";
 import { timeAgo } from "../lib/time";
 
 export function BranchViewPage() {
-  const { slug, branch } = useParams();
-  const branchName = branch ? decodeURIComponent(branch) : "";
-  const { isPending, error, project } = useProject(slug);
+  const params = useParams();
+  const branchName = params.branch ? decodeURIComponent(params.branch) : "";
+  const slug = params.slug;
+  const { project, isPending, error } = useProject(params.slug);
 
   // The backend doesn't expose this rich detail yet; until it does, the page
   // renders empty states.
-  const [detail] = useState<RepositoryDetail | null>(null);
+  const detail = null as RepositoryDetail | null;
   const info = useMemo<BranchInfo | null>(
     () => detail?.branches.find((b) => b.name === branchName) ?? null,
     [detail, branchName],
@@ -56,51 +59,66 @@ export function BranchViewPage() {
             </div>
           </div>
         ) : (
-          <div className="repo-page">
+          <div className="mr-page">
             <nav className="crumb">
-              <Link to="/projects">Projects</Link>
+              <Link to="/projects">Repositories</Link>
               <span className="crumb-sep">/</span>
               <Link to={`/projects/${slug}`}>{project.name}</Link>
               <span className="crumb-sep">/</span>
               <span>{info.name}</span>
             </nav>
 
-            <div className="branch-bar">
-              <button className="branch-switch">
-                <GitBranch size={15} strokeWidth={1.9} />
-                {info.name}
-                <ChevronDown size={15} strokeWidth={1.9} />
-              </button>
-              {info.isProtected && (
-                <span className="br-status protected">
-                  <ShieldCheck size={14} strokeWidth={1.9} />
-                  Protected
-                </span>
-              )}
-              {(info.behind > 0 || info.ahead > 0) && (
-                <span className="branch-rel">
-                  {info.behind > 0 && (
-                    <span className="ba-part">
-                      <ArrowDown size={12} strokeWidth={2} />
-                      {info.behind} behind
+            <header className="mr-head">
+              <span className="repo-ico repo-head-tile tone-blue">
+                <GitBranch size={24} strokeWidth={1.9} />
+              </span>
+              <div className="mr-head-main">
+                <div className="mr-title-row">
+                  <h1 className="mr-title">{info.name}</h1>
+                </div>
+                {info.isProtected && (
+                  <div className="repo-head-chips">
+                    <span className="badge green">
+                      <ShieldCheck size={14} strokeWidth={1.9} />
+                      Protected
                     </span>
-                  )}
-                  {info.ahead > 0 && (
-                    <span className="ba-part">
-                      <ArrowUp size={12} strokeWidth={2} />
-                      {info.ahead} ahead
-                    </span>
-                  )}
-                </span>
-              )}
-              <Link
-                to="/compare"
-                className="btn btn-outline btn-sm branch-compare"
-              >
-                <ArrowLeftRight size={15} strokeWidth={1.8} />
-                Compare
-              </Link>
-            </div>
+                  </div>
+                )}
+              </div>
+              <div className="mr-actions">
+                <Link to="/compare" className="btn btn-outline btn-sm">
+                  <ArrowLeftRight size={15} strokeWidth={1.8} />
+                  Compare
+                </Link>
+              </div>
+            </header>
+
+            {(info.behind > 0 || info.ahead > 0) && (
+              <div className="mr-meta stat-meta">
+                {info.behind > 0 && (
+                  <div className="mr-meta-card">
+                    <div className="mr-meta-label">
+                      <span className="mr-meta-ico">
+                        <ArrowDown size={14} strokeWidth={1.8} />
+                      </span>
+                      Behind
+                    </div>
+                    <span className="stat-value">{info.behind}</span>
+                  </div>
+                )}
+                {info.ahead > 0 && (
+                  <div className="mr-meta-card">
+                    <div className="mr-meta-label">
+                      <span className="mr-meta-ico">
+                        <ArrowUp size={14} strokeWidth={1.8} />
+                      </span>
+                      Ahead
+                    </div>
+                    <span className="stat-value">{info.ahead}</span>
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="branch-files">
               <div className="commit-bar">

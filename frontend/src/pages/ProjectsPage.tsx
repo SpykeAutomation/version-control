@@ -25,7 +25,7 @@ import {
 import { TopBar } from "../app/TopBar";
 import { StatusBadge } from "../components/StatusBadge";
 import { RailSection } from "../components/RailSection";
-import { type ProjectRow, type RepoStatus, demoProjects } from "../api/projects";
+import { type ProjectRow, type RepoStatus } from "../api/projects";
 import { errorText, useProjects } from "../api/queries";
 import { timeAgo } from "../lib/time";
 
@@ -113,19 +113,6 @@ export function ProjectsPage() {
         ) : (
           <ProjectsView projects={projects!} />
         )}
-      </div>
-    </>
-  );
-}
-
-// Dev-only preview: renders the presentational view with synthetic data so the
-// page can be inspected without a backend or auth.
-export function ProjectsPreview() {
-  return (
-    <>
-      <TopBar />
-      <div className="app-scroll">
-        <ProjectsView projects={demoProjects()} />
       </div>
     </>
   );

@@ -26,7 +26,6 @@ import { TopBar } from "../app/TopBar";
 import { RoutineLadderDiffView } from "../components/LadderDiff";
 import { ApiError } from "../api/client";
 import {
-  demoPull,
   MR_STATUS_META,
   REVIEW_STATE_META,
   type MergeRequest,
@@ -40,9 +39,11 @@ import {
 import {
   errorText,
   useCreateComment,
+  useMergePull,
   useMergeRequest,
   useProject,
 } from "../api/queries";
+import type { MergeOutcome } from "../api/mergeRequest";
 import { useAuth } from "../auth/AuthContext";
 import { formatDate, timeAgo } from "../lib/time";
 
@@ -60,13 +61,10 @@ export function MergeRequestPage() {
   const mr = mrQuery.data ?? null;
   const loading = (projectPending && !mr) || mrQuery.isPending;
   // A 404 means the merge request doesn't exist — show the empty state rather
-  // than an error banner. A status-0 (unreachable) project error isn't fatal
-  // here: the request query falls back to demo data, so we still render it.
+  // than an error banner.
   const notFound =
     mrQuery.error instanceof ApiError && mrQuery.error.status === 404;
-  const projectFatal =
-    projectError &&
-    !(projectError instanceof ApiError && projectError.status === 0);
+  const projectFatal = Boolean(projectError);
   const error = projectFatal
     ? errorText(projectError, "Failed to load merge request.")
     : mrQuery.error && !notFound
@@ -93,6 +91,7 @@ export function MergeRequestPage() {
           <MergeRequestView
             mr={mr}
             projectName={project?.name}
+            projectId={project?.id}
             slug={slug}
             mrId={mrId}
           />
@@ -102,21 +101,28 @@ export function MergeRequestPage() {
   );
 }
 
-// The presentational merge-request view, independent of data loading so it can
-// also back the dev preview route below.
+// The presentational merge-request view, independent of data loading.
 function MergeRequestView({
   mr,
   projectName,
+  projectId,
   slug,
   mrId,
 }: {
   mr: MergeRequest;
   projectName?: string;
+  projectId?: number;
   slug?: string;
   mrId?: string;
 }) {
   const [showNumbers, setShowNumbers] = useState(true);
   const [tab, setTab] = useState<MrTab>("changes");
+  const merge = useMergePull(slug, mrId, projectId);
+  const merged = mr.status === "merged";
+  const onMerge = () => merge.mutate();
+  // The merge buttons stay inert without a project id and while a merge is in
+  // flight or already done.
+  const disabled = !projectId || merge.isPending || merged;
   return (
     <div className="mr-page">
       <nav className="crumb">
@@ -131,7 +137,13 @@ function MergeRequestView({
         <span>Merge request</span>
       </nav>
 
-      <MergeHeader mr={mr} />
+      <MergeHeader
+        mr={mr}
+        onMerge={onMerge}
+        disabled={disabled}
+        pending={merge.isPending}
+        merged={merged}
+      />
       <MetaRow mr={mr} />
       <SummaryCard mr={mr} />
 
@@ -166,34 +178,35 @@ function MergeRequestView({
           <AboutMergeRequestsCard />
           <ReviewersCard reviewers={mr.reviewers} />
           <MergeDetails mr={mr} />
-          <MergeActions targetBranch={mr.targetBranch} />
+          <MergeActions
+            targetBranch={mr.targetBranch}
+            onMerge={onMerge}
+            disabled={disabled}
+            pending={merge.isPending}
+            merged={merged}
+            outcome={merge.data}
+            error={merge.error ? errorText(merge.error, "Couldn't merge.") : null}
+          />
         </aside>
       </div>
     </div>
   );
 }
 
-// Dev-only preview: renders the page with self-contained demo data so the look
-// can be checked without a backend or signing in. Wired in App.tsx under DEV.
-export function MergeRequestPreview() {
-  const mr = demoPull("MR-027");
-  return (
-    <>
-      <TopBar />
-      <div className="app-scroll">
-        <MergeRequestView
-          mr={mr}
-          projectName="Packaging Line 3"
-          slug="packaging-line-3"
-          mrId="MR-027"
-        />
-      </div>
-    </>
-  );
-}
-
 // ---- Header ----
-function MergeHeader({ mr }: { mr: MergeRequest }) {
+function MergeHeader({
+  mr,
+  onMerge,
+  disabled,
+  pending,
+  merged,
+}: {
+  mr: MergeRequest;
+  onMerge: () => void;
+  disabled: boolean;
+  pending: boolean;
+  merged: boolean;
+}) {
   const s = MR_STATUS_META[mr.status];
   return (
     <header className="mr-head">
@@ -215,9 +228,14 @@ function MergeHeader({ mr }: { mr: MergeRequest }) {
           {s.label}
         </span>
         <button className="btn-quiet">Request changes</button>
-        <button className="btn btn-approve btn-sm">
+        <button
+          className="btn btn-approve btn-sm"
+          type="button"
+          onClick={onMerge}
+          disabled={disabled}
+        >
           <GitMerge size={15} strokeWidth={2} />
-          Approve &amp; merge
+          {merged ? "Merged" : pending ? "Merging…" : "Approve & merge"}
           <ChevronDown size={15} strokeWidth={2} />
         </button>
       </div>
@@ -923,7 +941,23 @@ function MdRow({
   );
 }
 
-function MergeActions({ targetBranch }: { targetBranch: string }) {
+function MergeActions({
+  targetBranch,
+  onMerge,
+  disabled,
+  pending,
+  merged,
+  outcome,
+  error,
+}: {
+  targetBranch: string;
+  onMerge: () => void;
+  disabled: boolean;
+  pending: boolean;
+  merged: boolean;
+  outcome?: MergeOutcome;
+  error?: string | null;
+}) {
   return (
     <section className="rail-section mr-merge-card">
       <div className="mr-merge-title">Ready to merge</div>
@@ -931,9 +965,18 @@ function MergeActions({ targetBranch }: { targetBranch: string }) {
         Once merged, the changes in this branch will be reflected on{" "}
         <span className="mr-branch">{targetBranch}</span>.
       </p>
-      <button className="btn btn-approve btn-block">
+      {outcome?.status === "conflict" && (
+        <div className="panel-msg error">{outcome.message}</div>
+      )}
+      {error && <div className="panel-msg error">{error}</div>}
+      <button
+        className="btn btn-approve btn-block"
+        type="button"
+        onClick={onMerge}
+        disabled={disabled}
+      >
         <GitMerge size={16} strokeWidth={2} />
-        Approve &amp; merge
+        {merged ? "Merged" : pending ? "Merging…" : "Approve & merge"}
         <ChevronDown size={15} strokeWidth={2} />
       </button>
       <button className="btn btn-text btn-block">

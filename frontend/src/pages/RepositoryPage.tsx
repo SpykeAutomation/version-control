@@ -26,13 +26,11 @@ import { TopBar } from "../app/TopBar";
 import { FilesTable } from "../components/FilesTable";
 import { StatusBadge } from "../components/StatusBadge";
 import {
-  demoProjects,
   type Member,
   type ProjectRow,
 } from "../api/projects";
 import {
   CR_META,
-  demoRepositoryDetail,
   type BranchInfo,
   type ChangeRequestRow,
   type Commit,
@@ -40,7 +38,6 @@ import {
 } from "../api/repository";
 import { type BranchSummary } from "../api/commits";
 import { MR_STATUS_META, type ChangeRequestSummary } from "../api/mergeRequest";
-import { ApiError } from "../api/client";
 import {
   errorText,
   useBranches,
@@ -54,7 +51,7 @@ import { formatDate, timeAgo } from "../lib/time";
 
 const TABS = [
   { label: "Overview", icon: LayoutGrid },
-  { label: "Explorer", icon: FileText },
+  { label: "Explore", icon: FileText },
   { label: "Merge requests", icon: GitPullRequestArrow },
   { label: "Settings", icon: Settings },
 ] as const;
@@ -112,11 +109,7 @@ export function RepositoryPage() {
   const branches = useBranches(project?.id).data ?? null;
   const members = useMembers(project?.id).data ?? null;
 
-  // A status-0 (unreachable) project error isn't fatal: the detail query falls
-  // back to demo data, so the page still renders.
-  const projectFatal =
-    projectError &&
-    !(projectError instanceof ApiError && projectError.status === 0);
+  const projectFatal = Boolean(projectError);
 
   return (
     <>
@@ -161,36 +154,6 @@ export function RepositoryPage() {
   );
 }
 
-// Dev-only preview: renders the presentational view with synthetic data so the
-// page can be inspected without a backend or auth.
-export function RepositoryPreview() {
-  const detail = demoRepositoryDetail();
-  const project = demoProjects()[0]; // Packaging Line 3
-  const crs: ChangeRequestSummary[] = detail.changeRequests.map((c, i) => ({
-    number: i + 1,
-    title: c.title,
-    author: c.author,
-    status: c.status === "open" ? "open" : c.status,
-    createdAt: c.at,
-  }));
-  return (
-    <>
-      <TopBar />
-      <div className="app-scroll">
-        <RepositoryView
-          detail={detail}
-          project={project}
-          commits={detail.commits}
-          branches={detail.branches}
-          crs={crs}
-          members={null}
-          slug="packaging-line-3"
-        />
-      </div>
-    </>
-  );
-}
-
 // The presentational repository view, independent of data loading. Holds the
 // active tab and renders the header, meta strip, tabs and body.
 function RepositoryView({
@@ -216,8 +179,6 @@ function RepositoryView({
   const branchCount = detail?.branches?.length
     ? detail.branches.length
     : (branches?.length ?? project.branches?.length ?? null);
-  const defaultBranch =
-    branches?.find((b) => b.isDefault)?.name ?? project.branches?.[0] ?? "main";
 
   return (
     <div className="mr-page">
@@ -256,7 +217,6 @@ function RepositoryView({
           commits={commits}
           crs={crs}
           branchCount={branchCount}
-          defaultBranch={defaultBranch}
         />
       )}
 
@@ -275,8 +235,8 @@ function RepositoryView({
         ))}
       </nav>
 
-      {tab === "Explorer" ? (
-        <CodeView detail={detail} slug={slug} />
+      {tab === "Explore" ? (
+        <CodeView detail={detail} project={project} slug={slug} />
       ) : tab === "Merge requests" ? (
         <ChangeRequestsCard
           crs={crs}
@@ -306,7 +266,6 @@ function RepositoryView({
           <aside className="repo-rail">
             <DetailsCard detail={detail} project={project} members={members} />
             <TagsCard detail={detail} />
-            <RepositoryFilesCard detail={detail} slug={slug} />
           </aside>
         </div>
       )}
@@ -319,44 +278,41 @@ function MetaStrip({
   commits,
   crs,
   branchCount,
-  defaultBranch,
 }: {
   detail: RepositoryDetail | null;
   commits: Commit[] | null;
   crs: ChangeRequestSummary[] | null;
   branchCount: number | null;
-  defaultBranch: string;
 }) {
   const lastCommit = detail?.commits?.[0] ?? commits?.[0] ?? null;
   const openCount =
     detail?.openChangeRequests ??
     (crs ? crs.filter((c) => c.status !== "merged").length : null);
-  const inReview = detail?.changeRequests?.length
-    ? detail.changeRequests.filter((c) => c.status === "review").length
-    : crs
-      ? crs.filter((c) => c.status === "review").length
-      : null;
 
   return (
     <div className="mr-meta stat-meta repo-meta">
-      <div className="mr-meta-card">
-        <div className="mr-meta-label">
-          <span className="mr-meta-ico">
-            <GitCommitHorizontal size={14} strokeWidth={1.8} />
-          </span>
-          Last commit
+      <div className="mr-meta-card lc-card">
+        <div className="lc-main">
+          <div className="mr-meta-label">
+            <span className="mr-meta-ico">
+              <GitCommitHorizontal size={14} strokeWidth={1.8} />
+            </span>
+            Last commit
+          </div>
+          <span className="stat-value">{lastCommit ? timeAgo(lastCommit.at) : "—"}</span>
         </div>
-        <span className="stat-value">{lastCommit ? timeAgo(lastCommit.at) : "—"}</span>
-        <span className="stat-sub">
-          {lastCommit ? (
+        {lastCommit && (
+          <span className="stat-sub lc-sub">
             <span className="author">
               <span className="author-av">{initials(lastCommit.author)}</span>
               by {lastCommit.author}
             </span>
-          ) : (
-            "—"
-          )}
-        </span>
+            <span className="branch-tag">
+              <GitBranch size={13} strokeWidth={2} />
+              {lastCommit.branch}
+            </span>
+          </span>
+        )}
       </div>
       <div className="mr-meta-card">
         <div className="mr-meta-label">
@@ -366,9 +322,6 @@ function MetaStrip({
           Open merge requests
         </div>
         <span className="stat-value">{openCount ?? "—"}</span>
-        <span className="stat-sub">
-          {inReview != null ? `${inReview} in review` : "—"}
-        </span>
       </div>
       <div className="mr-meta-card">
         <div className="mr-meta-label">
@@ -378,7 +331,6 @@ function MetaStrip({
           Total branches
         </div>
         <span className="stat-value">{branchCount ?? "—"}</span>
-        <span className="stat-sub">Default · {defaultBranch}</span>
       </div>
     </div>
   );
@@ -393,8 +345,7 @@ function CardHead({ title, action }: { title: string; action?: React.ReactNode }
   );
 }
 
-// Either a live commit summary or a demo commit; both share the fields the row
-// renders.
+// A commit summary with the fields the row renders.
 type CommitRow = Commit | {
   hash: string;
   sha: string;
@@ -778,7 +729,7 @@ function BranchPicker({
   selected,
   onSelect,
 }: {
-  branches: BranchInfo[];
+  branches: { name: string; isDefault?: boolean }[];
   selected: string;
   onSelect: (name: string) => void;
 }) {
@@ -833,13 +784,34 @@ function BranchPicker({
   );
 }
 
-function CodeView({ detail, slug }: { detail: RepositoryDetail | null; slug: string }) {
-  const branches = detail?.branches ?? [];
-  const defaultBranch =
-    branches.find((b) => b.isDefault)?.name ?? branches[0]?.name ?? "";
-  const [selected, setSelected] = useState(defaultBranch);
+function CodeView({
+  detail,
+  project,
+  slug,
+}: {
+  detail: RepositoryDetail | null;
+  project: ProjectRow;
+  slug: string;
+}) {
+  // Prefer the rich detail when it's populated; otherwise read branches and
+  // commits from the live endpoints.
+  const liveBranches = useBranches(project.id).data ?? null;
+  const branchList: (BranchSummary | BranchInfo)[] = detail?.branches?.length
+    ? detail.branches
+    : (liveBranches ?? []);
 
-  if (!detail || branches.length === 0) {
+  const defaultBranch =
+    branchList.find((b) => b.isDefault)?.name ?? branchList[0]?.name ?? "";
+  const [selected, setSelected] = useState(defaultBranch);
+  // Branches load after the first render, so adopt the default once it arrives.
+  useEffect(() => {
+    if (!selected && defaultBranch) setSelected(defaultBranch);
+  }, [selected, defaultBranch]);
+  const branchName = selected || defaultBranch;
+
+  const liveCommits = useCommits(project.id, branchName || "main").data ?? null;
+
+  if (branchList.length === 0) {
     return (
       <div className="empty-state">
         <span className="empty-ico">
@@ -851,38 +823,47 @@ function CodeView({ detail, slug }: { detail: RepositoryDetail | null; slug: str
     );
   }
 
-  const info = branches.find((b) => b.name === selected) ?? branches[0];
-  const files = detail.fileList;
-  const commits = detail.commits.filter((c) => c.branch === info.name);
-  const upToDate = info.ahead === 0 && info.behind === 0;
+  const info = branchList.find((b) => b.name === branchName) ?? branchList[0];
+  const files = detail?.fileList ?? [];
+  const commits = detail?.commits?.length
+    ? detail.commits.filter((c) => c.branch === info.name)
+    : (liveCommits ?? []);
+  // Ahead/behind only exists on the rich branch detail; the live branch list
+  // doesn't expose it, so the divergence badges are hidden for live data.
+  const divergence = "ahead" in info ? info : null;
+  const upToDate = divergence ? divergence.ahead === 0 && divergence.behind === 0 : false;
 
   return (
     <div className="explorer">
       <div className="code-bar">
         <BranchPicker
-          branches={branches}
+          branches={branchList}
           selected={info.name}
           onSelect={setSelected}
         />
-        {upToDate ? (
-          <span className="badge green">Up to date</span>
-        ) : (
-          <span className="badge gray">Diverged</span>
+        {divergence && (
+          <>
+            {upToDate ? (
+              <span className="badge green">Up to date</span>
+            ) : (
+              <span className="badge gray">Diverged</span>
+            )}
+            <span className="branch-ab">
+              <span className="ab-ahead">
+                <ChevronDown
+                  size={12}
+                  strokeWidth={2}
+                  style={{ transform: "rotate(180deg)" }}
+                />
+                {divergence.ahead} ahead
+              </span>
+              <span className="ab-behind">
+                <ChevronDown size={12} strokeWidth={2} />
+                {divergence.behind} behind
+              </span>
+            </span>
+          </>
         )}
-        <span className="branch-ab">
-          <span className="ab-ahead">
-            <ChevronDown
-              size={12}
-              strokeWidth={2}
-              style={{ transform: "rotate(180deg)" }}
-            />
-            {info.ahead} ahead
-          </span>
-          <span className="ab-behind">
-            <ChevronDown size={12} strokeWidth={2} />
-            {info.behind} behind
-          </span>
-        </span>
         <div className="toolbar-search">
           <Search size={15} strokeWidth={1.8} />
           <input
@@ -908,7 +889,7 @@ function CodeView({ detail, slug }: { detail: RepositoryDetail | null; slug: str
       </div>
 
       <div className="rcard">
-        <CardHead title="Contents of /PLC Projects" />
+        <CardHead title="Files" />
         {files.length === 0 ? (
           <div className="rcard-empty">No files on this branch yet.</div>
         ) : (
@@ -916,7 +897,7 @@ function CodeView({ detail, slug }: { detail: RepositoryDetail | null; slug: str
             <FilesTable files={files} slug={slug} />
             <div className="table-foot">
               <span>
-                {files.length} files · {detail.files.totalSize}
+                {files.length} files · {detail?.files.totalSize}
               </span>
             </div>
           </>
@@ -985,38 +966,5 @@ function CodeView({ detail, slug }: { detail: RepositoryDetail | null; slug: str
         )}
       </div>
     </div>
-  );
-}
-
-function RepositoryFilesCard({
-  detail,
-  slug,
-}: {
-  detail: RepositoryDetail | null;
-  slug: string;
-}) {
-  const files = detail?.files;
-  return (
-    <section className="rail-section">
-      <div className="rail-head">
-        <span className="rail-title">Repository files</span>
-        <Link
-          to={`/projects/${slug}/tree/${"main"}`}
-          className="link-btn"
-        >
-          View files
-        </Link>
-      </div>
-      <dl className="kv">
-        <div className="kv-row">
-          <dt>Files</dt>
-          <dd>{files && files.totalFiles ? files.totalFiles.toLocaleString() : "—"}</dd>
-        </div>
-        <div className="kv-row">
-          <dt>Total size</dt>
-          <dd>{files?.totalSize ?? "—"}</dd>
-        </div>
-      </dl>
-    </section>
   );
 }

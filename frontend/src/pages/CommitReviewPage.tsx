@@ -23,7 +23,6 @@ import { ProjectTree, type RoutineSelection } from "../components/ProjectTree";
 import { ApiError } from "../api/client";
 import type { ProjectTree as ProjectTreeData, TreeNode } from "../api/tree";
 import {
-  demoCommit,
   routineKey,
   type CommitDetail,
   type CommitFileStat,
@@ -59,11 +58,7 @@ export function CommitReviewPage() {
   const loading = (projectPending && !commit) || commitQuery.isPending;
   const notFound =
     commitQuery.error instanceof ApiError && commitQuery.error.status === 404;
-  // A status-0 (unreachable) project error isn't fatal: the commit query falls
-  // back to demo data, so the page still renders.
-  const projectFatal =
-    projectError &&
-    !(projectError instanceof ApiError && projectError.status === 0);
+  const projectFatal = Boolean(projectError);
   const error = projectFatal
     ? errorText(projectError, "Failed to load commit.")
     : commitQuery.error && !notFound
@@ -99,8 +94,7 @@ export function CommitReviewPage() {
   );
 }
 
-// Presentational commit view, independent of data loading so it can also back
-// the dev preview route below.
+// Presentational commit view, independent of data loading.
 function CommitReviewView({
   commit,
   projectName,
@@ -227,24 +221,6 @@ function CommitReviewView({
         )}
       </div>
     </div>
-  );
-}
-
-// Dev-only preview: renders the page with self-contained demo data so the look
-// can be checked without a backend or signing in. Wired in App.tsx under DEV.
-export function CommitReviewPreview() {
-  const commit = demoCommit("a7f3c9d");
-  return (
-    <>
-      <TopBar />
-      <div className="app-scroll">
-        <CommitReviewView
-          commit={commit}
-          projectName="Packaging Line 3"
-          slug="packaging-line-3"
-        />
-      </div>
-    </>
   );
 }
 
@@ -579,8 +555,8 @@ function FilesBrowser({
   );
 }
 
-// Renders a routine in full when it has no diff to show: uses the pre-loaded
-// demo content when present, otherwise fetches it from the backend.
+// Renders a routine in full when it has no diff to show: uses content already
+// carried with the commit when present, otherwise fetches it from the backend.
 // Falls back to a status-aware placeholder while loading or when no content is
 // available (e.g. the backend endpoint isn't there yet).
 function FullRoutineViewer({
@@ -598,7 +574,7 @@ function FullRoutineViewer({
   status?: TreeNode["status"];
   showNumbers: boolean;
 }) {
-  // Only hit the backend when the content isn't already available from demo data.
+  // Only hit the backend when the content isn't already carried with the commit.
   const query = useRoutineContent(
     projectId,
     sha,

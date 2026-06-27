@@ -16,7 +16,7 @@ import {
   X,
 } from "lucide-react";
 import { TopBar } from "../app/TopBar";
-import { commitFiles } from "../api/commits";
+import { commitFiles, createBranch } from "../api/commits";
 import { createChangeRequest } from "../api/mergeRequest";
 import { ApiError } from "../api/client";
 import { errorText, queryKeys, useProject } from "../api/queries";
@@ -37,15 +37,17 @@ function formatSize(bytes: number): string {
 const ACCEPT = ".L5X,.l5x";
 
 export function CommitPage() {
-  const { slug } = useParams();
+  const { slug: routeSlug } = useParams();
   const navigate = useNavigate();
 
-  const { isPending, error: loadErr, project } = useProject(slug);
+  const { project, isPending, error: loadErr } = useProject(routeSlug);
+  const slug = routeSlug;
   const loadError = loadErr ? errorText(loadErr, "Failed to load project.") : null;
   const qc = useQueryClient();
 
   const [files, setFiles] = useState<File[]>([]);
   const [branch, setBranch] = useState("");
+  const [newBranch, setNewBranch] = useState("");
   const [message, setMessage] = useState("");
   const [description, setDescription] = useState("");
   const [dragOver, setDragOver] = useState(false);
@@ -69,20 +71,40 @@ export function CommitPage() {
     setFiles(files.filter((_, i) => i !== idx));
   }
 
+  // The branch this commit lands on. When "+ Create new branch…" is selected,
+  // it's the typed name; otherwise it's the chosen existing branch.
+  const targetBranch = branch === "__new__" ? newBranch.trim() : branch;
   const totalSize = files.reduce((s, f) => s + f.size, 0);
-  const canCommit = files.length > 0 && message.trim().length > 0 && !submitting;
+  const canCommit =
+    files.length > 0 &&
+    message.trim().length > 0 &&
+    !submitting &&
+    (branch !== "__new__" || newBranch.trim().length > 0);
   // Committing to main lands directly; committing to any other branch opens a
   // change request to merge it back into main after review. The action below
   // adapts to whichever branch is selected.
-  const isMain = branch === "main";
+  const isMain = targetBranch === "main";
 
   async function submit(kind: "commit" | "request") {
     if (!project || !canCommit) return;
     setError(null);
     setSubmitting(kind);
     try {
+      if (branch === "__new__") {
+        try {
+          await createBranch(project.id, targetBranch, "main");
+          // A new branch changes the project's branch list; refresh it.
+          qc.invalidateQueries({ queryKey: queryKeys.projects });
+        } catch (e) {
+          // A branch that already exists is fine — fall through and commit to
+          // it; surface anything else.
+          const exists =
+            e instanceof ApiError && /exist/i.test(e.message);
+          if (!exists) throw e;
+        }
+      }
       await commitFiles(project.id, {
-        branch,
+        branch: targetBranch,
         message: message.trim(),
         description: description.trim(),
         files,
@@ -95,7 +117,7 @@ export function CommitPage() {
         const pr = await createChangeRequest(project.id, {
           title: message.trim(),
           description: description.trim(),
-          sourceBranch: branch,
+          sourceBranch: targetBranch,
           targetBranch: "main",
         });
         navigate(`/projects/${slug}/merge/${pr.number}`);
@@ -136,18 +158,24 @@ export function CommitPage() {
             </div>
           </div>
         ) : (
-          <div className="commit-page">
+          <div className="mr-page">
             <nav className="crumb">
-              <Link to="/projects">Projects</Link>
+              <Link to="/projects">Repositories</Link>
               <span className="crumb-sep">/</span>
               <Link to={`/projects/${project.slug}`}>{project.name}</Link>
               <span className="crumb-sep">/</span>
               <span>Commit</span>
             </nav>
 
-            <header className="commit-head">
-              <h1>Upload files and create commit</h1>
-              <p>Upload PLC files and commit them to the selected branch.</p>
+            <header className="mr-head">
+              <div className="mr-head-main">
+                <div className="mr-title-row">
+                  <h1 className="mr-title">Upload files and create commit</h1>
+                </div>
+                <p className="mr-sub">
+                  Upload PLC files and commit them to the selected branch.
+                </p>
+              </div>
             </header>
 
             <div className="field commit-branch">
@@ -167,9 +195,20 @@ export function CommitPage() {
                       {b}
                     </option>
                   ))}
+                  <option value="__new__">+ Create new branch…</option>
                 </select>
                 <ChevronDown className="select-caret" size={16} strokeWidth={1.8} />
               </div>
+              {branch === "__new__" && (
+                <input
+                  className="input"
+                  style={{ marginTop: 8 }}
+                  placeholder="feature/my-change"
+                  value={newBranch}
+                  onChange={(e) => setNewBranch(e.target.value)}
+                  aria-label="New branch name"
+                />
+              )}
             </div>
 
             {error && <div className="form-error commit-error">{error}</div>}
@@ -347,7 +386,7 @@ export function CommitPage() {
                   <p className="commit-actions-hint">
                     {isMain
                       ? "Commits directly to the main branch."
-                      : `Commits to ${branch}, then opens a change request to merge into main.`}
+                      : `Commits to ${targetBranch || "the new branch"}, then opens a change request to merge into main.`}
                   </p>
                   <Link
                     to={`/projects/${project.slug}`}

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import {
   ArrowLeftRight,
   Box,
@@ -61,13 +62,26 @@ export function ComparePage() {
     <>
       <TopBar actions={actions} />
       <div className="app-scroll">
-        <div className="page-grid compare-grid">
-          <div className="page-main">
-            <div className="page-header">
-              <h1>Compare</h1>
-              <p>Review ladder logic changes between branches, releases, and commits.</p>
-            </div>
+        <div className="mr-page">
+          <nav className="crumb">
+            <Link to="/projects">Repositories</Link>
+            <span className="crumb-sep">/</span>
+            <span>Compare</span>
+          </nav>
 
+          <header className="mr-head">
+            <div className="mr-head-main">
+              <div className="mr-title-row">
+                <h1 className="mr-title">Compare changes</h1>
+              </div>
+              <p className="mr-sub">
+                Review ladder logic changes between branches, releases, and commits.
+              </p>
+            </div>
+          </header>
+
+          <div className="page-grid compare-grid">
+          <div className="page-main">
             <CompareBar c={comparison} />
 
             {!comparison ? (
@@ -144,6 +158,7 @@ export function ComparePage() {
               </div>
             )}
           </aside>
+          </div>
         </div>
       </div>
     </>

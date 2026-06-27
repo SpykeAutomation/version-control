@@ -76,6 +76,19 @@ export async function listBranches(
   );
 }
 
+// Create a branch off a start point (default main). Returns the project's
+// updated branch list.
+export function createBranch(
+  projectId: number,
+  name: string,
+  startPoint = "main",
+): Promise<string[]> {
+  return apiFetch<string[]>(`/projects/${projectId}/branches`, {
+    method: "POST",
+    json: { name, start_point: startPoint },
+  });
+}
+
 // Commit one or more files to a branch as a single commit.
 //
 // Each file is appended under the `file` field of one multipart request, along
