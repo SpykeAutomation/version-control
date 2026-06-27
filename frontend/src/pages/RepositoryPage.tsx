@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import {
   Box,
   Boxes,
@@ -175,7 +175,14 @@ function RepositoryView({
   members: Member[] | null;
   slug: string;
 }) {
-  const [tab, setTab] = useState<Tab>("Overview");
+  // The initial tab can be deep-linked via ?tab= (e.g. a breadcrumb pointing at
+  // "Merge requests"); it falls back to Overview for an unknown or missing value.
+  const [searchParams] = useSearchParams();
+  const requestedTab = searchParams.get("tab");
+  const initialTab: Tab = TABS.some((t) => t.label === requestedTab)
+    ? (requestedTab as Tab)
+    : "Overview";
+  const [tab, setTab] = useState<Tab>(initialTab);
 
   const description = detail?.description || project.description || "";
   const branchCount = detail?.branches?.length
@@ -206,7 +213,10 @@ function RepositoryView({
           )}
         </div>
         <div className="mr-actions">
-          <Link to="/compare" className="btn btn-primary btn-sm">
+          <Link
+            to={`/projects/${project.slug}/merge-requests/new`}
+            className="btn btn-primary btn-sm"
+          >
             Create merge request
           </Link>
         </div>
