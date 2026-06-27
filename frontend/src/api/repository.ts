@@ -67,6 +67,7 @@ export interface RepoFiles {
 }
 
 export type FileKind =
+  | "controller"
   | "program"
   | "routine"
   | "tags"
@@ -100,6 +101,7 @@ export interface FileEntry {
 }
 
 export const FILE_KIND_LABEL: Record<FileKind, string> = {
+  controller: "Controller",
   program: "Program",
   routine: "Routine",
   tags: "Tag map",

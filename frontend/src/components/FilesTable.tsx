@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import {
   Boxes,
   Braces,
+  Cpu,
   FileCode2,
   FileSpreadsheet,
   FileText,
@@ -12,6 +13,7 @@ import { FILE_KIND_LABEL, type FileEntry, type FileKind } from "../api/repositor
 import { timeAgo } from "../lib/time";
 
 export const FILE_ICON: Record<FileKind, typeof Tag> = {
+  controller: Cpu,
   program: Boxes,
   routine: FileCode2,
   tags: Tag,

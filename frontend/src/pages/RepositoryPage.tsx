@@ -34,6 +34,7 @@ import {
   type BranchInfo,
   type ChangeRequestRow,
   type Commit,
+  type FileEntry,
   type RepositoryDetail,
 } from "../api/repository";
 import { type BranchSummary } from "../api/commits";
@@ -43,6 +44,7 @@ import {
   useBranches,
   useChangeRequests,
   useCommits,
+  useCommitTree,
   useMembers,
   useProject,
   useRepository,
@@ -810,6 +812,9 @@ function CodeView({
   const branchName = selected || defaultBranch;
 
   const liveCommits = useCommits(project.id, branchName || "main").data ?? null;
+  // The controller name (the L5X file's name) comes from the organizer tree at
+  // the branch's latest commit.
+  const tree = useCommitTree(project.id, liveCommits?.[0]?.sha).data ?? null;
 
   if (branchList.length === 0) {
     return (
@@ -824,10 +829,31 @@ function CodeView({
   }
 
   const info = branchList.find((b) => b.name === branchName) ?? branchList[0];
-  const files = detail?.fileList ?? [];
-  const commits = detail?.commits?.length
-    ? detail.commits.filter((c) => c.branch === info.name)
-    : (liveCommits ?? []);
+  // Each commit is a new snapshot of the repo's single L5X file, so it changes
+  // exactly one file. (When repos hold multiple files this becomes a real count.)
+  const commits: Commit[] = (
+    detail?.commits?.length
+      ? detail.commits.filter((c) => c.branch === info.name)
+      : (liveCommits ?? [])
+  ).map((c) => ({ ...c, filesChanged: c.filesChanged ?? 1 }));
+  // A repo holds one or more L5X/ACD files; today each repo stores a single
+  // controller, so list that one file. Rendered as a list so it scales when a
+  // repo holds more. Name comes from the controller; "modified" from the latest
+  // commit on this branch.
+  const controllerName = tree?.root.label;
+  const latestCommit = commits[0];
+  const files: FileEntry[] =
+    controllerName && latestCommit
+      ? [
+          {
+            name: `${controllerName}.L5X`,
+            kind: "controller",
+            size: "—",
+            modifiedAt: latestCommit.at,
+            modifiedBy: latestCommit.author,
+          },
+        ]
+      : [];
   // Ahead/behind only exists on the rich branch detail; the live branch list
   // doesn't expose it, so the divergence badges are hidden for live data.
   const divergence = "ahead" in info ? info : null;
@@ -897,7 +923,7 @@ function CodeView({
             <FilesTable files={files} slug={slug} />
             <div className="table-foot">
               <span>
-                {files.length} files · {detail?.files.totalSize}
+                {files.length} {files.length === 1 ? "file" : "files"}
               </span>
             </div>
           </>
