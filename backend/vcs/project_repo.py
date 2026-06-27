@@ -90,8 +90,14 @@ class ProjectRepo:
         branch: str,
         title: str,
         description: str = "",
+        author: tuple[str, str] | None = None,
     ) -> CommitInfo:
-        """Parse one L5X file, snapshot it, and commit the result on branch."""
+        """Parse one L5X file, snapshot it, and commit the result on branch.
+
+        ``author`` is an optional ``(name, email)`` for the commit's author, so
+        the commit is attributed to the user who made it rather than the
+        repository's own identity. The committer stays the system identity.
+        """
         self._ensure_repo()
         self._checkout_branch(branch)
 
@@ -114,6 +120,9 @@ class ProjectRepo:
         args = ["commit", "-m", title]
         if description.strip():
             args.extend(["-m", description.strip()])
+        if author is not None:
+            name, email = author
+            args.append(f"--author={name} <{email}>")
         self._run(*args)
 
         return CommitInfo(sha=self.resolve_ref("HEAD"), branch=branch, title=title)
@@ -206,11 +215,22 @@ class ProjectRepo:
             )
         return commits
 
-    def merge(self, source: str, target: str, *, message: str | None = None) -> str:
+    def merge(
+        self,
+        source: str,
+        target: str,
+        *,
+        message: str | None = None,
+        author: tuple[str, str] | None = None,
+    ) -> str:
         """Merge source into target.
 
         Returns the resulting commit SHA. On conflicts the merge is rolled back
         and MergeConflict is raised, listing the files that could not be merged.
+
+        ``author`` is an optional ``(name, email)``; when given, the merge commit
+        is attributed to that identity (the user who performed the merge) instead
+        of the repository's own.
         """
         self._ensure_repo()
         if not self.branch_exists(source):
@@ -220,7 +240,11 @@ class ProjectRepo:
 
         self._checkout_branch(target)
         msg = message or f"Merge branch '{source}' into '{target}'"
-        result = self._run("merge", "--no-ff", "-m", msg, source, check=False)
+        ident: list[str] = []
+        if author is not None:
+            name, email = author
+            ident = ["-c", f"user.name={name}", "-c", f"user.email={email}"]
+        result = self._run(*ident, "merge", "--no-ff", "-m", msg, source, check=False)
         if result.returncode != 0:
             conflicts = self._run(
                 "diff", "--name-only", "--diff-filter=U", check=False

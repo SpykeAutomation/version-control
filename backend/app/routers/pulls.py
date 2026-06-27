@@ -183,6 +183,7 @@ def merge_pull(
                 pr.source_branch,
                 pr.target_branch,
                 message=f"Merge pull request #{pr.number}: {pr.title}",
+                author=(user.name, user.email),
             )
     except MergeConflict as exc:
         # Pilot behaviour: report the conflict, leave the PR open to resolve.

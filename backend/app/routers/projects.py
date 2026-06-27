@@ -213,7 +213,11 @@ def commit_l5x(
     try:
         with locked_repo(project_id) as repo:
             info = repo.commit_l5x(
-                tmp_path, branch=branch, title=title, description=description
+                tmp_path,
+                branch=branch,
+                title=title,
+                description=description,
+                author=(user.name, user.email),
             )
     except ProjectRepoError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc))
