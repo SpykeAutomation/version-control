@@ -202,7 +202,15 @@ function CreateMergeRequestView({
           <span>Repository</span>
         )}
         <span className="crumb-sep">/</span>
-        <Link to={slug ? `/projects/${slug}` : "/projects"}>Merge requests</Link>
+        <Link
+          to={
+            slug
+              ? `/projects/${slug}?tab=${encodeURIComponent("Merge requests")}`
+              : "/projects"
+          }
+        >
+          Merge requests
+        </Link>
         <span className="crumb-sep">/</span>
         <span>Create</span>
       </nav>
