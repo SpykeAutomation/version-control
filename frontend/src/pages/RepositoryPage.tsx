@@ -206,7 +206,10 @@ function RepositoryView({
           )}
         </div>
         <div className="mr-actions">
-          <Link to="/compare" className="btn btn-primary btn-sm">
+          <Link
+            to={`/projects/${project.slug}/merge-requests/new`}
+            className="btn btn-primary btn-sm"
+          >
             Create merge request
           </Link>
         </div>
