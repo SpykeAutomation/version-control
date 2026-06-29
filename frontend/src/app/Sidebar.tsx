@@ -25,8 +25,8 @@ const NAV = [
 
 const COLLAPSE_KEY = "spyke_sidebar_collapsed";
 
-function initials(name: string): string {
-  const parts = name.trim().split(/\s+/);
+function initials(name: string | undefined): string {
+  const parts = (name ?? "").trim().split(/\s+/);
   return ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "")).toUpperCase() || "?";
 }
 
@@ -47,30 +47,27 @@ export function Sidebar() {
   return (
     <aside className={`sidebar${collapsed ? " collapsed" : ""}`}>
       <div className="sidebar-logo">
-        {collapsed ? (
-          <button
-            className="sidebar-mark sidebar-mark-btn"
-            onClick={toggle}
-            aria-label="Expand sidebar"
-            title="Expand sidebar"
-          >
-            <Logo size={26} color="#fff" />
-          </button>
-        ) : (
-          <>
-            <span className="sidebar-mark">
-              <Logo size={26} color="#fff" />
-            </span>
-            <span className="sidebar-word">spyke</span>
-            <button
-              className="sidebar-collapse"
-              onClick={toggle}
-              aria-label="Collapse sidebar"
-            >
-              <ChevronsLeft size={16} strokeWidth={2} />
-            </button>
-          </>
-        )}
+        {/* The brand mark toggles the rail (rotates to point right when
+            collapsed); the chevron does the same and fades out when collapsed.
+            Both stay mounted so the rail can animate width without the content
+            popping in and out. */}
+        <button
+          className="sidebar-mark sidebar-mark-btn"
+          onClick={toggle}
+          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+        >
+          <Logo size={26} color="#fff" />
+        </button>
+        <span className="sidebar-word">spyke</span>
+        <button
+          className="sidebar-collapse"
+          onClick={toggle}
+          aria-label="Collapse sidebar"
+          tabIndex={collapsed ? -1 : 0}
+        >
+          <ChevronsLeft size={16} strokeWidth={2} />
+        </button>
       </div>
 
       <nav className="sidebar-nav">
@@ -82,7 +79,7 @@ export function Sidebar() {
             className={({ isActive }) => `nav-item${isActive ? " active" : ""}`}
           >
             <Icon size={18} strokeWidth={1.8} />
-            {!collapsed && label}
+            <span className="nav-label">{label}</span>
           </NavLink>
         ))}
       </nav>
@@ -91,12 +88,10 @@ export function Sidebar() {
         <div className="sidebar-foot">
           <div className="user-block" title={collapsed ? user.name : undefined}>
             <span className="avatar">{initials(user.name)}</span>
-            {!collapsed && (
-              <div className="user-meta">
-                <div className="user-name">{user.name}</div>
-                <div className="user-sub">@{user.username ?? "user"}</div>
-              </div>
-            )}
+            <div className="user-meta">
+              <div className="user-name">{user.name}</div>
+              <div className="user-sub">@{user.username ?? "user"}</div>
+            </div>
           </div>
         </div>
       )}
