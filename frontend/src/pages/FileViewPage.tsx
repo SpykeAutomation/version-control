@@ -7,7 +7,6 @@ import {
   GitBranch,
   Monitor,
 } from "lucide-react";
-import { TopBar } from "../app/TopBar";
 import { RungView } from "../components/Ladder";
 import { errorText, useProject } from "../api/queries";
 import {
@@ -37,8 +36,6 @@ export function FileViewPage() {
   );
 
   return (
-    <>
-      <TopBar />
       <div className="app-scroll">
         {error ? (
           <div className="page-pad">
@@ -78,7 +75,6 @@ export function FileViewPage() {
           </div>
         )}
       </div>
-    </>
   );
 }
 

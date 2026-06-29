@@ -60,7 +60,9 @@ export function LoginPage() {
             <label className="label" style={{ margin: 0 }} htmlFor="password">
               Password
             </label>
-            <span className="link">Forgot password?</span>
+            <button type="button" className="link" disabled title="Coming soon">
+              Forgot password?
+            </button>
           </div>
           <input
             id="password"

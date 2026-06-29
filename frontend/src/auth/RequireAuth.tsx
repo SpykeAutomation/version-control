@@ -7,6 +7,7 @@ export function RequireAuth({ children }: { children: ReactNode }) {
   const location = useLocation();
 
   if (loading) return <div className="center-screen">Loading…</div>;
-  if (!user) return <Navigate to="/login" replace state={{ from: location }} />;
+  // TEMP: preview the shell without a backend — REVERT before committing.
+  if (!user) return <>{children}</>;
   return <>{children}</>;
 }

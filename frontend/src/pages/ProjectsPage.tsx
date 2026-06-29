@@ -22,7 +22,7 @@ import {
   SlidersHorizontal,
   Workflow,
 } from "lucide-react";
-import { TopBar } from "../app/TopBar";
+import { useTopBarActions } from "../app/TopBarActions";
 import { StatusBadge } from "../components/StatusBadge";
 import { RailSection } from "../components/RailSection";
 import { type ProjectRow, type RepoStatus } from "../api/projects";
@@ -92,9 +92,9 @@ export function ProjectsPage() {
     </>
   );
 
+  useTopBarActions(actions);
+
   return (
-    <>
-      <TopBar actions={actions} />
       <div className="app-scroll">
         {error ? (
           <div className="page-pad">
@@ -114,7 +114,6 @@ export function ProjectsPage() {
           <ProjectsView projects={projects!} />
         )}
       </div>
-    </>
   );
 }
 
@@ -463,7 +462,12 @@ function ProjectsTable({
 
               {/* Kebab */}
               <td className="row-action">
-                <button className="icon-btn" aria-label="More actions">
+                <button
+                  className="icon-btn"
+                  aria-label="More actions"
+                  disabled
+                  title="Coming soon"
+                >
                   <MoreHorizontal size={16} strokeWidth={1.8} />
                 </button>
               </td>

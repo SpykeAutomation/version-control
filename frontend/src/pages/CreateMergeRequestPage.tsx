@@ -7,7 +7,8 @@
 // linked work items, checks) render their structure plus an empty state only,
 // and never invent sample content.
 import { useMemo, useState } from "react";
-import { Link, useParams, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   ArrowRight,
   Bold,
@@ -28,8 +29,16 @@ import {
   X,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { TopBar } from "../app/TopBar";
-import { useBranches, useCommits, useDiff, useMembers, useProject } from "../api/queries";
+import {
+  queryKeys,
+  useBranches,
+  useCommits,
+  useDiff,
+  useMembers,
+  useProject,
+} from "../api/queries";
+import { addReviewer, createChangeRequest } from "../api/mergeRequest";
+import { ApiError } from "../api/client";
 import { deriveChangeView } from "../lib/changeset";
 import type { BranchSummary } from "../api/commits";
 import type { Commit } from "../api/repository";
@@ -72,8 +81,6 @@ export function CreateMergeRequestPage() {
   }, [branches, params]);
 
   return (
-    <>
-      <TopBar />
       <div className="app-scroll">
         {projectPending && !project ? (
           <div className="page-pad">
@@ -90,7 +97,6 @@ export function CreateMergeRequestPage() {
           />
         )}
       </div>
-    </>
   );
 }
 
@@ -191,6 +197,49 @@ function CreateMergeRequestView({
     files: filesCount,
   };
 
+  // Opening the request: create the pull, then attach the chosen reviewers
+  // (best-effort — a failed invite doesn't undo the request), then land on the
+  // new request's page. Mirrors the create flow on the commit page.
+  const navigate = useNavigate();
+  const qc = useQueryClient();
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const canSubmit = Boolean(projectId && comparable && title.trim());
+
+  async function handleCreate(reviewerIds: number[]) {
+    if (!projectId || !canSubmit || submitting) return;
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      const pr = await createChangeRequest(projectId, {
+        title: title.trim(),
+        description: description.trim(),
+        sourceBranch,
+        targetBranch,
+      });
+      const emails = reviewerIds
+        .map((id) => members?.find((m) => m.id === id)?.email)
+        .filter((e): e is string => Boolean(e));
+      for (const email of emails) {
+        try {
+          await addReviewer(projectId, pr.number, email);
+        } catch {
+          // A failed reviewer invite shouldn't block opening the request.
+        }
+      }
+      qc.invalidateQueries({ queryKey: ["projects", projectId] });
+      qc.invalidateQueries({ queryKey: queryKeys.projects });
+      navigate(`/projects/${slug}/merge/${pr.number}`);
+    } catch (e) {
+      setSubmitError(
+        e instanceof ApiError
+          ? e.message
+          : "Couldn't create the merge request. Try again.",
+      );
+      setSubmitting(false);
+    }
+  }
+
   return (
     <div className="mr-page">
       <nav className="crumb">
@@ -252,6 +301,10 @@ function CreateMergeRequestView({
               description={description}
               onDescription={setDescription}
               reviewerOptions={reviewerOptions}
+              onCreate={handleCreate}
+              canSubmit={canSubmit}
+              submitting={submitting}
+              submitError={submitError}
             />
           ) : tab === "commits" ? (
             <CommitsTab commits={uniqueCommits} slug={slug} ready={comparable} />
@@ -439,12 +492,20 @@ function OverviewForm({
   description,
   onDescription,
   reviewerOptions,
+  onCreate,
+  canSubmit,
+  submitting,
+  submitError,
 }: {
   title: string;
   onTitle: (v: string) => void;
   description: string;
   onDescription: (v: string) => void;
   reviewerOptions: { id: number; name: string; role: string }[];
+  onCreate: (reviewerIds: number[]) => void;
+  canSubmit: boolean;
+  submitting: boolean;
+  submitError: string | null;
 }) {
   const [preview, setPreview] = useState(false);
   // Reviewers the author has added to this request. Starts empty; the menu
@@ -458,8 +519,8 @@ function OverviewForm({
     <form
       className="cmr-form"
       onSubmit={(e) => {
-        // This is a UI page; submission is wired by the footer buttons later.
         e.preventDefault();
+        onCreate(reviewers);
       }}
     >
       {/* Title */}
@@ -593,12 +654,22 @@ function OverviewForm({
       </div>
 
       {/* Footer */}
+      {submitError && <div className="panel-msg error cmr-submit-error">{submitError}</div>}
       <div className="cmr-footer">
-        <button type="button" className="btn btn-ghost btn-sm">
+        <button type="button" className="btn btn-ghost btn-sm" disabled title="Coming soon">
           Save as draft
         </button>
-        <button type="submit" className="btn btn-primary btn-sm">
-          Create merge request
+        <button
+          type="submit"
+          className="btn btn-primary btn-sm"
+          disabled={!canSubmit || submitting}
+          title={
+            canSubmit
+              ? undefined
+              : "Set a title and pick two different branches to compare"
+          }
+        >
+          {submitting ? "Creating…" : "Create merge request"}
         </button>
       </div>
     </form>
@@ -606,8 +677,16 @@ function OverviewForm({
 }
 
 function ToolbarButton({ label, icon }: { label: string; icon: React.ReactNode }) {
+  // Formatting isn't wired up yet; disable with a hint so the markdown textarea
+  // (which does work) is the clear path until rich-text editing lands.
   return (
-    <button type="button" className="cmr-tool" aria-label={label} title={label}>
+    <button
+      type="button"
+      className="cmr-tool"
+      aria-label={`${label} (coming soon)`}
+      title="Coming soon"
+      disabled
+    >
       {icon}
     </button>
   );
@@ -803,7 +882,7 @@ function FilesChangedCard({ files, ready }: { files: string[]; ready: boolean })
       ) : (
         <div className="rail-body">
           {groups.map((g) => (
-            <div className="cmr-file-group" key={g.folder ?? " root"}>
+            <div className="cmr-file-group" key={g.folder ?? "root"}>
               {g.folder && (
                 <div className="cmr-file-folder">
                   <FolderClosed size={13} strokeWidth={1.8} />

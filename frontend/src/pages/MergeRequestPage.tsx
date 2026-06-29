@@ -22,7 +22,6 @@ import {
   ThumbsUp,
   Users,
 } from "lucide-react";
-import { TopBar } from "../app/TopBar";
 import { RoutineLadderDiffView } from "../components/LadderDiff";
 import { ApiError } from "../api/client";
 import {
@@ -72,8 +71,6 @@ export function MergeRequestPage() {
       : null;
 
   return (
-    <>
-      <TopBar />
       <div className="app-scroll">
         {error ? (
           <div className="page-pad">
@@ -97,7 +94,6 @@ export function MergeRequestPage() {
           />
         )}
       </div>
-    </>
   );
 }
 
@@ -116,6 +112,7 @@ function MergeRequestView({
   mrId?: string;
 }) {
   const [showNumbers, setShowNumbers] = useState(true);
+  const [zoom, setZoom] = useState(100);
   const [tab, setTab] = useState<MrTab>("changes");
   const merge = useMergePull(slug, mrId, projectId);
   const merged = mr.status === "merged";
@@ -156,6 +153,8 @@ function MergeRequestView({
                 count={mr.files.length}
                 showNumbers={showNumbers}
                 onToggle={() => setShowNumbers((v) => !v)}
+                zoom={zoom}
+                onZoom={setZoom}
               />
               {mr.files.map((file, i) => (
                 <FileSection
@@ -163,6 +162,7 @@ function MergeRequestView({
                   index={i + 1}
                   file={file}
                   showNumbers={showNumbers}
+                  zoom={zoom}
                 />
               ))}
             </>
@@ -227,7 +227,9 @@ function MergeHeader({
           <Eye size={15} strokeWidth={2} />
           {s.label}
         </span>
-        <button className="btn-quiet">Request changes</button>
+        <button className="btn-quiet" disabled title="Coming soon">
+          Request changes
+        </button>
         <button
           className="btn btn-approve btn-sm"
           type="button"
@@ -556,10 +558,14 @@ function ChangesToolbar({
   count,
   showNumbers,
   onToggle,
+  zoom,
+  onZoom,
 }: {
   count: number;
   showNumbers: boolean;
   onToggle: () => void;
+  zoom: number;
+  onZoom: (z: number) => void;
 }) {
   return (
     <div className="pr-changes-bar">
@@ -572,7 +578,7 @@ function ChangesToolbar({
           <input type="checkbox" checked={showNumbers} onChange={onToggle} />
           Show rung numbers
         </label>
-        <ZoomControl />
+        <ZoomControl zoom={zoom} onZoom={onZoom} />
         <button className="mr-fs" type="button" aria-label="Fullscreen">
           <Maximize2 size={15} strokeWidth={1.9} />
         </button>
@@ -587,10 +593,12 @@ function FileSection({
   index,
   file,
   showNumbers,
+  zoom,
 }: {
   index: number;
   file: PRFile;
   showNumbers: boolean;
+  zoom: number;
 }) {
   return (
     <section className="mr-section pr-file">
@@ -606,7 +614,7 @@ function FileSection({
           </span>
         </div>
       </div>
-      <div className="pr-file-body">
+      <div className="pr-file-body" style={{ zoom: zoom / 100 }}>
         {file.changes.map((ch, i) => (
           <RoutineChangeBlock key={i} change={ch} showNumbers={showNumbers} />
         ))}
@@ -640,15 +648,20 @@ function RoutineChangeBlock({
   );
 }
 
-function ZoomControl() {
-  const [zoom, setZoom] = useState(100);
+function ZoomControl({
+  zoom,
+  onZoom,
+}: {
+  zoom: number;
+  onZoom: (z: number) => void;
+}) {
   return (
     <div className="zoom">
       <button
         className="zoom-btn"
         type="button"
         aria-label="Zoom out"
-        onClick={() => setZoom((z) => Math.max(50, z - 10))}
+        onClick={() => onZoom(Math.max(50, zoom - 10))}
       >
         <Minus size={14} strokeWidth={2} />
       </button>
@@ -657,7 +670,7 @@ function ZoomControl() {
         className="zoom-btn"
         type="button"
         aria-label="Zoom in"
-        onClick={() => setZoom((z) => Math.min(200, z + 10))}
+        onClick={() => onZoom(Math.min(200, zoom + 10))}
       >
         <Plus size={14} strokeWidth={2} />
       </button>
@@ -791,7 +804,7 @@ function Discussion({
               <div className="disc-aside">
                 <div className="disc-aside-top">
                   <span className="disc-time">{timeAgo(c.at)}</span>
-                  <button className="disc-kebab" type="button" aria-label="More">
+                  <button className="disc-kebab" type="button" aria-label="More" disabled title="Coming soon">
                     <MoreVertical size={15} strokeWidth={2} />
                   </button>
                 </div>
@@ -869,7 +882,7 @@ function ReviewersCard({ reviewers }: { reviewers: MRReviewer[] }) {
     <section className="rail-section">
       <div className="rail-head">
         <span className="rail-title">Reviewers</span>
-        <button className="link-btn">Edit</button>
+        <button className="link-btn" disabled title="Coming soon">Edit</button>
       </div>
       {reviewers.length === 0 && (
         <div className="rail-empty">No reviewers assigned.</div>
@@ -979,7 +992,7 @@ function MergeActions({
         {merged ? "Merged" : pending ? "Merging…" : "Approve & merge"}
         <ChevronDown size={15} strokeWidth={2} />
       </button>
-      <button className="btn btn-text btn-block">
+      <button className="btn btn-text btn-block" disabled title="Coming soon">
         <GitPullRequestArrow size={16} strokeWidth={1.9} />
         Request changes
       </button>

@@ -15,7 +15,6 @@ import {
   UploadCloud,
   X,
 } from "lucide-react";
-import { TopBar } from "../app/TopBar";
 import { commitFiles, createBranch } from "../api/commits";
 import { createChangeRequest } from "../api/mergeRequest";
 import { ApiError } from "../api/client";
@@ -133,8 +132,6 @@ export function CommitPage() {
   }
 
   return (
-    <>
-      <TopBar />
       <div className="app-scroll">
         {loadError ? (
           <div className="page-pad">
@@ -501,7 +498,6 @@ export function CommitPage() {
           </div>
         )}
       </div>
-    </>
   );
 }
 
