@@ -13,9 +13,19 @@ from sqlalchemy.orm import Session
 
 from .config import settings
 from .db import get_db
-from .models import Organization, User
+from .models import DeviceAuthorization, Organization, User
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+
+# Refresh a CLI session's last_used_at at most this often, so we don't add a DB
+# write to every authenticated request.
+_SESSION_TOUCH_INTERVAL = dt.timedelta(minutes=5)
+
+
+def now_utc_naive() -> dt.datetime:
+    """Naive UTC 'now'. Timestamps are stored and compared naive across the app
+    (SQLite returns naive datetimes); see app.device_auth for the rationale."""
+    return dt.datetime.now(dt.timezone.utc).replace(tzinfo=None)
 
 
 def hash_password(password: str) -> str:
@@ -110,11 +120,32 @@ def create_org_with_owner(
 
 
 def create_access_token(user_id: int) -> str:
+    """A normal web-login token (stateless, one week). CLI logins use
+    create_cli_token instead."""
     expire = dt.datetime.now(dt.timezone.utc) + dt.timedelta(
         minutes=settings.jwt_expire_minutes
     )
     payload = {"sub": str(user_id), "exp": expire}
     return jwt.encode(payload, settings.jwt_secret, algorithm="HS256")
+
+
+def create_cli_token(user_id: int, session_id: int) -> str:
+    """A CLI access token bound to a device session (the DeviceAuthorization row
+    id). Long-lived but capped, and carries `sid` so the session can be revoked
+    from account settings; `typ` distinguishes it from a web login."""
+    expire = dt.datetime.now(dt.timezone.utc) + dt.timedelta(
+        days=settings.cli_token_expire_days
+    )
+    payload = {"sub": str(user_id), "exp": expire, "sid": session_id, "typ": "cli"}
+    return jwt.encode(payload, settings.jwt_secret, algorithm="HS256")
+
+
+def _touch_session(db: Session, session: DeviceAuthorization) -> None:
+    """Record CLI activity, but write at most every few minutes."""
+    now = now_utc_naive()
+    if session.last_used_at is None or now - session.last_used_at > _SESSION_TOUCH_INTERVAL:
+        session.last_used_at = now
+        db.commit()
 
 
 def current_user(
@@ -130,7 +161,24 @@ def current_user(
         user_id = int(payload["sub"])
     except (jwt.PyJWTError, KeyError, ValueError):
         raise credentials_error
+
+    # CLI tokens are bound to a revocable session; the web token has no `sid`.
+    session_id = payload.get("sid")
+    if session_id is not None:
+        session = db.get(DeviceAuthorization, session_id)
+        if (
+            session is None
+            or session.user_id != user_id
+            or session.status != "redeemed"
+            or session.revoked_at is not None
+        ):
+            raise credentials_error
+        _touch_session(db, session)
+
     user = db.get(User, user_id)
-    if user is None:
+    # A soft-deleted account is rejected immediately, web or CLI.
+    if user is None or user.deleted_at is not None:
         raise credentials_error
+    # Lets endpoints flag "this is the session you're using" without re-decoding.
+    user.current_session_id = session_id
     return user

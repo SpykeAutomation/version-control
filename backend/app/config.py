@@ -51,6 +51,10 @@ class Settings(BaseSettings):
     # window (seconds). Guards the public device endpoints against flooding.
     device_rate_max: int = 60
     device_rate_window_seconds: int = 60
+    # CLI access tokens are long-lived but server-side revocable (one session row
+    # per login, carried as the token's `sid`). 180 days ≈ re-login twice a year;
+    # revocation is the real control — this just caps a leaked token's lifetime.
+    cli_token_expire_days: int = 180
 
     @property
     def max_upload_bytes(self) -> int:

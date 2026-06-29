@@ -19,7 +19,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .auth import create_access_token
+from .auth import create_cli_token
 from .config import settings
 from .models import DeviceAuthorization, User
 
@@ -64,9 +64,17 @@ def _make_user_code() -> str:
     return "-".join(groups)
 
 
-def create_device_code(db: Session) -> tuple[str, DeviceAuthorization]:
+def create_device_code(
+    db: Session,
+    *,
+    client_name: str | None = None,
+    client_ip: str | None = None,
+    user_agent: str | None = None,
+) -> tuple[str, DeviceAuthorization]:
     """Start a flow. Returns (raw_device_code, row); the raw device_code is shown
-    once to the CLI and never stored (only its hash is)."""
+    once to the CLI and never stored (only its hash is). The optional client
+    context is recorded so the approval page can show where the sign-in came
+    from."""
     device_code = secrets.token_urlsafe(32)
     user_code = _make_user_code()
     # user_code must be unique; retry on the rare collision.
@@ -80,12 +88,39 @@ def create_device_code(db: Session) -> tuple[str, DeviceAuthorization]:
         device_code_hash=_hash(device_code),
         user_code=user_code,
         status="pending",
+        client_name=client_name,
+        client_ip=client_ip,
+        user_agent=user_agent,
         expires_at=_now() + timedelta(minutes=settings.device_code_ttl_minutes),
     )
     db.add(row)
     db.commit()
     db.refresh(row)
     return device_code, row
+
+
+def seconds_until_expiry(row: DeviceAuthorization) -> int:
+    """Seconds left before the request expires (never negative)."""
+    return max(0, int((row.expires_at - _now()).total_seconds()))
+
+
+def lookup_pending_request(db: Session, *, user_code: str) -> DeviceAuthorization:
+    """Find a still-pending request by user_code so the approval page can show its
+    captured context before the user approves. Raises the same errors as
+    approve_device_code (unknown/expired/already-used) so callers map them to the
+    matching status codes."""
+    row = db.scalar(
+        select(DeviceAuthorization).where(
+            DeviceAuthorization.user_code == user_code.strip().upper()
+        )
+    )
+    if row is None:
+        raise DeviceAuthError("invalid or expired code")
+    if row.expires_at < _now():
+        raise ExpiredToken("invalid or expired code")
+    if row.status != "pending":
+        raise AlreadyUsed("this request was already approved")
+    return row
 
 
 def approve_device_code(
@@ -133,8 +168,9 @@ def redeem_device_code(db: Session, *, device_code: str) -> str:
     if row.status != "approved":
         raise AuthorizationPending("authorization_pending")
 
-    token = create_access_token(row.user_id)
+    # The redeemed row now doubles as the CLI session; the token carries its id
+    # as `sid` so it can be revoked from account settings.
     row.status = "redeemed"
     row.redeemed_at = _now()
     db.commit()
-    return token
+    return create_cli_token(row.user_id, row.id)

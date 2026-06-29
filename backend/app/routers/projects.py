@@ -17,6 +17,7 @@ from fastapi import (
     File,
     Form,
     HTTPException,
+    Request,
     Response,
     UploadFile,
     status,
@@ -27,11 +28,13 @@ from sqlalchemy.orm import Session
 from diff import ChangeSet, LadderDocument
 from vcs import CommitLog, ProjectRepo, ProjectRepoError, TagInfo, UploadSpec
 
-from .. import activity, diff_cache, usage
+from .. import activity, audit, diff_cache, usage
 from ..auth import current_user
 from ..config import settings
 from ..db import get_db
-from ..deps import membership_role, require_manager, require_member
+from ..deps import membership_role, require_manager, require_member, require_owner
+from ..membership import transfer_project_ownership
+from ..ratelimit import client_ip
 from ..diffing import (
     build_compare,
     build_manifest,
@@ -72,6 +75,7 @@ from ..schemas import (
     TagIn,
     TagOut,
     TextDiff,
+    TransferIn,
 )
 from ..serialize import users_out
 from ..serialize import user_out
@@ -495,6 +499,7 @@ def change_member_role(
 def remove_member(
     project_id: int,
     member_id: int,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(current_user),
 ) -> Response:
@@ -509,8 +514,56 @@ def remove_member(
             status.HTTP_403_FORBIDDEN, "Only the owner can remove an admin"
         )
     db.delete(membership)
+    audit.record(
+        db,
+        action="project.member.removed",
+        actor_id=user.id,
+        target_user_id=member_id,
+        target_type="membership",
+        target_id=project_id,
+        summary=f"removed user {member_id} from project {project_id}",
+        ip=client_ip(request),
+    )
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/{project_id}/transfer", response_model=MemberOut)
+def transfer_ownership(
+    project_id: int,
+    payload: TransferIn,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+) -> MemberOut:
+    """Hand the project to another user (current owner only). The new owner gets
+    an `owner` membership; the previous owner is demoted to `admin` so they keep
+    access."""
+    project = require_owner(project_id, db, user)
+    new_owner = db.get(User, payload.new_owner_id)
+    if new_owner is None or new_owner.deleted_at is not None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
+    if new_owner.id == project.owner_id:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, "That user already owns this project"
+        )
+    transfer_project_ownership(db, project=project, new_owner=new_owner)
+    audit.record(
+        db,
+        action="project.ownership.transferred",
+        actor_id=user.id,
+        target_user_id=new_owner.id,
+        target_type="project",
+        target_id=project_id,
+        summary=f"transferred project {project_id} to {new_owner.email}",
+        ip=client_ip(request),
+    )
+    db.commit()
+    membership = _member(db, project_id, new_owner.id)
+    return MemberOut(
+        id=new_owner.id, email=new_owner.email, first_name=new_owner.first_name,
+        last_name=new_owner.last_name, role=membership.role,
+    )
 
 
 @router.get("/{project_id}/branches", response_model=list[BranchOut])

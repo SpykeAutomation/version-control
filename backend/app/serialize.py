@@ -17,6 +17,7 @@ def _user_out(user: User, org_name: str | None) -> UserOut:
         last_name=user.last_name,
         organization=org_name,
         avatar=user.avatar,
+        deleted=user.deleted_at is not None,
     )
 
 

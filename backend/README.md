@@ -127,6 +127,49 @@ member returns `403`; `GET /projects/{id}` echoes the caller's role as
 `your_role`, so
 the UI can hide controls the user isn't allowed to use.
 
+## CLI sessions & account lifecycle
+
+**Browser (device) login.** The CLI signs in with the OAuth 2.0 device grant
+(RFC 8628): `POST /auth/device/code` returns a long `device_code` (the CLI polls
+with it) plus a short `user_code` the user approves at the web app's `/cli-auth`
+page. Hardening:
+- Both codes come from a CSPRNG; only the `device_code`'s SHA-256 hash is stored.
+  `/code`, `/info`, `/approve`, and `/token` are all rate-limited per IP.
+- `/code` records the CLI's context — an optional `client_name` from the CLI plus
+  the server-observed IP and user-agent. The approval page first calls
+  `GET /auth/device/info?user_code=` so it can show *"approving a sign-in from
+  &lt;ip&gt; · &lt;client&gt;"* before the user confirms — the human defence
+  against a relayed or phished code.
+- The token is released only to the approved `device_code`, never returned from
+  `/approve`.
+
+**CLI tokens are session-backed and revocable.** Unlike the one-week web-login
+JWT, a CLI token lasts **180 days** and carries a session id (`sid`). Each
+approved login is a session row; `GET /auth/me/sessions` lists them (with
+`last_used_at`, and the current session flagged) and `DELETE /auth/me/sessions/{id}`
+revokes one — the token stops working on its next request.
+
+**Removing people & deleting accounts** (org owner, under `/orgs`):
+- `DELETE /orgs/{id}/members/{user_id}` un-maps someone from the org; their
+  account and authored history stay.
+- `DELETE /orgs/{id}/accounts/{user_id}` **soft-deletes** the account: access is
+  cut everywhere (login and every request rejected, org + project memberships
+  removed, CLI sessions revoked), but the user row is **kept** so their commits,
+  PRs, and comments remain — `User.deleted` is set so the frontend can grey the
+  name out. Any project the deleted user **owned** is reassigned to the org owner
+  so it isn't orphaned.
+- Project-level removal stays `DELETE /projects/{id}/members/{user_id}`
+  (owner/admin).
+
+**Ownership transfer.** `POST /projects/{id}/transfer` (current project owner)
+hands a project to another user — they get the `owner` role and the previous
+owner is demoted to `admin` (keeps access). Account deletion reuses the same
+logic to reassign owned projects to the org owner.
+
+**Audit.** CLI approvals/revocations, member removals, and account deletions are
+written to an account-level audit log (`app/audit.py` → the `audit_log` table),
+separate from the per-project activity feed.
+
 ## Endpoints
 
 | Method | Path | Body / query | Returns |
@@ -136,11 +179,16 @@ the UI can hide controls the user isn't allowed to use.
 | `GET`  | `/auth/me` | — | `User` |
 | `PATCH` | `/auth/me` | `{first_name?, last_name?, avatar?}` | `User` (`avatar` = 3 alphanumerics) |
 | `POST` | `/auth/me/password` | `{current_password, new_password}` | `204`; `403` wrong current, `422` weak new |
-| `POST` | `/auth/device/code` | _(none; public, rate-limited)_ | `DeviceCode` — starts the CLI device-login flow |
-| `POST` | `/auth/device/approve` | `{user_code}` (authenticated) | `200` `{status:"approved"}`; `400` invalid/expired, `409` already approved |
-| `POST` | `/auth/device/token` | `{device_code}` (public, rate-limited) | `Token` once approved; else `400` with `detail` = `authorization_pending` / `expired_token` |
+| `GET`  | `/auth/me/sessions` | — | `[CliSession]` — your active CLI logins, newest first |
+| `DELETE` | `/auth/me/sessions/{id}` | — | `204` — revoke one of your CLI logins (idempotent; `404` if not yours) |
+| `POST` | `/auth/device/code` | `{client_name?}` (public, rate-limited) | `DeviceCode` — starts the CLI device-login flow; records the client label + server-side IP/user-agent |
+| `GET`  | `/auth/device/info` | `?user_code=` (authenticated, rate-limited) | `DeviceInfo` — the pending request's context for the approval page; `400` invalid/expired, `409` already approved |
+| `POST` | `/auth/device/approve` | `{user_code}` (authenticated, rate-limited) | `200` `{status:"approved"}`; `400` invalid/expired, `409` already approved, `401` not signed in |
+| `POST` | `/auth/device/token` | `{device_code}` (public, rate-limited) | `Token` (a **180-day, revocable CLI token**) once approved; else `400` with `detail` = `authorization_pending` / `expired_token` |
 | `POST` | `/orgs/{id}/invites` | `{email, role?}` (owner only) | `201` `Invite` (one-time link) |
 | `GET`  | `/orgs/{id}/users` | `?limit=50&offset=0` (org members) | `[User]` + `X-Total-Count` |
+| `DELETE` | `/orgs/{id}/members/{user_id}` | — (org owner) | `204` — remove from the org (account kept); `400` on the owner, `404` if not a member |
+| `DELETE` | `/orgs/{id}/accounts/{user_id}` | — (org owner) | `204` — soft-delete the account (access cut, history kept); `409` if already deleted |
 | `GET`  | `/invites/{token}` | — (public, rate-limited) | `InvitePreview` (or `429`) |
 | `POST` | `/invites/{token}/accept` | `{email, first_name?, last_name?, password?}` (public, rate-limited) | `AcceptResult` (or `429`) |
 | `POST` | `/projects` | `{name, description?}` | `201` `Project` |
@@ -153,6 +201,7 @@ the UI can hide controls the user isn't allowed to use.
 | `POST` | `/projects/{id}/members` | `{email, role?}` — `role` ∈ `member`\|`admin` (owner/admin) | `201` `Member` |
 | `PATCH` | `/projects/{id}/members/{user_id}` | `{role}` ∈ `member`\|`admin` (owner/admin) | `Member` |
 | `DELETE` | `/projects/{id}/members/{user_id}` | — (owner/admin; only the owner may remove an admin) | `204` |
+| `POST` | `/projects/{id}/transfer` | `{new_owner_id}` (current owner) | `Member` (the new owner) — previous owner demoted to `admin`; `404` unknown/deleted user, `400` already the owner |
 | `GET`  | `/projects/{id}/branches` | — | `[Branch]` (enriched: tip commit, default/protected, ahead/behind, merged) |
 | `POST` | `/projects/{id}/branches` | `{name, start_point?="main"}` | `201` `[Branch]` |
 | `DELETE` | `/projects/{id}/branches/{branch}` | — (any member) | `204`; `400` if it's the default or a protected branch |
@@ -216,12 +265,19 @@ DeviceCode = { "device_code": string,   // the CLI polls /auth/device/token with
                "verification_uri_complete": string, // same URL with ?code= prefilled
                "interval": int,           // seconds between token polls
                "expires_in": int }        // seconds until the codes expire
+DeviceInfo = { "user_code": string, "client_name": string|null, "client_ip": string|null,
+               "requested_at": datetime, "expires_in": int }  // context for the /cli-auth approval page
+CliSession = { "id": int, "client_name": string|null, "client_ip": string|null,
+               "created_at": datetime,            // when the CLI logged in
+               "last_used_at": datetime|null, "expires_at": datetime,
+               "current": bool }                  // the session making this request
 Invite        = { "email": string, "role": string, "organization": string, "status": string,
                   "expires_at": datetime, "token": string, "accept_path": string }
 InvitePreview = { "organization": string, "email": string, "role": string, "status": string }
 AcceptResult  = { "status": "accepted", "access_token": string|null }
 User    = { "id": int, "email": string, "first_name": string, "last_name": string,
-            "organization": string|null, "avatar": string }  // avatar = 3-char code; frontend renders it
+            "organization": string|null, "avatar": string,  // avatar = 3-char code; frontend renders it
+            "deleted": bool }  // soft-deleted account — grey it out
 Project = { "id": int, "name": string, "slug": string, "description": string,
             "owner": User, "your_role": "owner"|"admin"|"member"|null,
             "created_at": datetime, "branches": [string] }

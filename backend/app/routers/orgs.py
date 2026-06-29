@@ -6,11 +6,12 @@ person joins only by accepting an invitation — never by naming an org.
 """
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
-from sqlalchemy import func, select
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.orm import Session
 
-from ..auth import current_user
+from .. import audit
+from ..auth import current_user, now_utc_naive
 from ..db import get_db
 from ..invites import (
     InviteError,
@@ -18,8 +19,15 @@ from ..invites import (
     create_invitation,
     get_pending_invite,
 )
-from ..models import Organization, User
-from ..ratelimit import invite_rate_limit
+from ..membership import transfer_project_ownership
+from ..models import (
+    DeviceAuthorization,
+    Organization,
+    Project,
+    ProjectMember,
+    User,
+)
+from ..ratelimit import client_ip, invite_rate_limit
 from ..schemas import (
     AcceptIn,
     AcceptResult,
@@ -79,6 +87,104 @@ def _require_owner(db: Session, org_id: int, user: User) -> Organization:
             status.HTTP_403_FORBIDDEN, "Only the organization owner can do this"
         )
     return org
+
+
+def _org_member(db: Session, org: Organization, user_id: int) -> User:
+    """The target of an owner action: a real user currently in this org and not
+    the owner themselves."""
+    if user_id == org.owner_id:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, "Cannot act on the organization owner"
+        )
+    target = db.get(User, user_id)
+    if target is None or target.organization_id != org.id:
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND, "Not a member of this organization"
+        )
+    return target
+
+
+@router.delete(
+    "/orgs/{org_id}/members/{user_id}", status_code=status.HTTP_204_NO_CONTENT
+)
+def remove_org_member(
+    org_id: int,
+    user_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+) -> Response:
+    """Owner-only: remove someone from the organization (un-map them). Their
+    account and authored history stay; they're simply no longer in the org."""
+    org = _require_owner(db, org_id, user)
+    target = _org_member(db, org, user_id)
+    target.organization_id = None
+    audit.record(
+        db,
+        action="org.member.removed",
+        actor_id=user.id,
+        target_user_id=user_id,
+        target_type="org_membership",
+        target_id=org_id,
+        summary=f"removed {target.email} from {org.name}",
+        ip=client_ip(request),
+    )
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.delete(
+    "/orgs/{org_id}/accounts/{user_id}", status_code=status.HTTP_204_NO_CONTENT
+)
+def delete_account(
+    org_id: int,
+    user_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+) -> Response:
+    """Owner-only: soft-delete a member's account. Cuts all access — login and
+    every request rejected, org + project memberships removed, CLI sessions
+    revoked — but keeps the user row so their commits, PRs, and comments remain
+    (the frontend greys the name out via the `deleted` flag)."""
+    org = _require_owner(db, org_id, user)
+    target = _org_member(db, org, user_id)
+    if target.deleted_at is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Account already deleted")
+
+    target.deleted_at = now_utc_naive()
+    target.organization_id = None
+    # Reassign any projects they owned to the org owner, so nothing is orphaned.
+    # (demote_previous_to=None: their memberships are dropped right below anyway.)
+    owned = db.scalars(select(Project).where(Project.owner_id == user_id)).all()
+    for project in owned:
+        transfer_project_ownership(
+            db, project=project, new_owner=user, demote_previous_to=None
+        )
+    # Drop their accesses (project memberships)…
+    db.execute(delete(ProjectMember).where(ProjectMember.user_id == user_id))
+    # …and revoke every live CLI session so their tokens stop working at once.
+    db.execute(
+        update(DeviceAuthorization)
+        .where(
+            DeviceAuthorization.user_id == user_id,
+            DeviceAuthorization.status == "redeemed",
+            DeviceAuthorization.revoked_at.is_(None),
+        )
+        .values(revoked_at=now_utc_naive())
+    )
+    audit.record(
+        db,
+        action="account.deleted",
+        actor_id=user.id,
+        target_user_id=user_id,
+        target_type="account",
+        target_id=user_id,
+        summary=f"deleted account {target.email}",
+        ip=client_ip(request),
+    )
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post(

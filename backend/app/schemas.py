@@ -15,6 +15,7 @@ class UserOut(BaseModel):
     last_name: str
     organization: Optional[str] = None
     avatar: str = "000"  # 3-char code; the frontend renders the illustration
+    deleted: bool = False  # soft-deleted account; the frontend greys it out
 
 
 class TokenOut(BaseModel):
@@ -34,6 +35,13 @@ class PasswordChange(BaseModel):
 
 
 # --- device authorization (CLI login, RFC 8628) ---
+class DeviceCodeIn(BaseModel):
+    # Optional client self-description shown to the user at approval time, e.g.
+    # "spyke-cli/0.3.0 (macOS 14)". The IP and user-agent are captured
+    # server-side; only this label comes from the CLI.
+    client_name: Optional[str] = None
+
+
 class DeviceCodeOut(BaseModel):
     device_code: str  # the CLI polls with this; the server stores only its hash
     user_code: str  # short code the user confirms in the browser
@@ -43,12 +51,34 @@ class DeviceCodeOut(BaseModel):
     expires_in: int  # seconds until both codes expire
 
 
+class DeviceInfoOut(BaseModel):
+    # Context the /cli-auth page shows before the user approves, so they can spot
+    # a relayed sign-in ("you're approving a login from somewhere you don't
+    # recognise"). Read-only lookup of a still-pending request.
+    user_code: str
+    client_name: Optional[str] = None
+    client_ip: Optional[str] = None
+    requested_at: datetime
+    expires_in: int  # seconds until the request expires
+
+
 class DeviceApproveIn(BaseModel):
     user_code: str
 
 
 class DeviceApproveResult(BaseModel):
     status: str = "approved"
+
+
+class CliSessionOut(BaseModel):
+    # One authorized CLI login, shown in account settings with a revoke button.
+    id: int
+    client_name: Optional[str] = None
+    client_ip: Optional[str] = None
+    created_at: datetime  # when the CLI logged in (the approval was redeemed)
+    last_used_at: Optional[datetime] = None
+    expires_at: datetime  # hard expiry: login time + the CLI token lifetime
+    current: bool = False  # the session making this request
 
 
 class DeviceTokenIn(BaseModel):
@@ -119,6 +149,10 @@ class MemberIn(BaseModel):
 
 class RoleUpdate(BaseModel):
     role: str  # "admin" | "member"
+
+
+class TransferIn(BaseModel):
+    new_owner_id: int  # the user to hand project ownership to
 
 
 class MemberOut(BaseModel):

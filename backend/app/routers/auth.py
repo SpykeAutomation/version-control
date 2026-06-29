@@ -7,23 +7,33 @@ blocked at the Caddy edge as a second layer.
 from __future__ import annotations
 
 import re
+from datetime import timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from .. import audit
 from ..auth import (
     create_access_token,
     current_user,
     hash_password,
+    now_utc_naive,
     validate_password_strength,
     verify_password,
 )
+from ..config import settings
 from ..db import get_db
-from ..models import User
-from ..ratelimit import login_rate_limit
-from ..schemas import PasswordChange, ProfileUpdate, TokenOut, UserOut
+from ..models import DeviceAuthorization, User
+from ..ratelimit import client_ip, login_rate_limit
+from ..schemas import (
+    CliSessionOut,
+    PasswordChange,
+    ProfileUpdate,
+    TokenOut,
+    UserOut,
+)
 from ..serialize import user_out
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -42,7 +52,12 @@ def login(
 ) -> TokenOut:
     # OAuth2 form uses "username"; we treat it as the email.
     user = db.scalar(select(User).where(User.email == form.username))
-    if user is None or not verify_password(form.password, user.password_hash):
+    # A soft-deleted account can't log in (kept generic so deletion isn't probeable).
+    if (
+        user is None
+        or user.deleted_at is not None
+        or not verify_password(form.password, user.password_hash)
+    ):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Incorrect email or password")
     return TokenOut(access_token=create_access_token(user.id))
 
@@ -94,4 +109,67 @@ def change_password(
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc))
     user.password_hash = hash_password(payload.new_password)
     db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/me/sessions", response_model=list[CliSessionOut])
+def list_cli_sessions(
+    user: User = Depends(current_user), db: Session = Depends(get_db)
+) -> list[CliSessionOut]:
+    """Your active CLI logins, newest first — what account settings lists with a
+    revoke button. Each redeemed-and-not-revoked device authorization is one
+    session."""
+    rows = db.scalars(
+        select(DeviceAuthorization)
+        .where(
+            DeviceAuthorization.user_id == user.id,
+            DeviceAuthorization.status == "redeemed",
+            DeviceAuthorization.revoked_at.is_(None),
+        )
+        .order_by(DeviceAuthorization.redeemed_at.desc())
+    ).all()
+    current_sid = getattr(user, "current_session_id", None)
+    lifetime = timedelta(days=settings.cli_token_expire_days)
+    out = []
+    for row in rows:
+        login_at = row.redeemed_at or row.created_at
+        out.append(
+            CliSessionOut(
+                id=row.id,
+                client_name=row.client_name,
+                client_ip=row.client_ip,
+                created_at=login_at,
+                last_used_at=row.last_used_at,
+                expires_at=login_at + lifetime,
+                current=(row.id == current_sid),
+            )
+        )
+    return out
+
+
+@router.delete("/me/sessions/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
+def revoke_cli_session(
+    session_id: int,
+    request: Request,
+    user: User = Depends(current_user),
+    db: Session = Depends(get_db),
+) -> Response:
+    """Revoke one of your own CLI logins. The token bound to it stops working on
+    its next request. Idempotent; only your own sessions are visible."""
+    row = db.get(DeviceAuthorization, session_id)
+    if row is None or row.user_id != user.id or row.status != "redeemed":
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Session not found")
+    if row.revoked_at is None:
+        row.revoked_at = now_utc_naive()
+        audit.record(
+            db,
+            action="cli.session.revoked",
+            actor_id=user.id,
+            target_user_id=user.id,
+            target_type="cli_session",
+            target_id=row.id,
+            summary=f"revoked CLI session: {row.client_name or 'unknown client'}",
+            ip=client_ip(request),
+        )
+        db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)

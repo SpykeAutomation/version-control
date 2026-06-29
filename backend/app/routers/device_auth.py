@@ -13,7 +13,7 @@ The token endpoint returns RFC-8628 reason codes (``authorization_pending`` /
 """
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from ..auth import current_user
@@ -26,14 +26,19 @@ from ..device_auth import (
     ExpiredToken,
     approve_device_code,
     create_device_code,
+    lookup_pending_request,
     redeem_device_code,
+    seconds_until_expiry,
 )
+from .. import audit
 from ..models import User
-from ..ratelimit import device_rate_limit
+from ..ratelimit import client_ip, device_rate_limit
 from ..schemas import (
     DeviceApproveIn,
     DeviceApproveResult,
+    DeviceCodeIn,
     DeviceCodeOut,
+    DeviceInfoOut,
     DeviceTokenIn,
     TokenOut,
 )
@@ -43,12 +48,21 @@ router = APIRouter(prefix="/auth/device", tags=["device auth"])
 
 @router.post("/code", response_model=DeviceCodeOut)
 def start_device_code(
+    request: Request,
+    payload: DeviceCodeIn | None = Body(default=None),
     db: Session = Depends(get_db),
     _: None = Depends(device_rate_limit),
 ) -> DeviceCodeOut:
     """Public: begin a CLI login. Returns the device_code to poll with and the
-    user_code + browser URL the user approves."""
-    device_code, row = create_device_code(db)
+    user_code + browser URL the user approves. Records the CLI's reported context
+    (client label, IP, user-agent) so the approval page can show where the
+    sign-in came from."""
+    device_code, row = create_device_code(
+        db,
+        client_name=payload.client_name if payload else None,
+        client_ip=client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
     base = settings.web_app_url.rstrip("/")
     return DeviceCodeOut(
         device_code=device_code,
@@ -60,21 +74,61 @@ def start_device_code(
     )
 
 
-@router.post("/approve", response_model=DeviceApproveResult)
-def approve_device(
-    payload: DeviceApproveIn,
+@router.get("/info", response_model=DeviceInfoOut)
+def device_request_info(
+    user_code: str,
     db: Session = Depends(get_db),
     user: User = Depends(current_user),
-) -> DeviceApproveResult:
-    """Authenticated: the web app's /cli-auth page calls this when the logged-in
-    user approves the user_code their CLI is showing. Binds the request to that
-    existing user (no account is created)."""
+    _: None = Depends(device_rate_limit),
+) -> DeviceInfoOut:
+    """Authenticated: the /cli-auth page reads the pending request's context
+    (client label, originating IP, age) so it can show the user *what* they're
+    about to approve before they confirm. A read-only lookup — it never changes
+    state."""
     try:
-        approve_device_code(db, user_code=payload.user_code, user=user)
+        row = lookup_pending_request(db, user_code=user_code)
     except AlreadyUsed as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc))
     except DeviceAuthError as exc:  # invalid / expired
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc))
+    return DeviceInfoOut(
+        user_code=row.user_code,
+        client_name=row.client_name,
+        client_ip=row.client_ip,
+        requested_at=row.created_at,
+        expires_in=seconds_until_expiry(row),
+    )
+
+
+@router.post("/approve", response_model=DeviceApproveResult)
+def approve_device(
+    payload: DeviceApproveIn,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+    _: None = Depends(device_rate_limit),
+) -> DeviceApproveResult:
+    """Authenticated: the web app's /cli-auth page calls this when the logged-in
+    user approves the user_code their CLI is showing. Binds the request to that
+    existing user (no account is created). Rate-limited per IP so the short
+    user_code can't be brute-forced through this endpoint."""
+    try:
+        row = approve_device_code(db, user_code=payload.user_code, user=user)
+    except AlreadyUsed as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc))
+    except DeviceAuthError as exc:  # invalid / expired
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc))
+    audit.record(
+        db,
+        action="cli.session.approved",
+        actor_id=user.id,
+        target_user_id=user.id,
+        target_type="cli_session",
+        target_id=row.id,
+        summary=f"approved CLI login: {row.client_name or 'unknown client'}",
+        ip=client_ip(request),
+    )
+    db.commit()
     return DeviceApproveResult()
 
 

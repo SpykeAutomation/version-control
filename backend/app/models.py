@@ -54,6 +54,12 @@ class User(Base):
     organization_id: Mapped[int | None] = mapped_column(
         ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True, index=True
     )
+    # Soft-delete: set when an org owner deletes the account. The row is kept so
+    # the user's authored history (PRs, comments, commits) survives; access is
+    # fully cut (login and every request rejected, memberships removed, CLI
+    # sessions revoked) and the frontend greys the name out. Active = deleted_at
+    # is None.
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
 
 
@@ -232,10 +238,25 @@ class DeviceAuthorization(Base):
     user_id: Mapped[int | None] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"), nullable=True
     )
+    # CLI-reported context, captured when the flow starts so the approval page can
+    # show "approving a sign-in from <ip>/<client>" — the human's only defence
+    # against a relayed or phished user_code. All nullable (headless/older clients
+    # may send nothing); IP and user-agent are filled server-side, never trusted
+    # from the client.
+    client_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    client_ip: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(String(400), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
     expires_at: Mapped[datetime] = mapped_column(DateTime)
     approved_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     redeemed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # Once redeemed, this row doubles as the CLI *session* record. The CLI token
+    # carries this row's id as `sid`; setting revoked_at cuts the session off
+    # (current_user then rejects the token). last_used_at powers the "last active"
+    # column in account settings — updated at most every few minutes, never on
+    # every request.
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
 class Activity(Base):
@@ -260,4 +281,28 @@ class Activity(Base):
     target_type: Mapped[str] = mapped_column(String(30), default="")  # pull|comment|branch|tag|commit
     target_id: Mapped[str] = mapped_column(String(120), default="")  # number/sha/name
     summary: Mapped[str] = mapped_column(String(300), default="")  # human one-liner
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+
+class AuditLog(Base):
+    """Account- and security-level audit trail: CLI logins and revocations,
+    member removals, account deletions.
+
+    Distinct from Activity, which is the *per-project* feed (and requires a
+    project_id). These events aren't tied to a single project, so they live here.
+    `actor_id` and `target_user_id` are plain columns (not FKs) so the log
+    survives the deletion of either party — like Activity.actor_id and
+    Invitation.invited_by."""
+
+    __tablename__ = "audit_log"
+    __table_args__ = (Index("ix_audit_actor_created", "actor_id", "created_at"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    actor_id: Mapped[int | None] = mapped_column(Integer, nullable=True)  # who acted
+    action: Mapped[str] = mapped_column(String(50))  # e.g. "cli.approved", "account.deleted"
+    target_user_id: Mapped[int | None] = mapped_column(Integer, nullable=True)  # affected user
+    target_type: Mapped[str] = mapped_column(String(30), default="")  # cli_session|membership|account
+    target_id: Mapped[str] = mapped_column(String(120), default="")
+    summary: Mapped[str] = mapped_column(String(300), default="")  # human one-liner
+    ip: Mapped[str | None] = mapped_column(String(64), nullable=True)  # actor's IP
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
