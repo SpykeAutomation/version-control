@@ -1,11 +1,10 @@
 import { apiFetch, setToken } from "./client";
+import { displayName, type UserBrief } from "./users";
 
-export interface User {
-  id: number;
-  email: string;
+export interface User extends UserBrief {
+  // Derived display fields the UI renders. `name` is built from first/last name;
+  // `username` falls back to the email local-part until the backend adds one.
   name: string;
-  // Optional until the backend adds a real username column; the UI falls back
-  // to a value derived from the email when this is absent.
   username?: string;
 }
 
@@ -41,8 +40,9 @@ export async function login(email: string, password: string): Promise<Token> {
   return token;
 }
 
-export function me(): Promise<User> {
-  return apiFetch<User>("/auth/me");
+export async function me(): Promise<User> {
+  const u = await apiFetch<UserBrief>("/auth/me");
+  return { ...u, name: displayName(u), username: u.email.split("@")[0] };
 }
 
 // Approve a CLI device sign-in. The CLI prints a short user code and polls the

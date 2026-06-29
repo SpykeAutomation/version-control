@@ -1,4 +1,5 @@
 import { apiFetch } from "./client";
+import { displayName, type UserBrief } from "./users";
 
 export interface Project {
   id: number;
@@ -36,14 +37,48 @@ export interface Member {
   role: string;
 }
 
+// What the backend actually sends for a project: `owner` is a nested user
+// object, not a display string. Map it into the flat ProjectRow the table wants.
+interface ProjectApi {
+  id: number;
+  name: string;
+  slug: string;
+  description?: string;
+  owner: UserBrief;
+  created_at: string;
+  branches: string[];
+}
+
 export function createProject(name: string): Promise<Project> {
   return apiFetch<Project>("/projects", { method: "POST", json: { name } });
 }
 
 export async function listProjects(): Promise<ProjectRow[]> {
-  return apiFetch<ProjectRow[]>("/projects");
+  const rows = await apiFetch<ProjectApi[]>("/projects");
+  return rows.map((p) => ({
+    ...p,
+    owner_id: p.owner.id,
+    owner: displayName(p.owner),
+    description: p.description || undefined,
+  }));
 }
 
-export function listMembers(projectId: number): Promise<Member[]> {
-  return apiFetch<Member[]>(`/projects/${projectId}/members`);
+// The backend Member is {id, email, first_name, last_name, role}; the table
+// wants a single display name.
+interface MemberApi {
+  id: number;
+  email: string;
+  first_name?: string;
+  last_name?: string;
+  role: string;
+}
+
+export async function listMembers(projectId: number): Promise<Member[]> {
+  const rows = await apiFetch<MemberApi[]>(`/projects/${projectId}/members`);
+  return rows.map((m) => ({
+    id: m.id,
+    email: m.email,
+    name: displayName(m),
+    role: m.role,
+  }));
 }
