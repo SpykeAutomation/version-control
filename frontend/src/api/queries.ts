@@ -14,6 +14,8 @@ import {
   type ProjectRow,
 } from "./projects";
 import { listBranches, listCommits, type BranchSummary } from "./commits";
+import { listProjectFiles } from "./files";
+import type { FileEntry } from "./repository";
 import {
   getCommitDiff,
   getCommitLadderDiff,
@@ -42,7 +44,7 @@ import {
   type CommitDetail,
   type RoutineFull,
 } from "./commit";
-import { getRepository, type Commit, type RepositoryDetail } from "./repository";
+import { mapRepository, type Commit } from "./repository";
 
 // Cache keys. Everything for a project is nested under ["projects", id] so a
 // single invalidation after a write refreshes that project's commits,
@@ -53,6 +55,8 @@ export const queryKeys = {
   commits: (projectId: number, branch: string) =>
     ["projects", projectId, "commits", branch] as const,
   branches: (projectId: number) => ["projects", projectId, "branches"] as const,
+  files: (projectId: number, ref: string) =>
+    ["projects", projectId, "files", ref] as const,
   commitDiff: (projectId: number, sha: string) =>
     ["projects", projectId, "commit-diff", sha] as const,
   commitLadderDiff: (projectId: number, sha: string) =>
@@ -116,6 +120,19 @@ export function useBranches(projectId: number | undefined) {
     queryKey: queryKeys.branches(projectId ?? -1),
     queryFn: () => listBranches(projectId!),
     enabled: projectId != null,
+  });
+}
+
+// The project's files at a ref (branch or commit). Disabled until both the
+// project and ref are known.
+export function useProjectFiles(
+  projectId: number | undefined,
+  ref: string | undefined,
+) {
+  return useQuery<FileEntry[]>({
+    queryKey: queryKeys.files(projectId ?? -1, ref ?? ""),
+    queryFn: () => listProjectFiles(projectId!, ref!),
+    enabled: projectId != null && !!ref,
   });
 }
 
@@ -205,14 +222,19 @@ export function useChangeRequests(projectId: number | undefined) {
   });
 }
 
+// The project is read from the shared project-list cache (via useProject), so
+// these detail hooks pass its id straight through instead of re-listing every
+// project on each detail load. React Query dedupes the underlying list query, so
+// calling useProject here on top of the page's own call costs no extra request.
 export function useMergeRequest(
   slug: string | undefined,
   mrId: string | undefined,
 ) {
+  const { project } = useProject(slug);
   return useQuery<MergeRequest>({
     queryKey: queryKeys.mergeRequest(slug ?? "", mrId ?? ""),
-    queryFn: () => getMergeRequest(slug!, mrId!),
-    enabled: !!slug && !!mrId,
+    queryFn: () => getMergeRequest(project!.id, mrId!),
+    enabled: !!slug && !!mrId && project != null,
   });
 }
 
@@ -221,20 +243,24 @@ export function useCommit(
   slug: string | undefined,
   sha: string | undefined,
 ) {
+  const { project } = useProject(slug);
   return useQuery<CommitDetail>({
     queryKey: queryKeys.commit(slug ?? "", sha ?? ""),
-    queryFn: () => getCommit(slug!, sha!),
-    enabled: !!slug && !!sha,
+    queryFn: () => getCommit(project!.id, project!.branches, sha!),
+    enabled: !!slug && !!sha && project != null,
   });
 }
 
-// One repository's rich detail (controller, tags, linked controller).
+// One repository's rich detail (controller, tags, linked controller). Derived
+// entirely from the cached project row — the backend has no detail endpoint — so
+// this maps client-side rather than firing another request.
 export function useRepository(slug: string | undefined) {
-  return useQuery<RepositoryDetail>({
-    queryKey: queryKeys.repository(slug ?? ""),
-    queryFn: () => getRepository(slug!),
-    enabled: !!slug,
-  });
+  const { project, ...rest } = useProject(slug);
+  const data = useMemo(
+    () => (project ? mapRepository(project) : undefined),
+    [project],
+  );
+  return { ...rest, project, data };
 }
 
 // One routine's full content at a commit, for the Files tab. Disabled unless
@@ -268,8 +294,9 @@ export function useCreateComment(
   mrId: string | undefined,
 ) {
   const qc = useQueryClient();
+  const { project } = useProject(slug);
   return useMutation<unknown, Error, string>({
-    mutationFn: (body) => createComment(slug!, mrId!, body),
+    mutationFn: (body) => createComment(project!.id, mrId!, body),
     onSuccess: () => {
       qc.invalidateQueries({
         queryKey: queryKeys.mergeRequest(slug ?? "", mrId ?? ""),

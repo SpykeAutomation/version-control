@@ -3,7 +3,7 @@
 // endpoints. Ladder rungs reuse the diff model from ./compare so the panels
 // share one renderer.
 import { apiFetch } from "./client";
-import { listProjects } from "./projects";
+import { displayName } from "./users";
 import { listCommits } from "./commits";
 import {
   getCommitDiff,
@@ -178,10 +178,13 @@ export const CHECK_STATE_META: Record<CheckState, { tone: string; label: string 
 
 // --- Backend wiring ---
 // Shapes returned by the backend pull-request endpoints (backend/app/schemas.py).
+// The backend embeds people as nested user objects (first/last name, no single
+// `name`); displayName() collapses one to a string.
 interface PullUser {
   id: number;
   email: string;
-  name: string;
+  first_name?: string;
+  last_name?: string;
 }
 interface PullOut {
   number: number;
@@ -230,7 +233,7 @@ export async function listChangeRequests(
   return pulls.map((p) => ({
     number: p.number,
     title: p.title,
-    author: p.author?.name ?? "Unknown",
+    author: p.author ? displayName(p.author) : "Unknown",
     status: PULL_STATUS[p.status] ?? "open",
     createdAt: p.created_at,
   }));
@@ -258,6 +261,19 @@ export async function createChangeRequest(
   });
 }
 
+// Invite a project member (by email) to review a change request. Best-effort:
+// callers attach reviewers after the request is created and don't block on it.
+export async function addReviewer(
+  projectId: number,
+  number: number,
+  email: string,
+): Promise<void> {
+  await apiFetch(`/projects/${projectId}/pulls/${number}/reviewers`, {
+    method: "POST",
+    json: { email },
+  });
+}
+
 // Result of merging a change request: either it landed (merged) or it stopped
 // on conflicts. Mirrors the backend MergeResult schema.
 export interface MergeOutcome {
@@ -279,20 +295,17 @@ export async function mergeChangeRequest(
   );
 }
 
-// Post a thread-level comment on a merge request. Resolves the project by slug
-// (same as getMergeRequest), derives the pull number from the id, then POSTs to
-// the pull request's comments endpoint.
+// Post a thread-level comment on a merge request. The project id comes from the
+// caller's cached project, so this makes no extra /projects request; it derives
+// the pull number from the id, then POSTs to the pull request's comments endpoint.
 export async function createComment(
-  slug: string,
+  projectId: number,
   mrId: string,
   body: string,
 ): Promise<CommentOut> {
   const number = pullNumber(mrId);
-  const projects = await listProjects();
-  const project = projects.find((p) => p.slug === slug);
-  if (!project) throw new Error("Project not found");
   return apiFetch<CommentOut>(
-    `/projects/${project.id}/pulls/${number}/comments`,
+    `/projects/${projectId}/pulls/${number}/comments`,
     { method: "POST", json: { body } },
   );
 }
@@ -351,7 +364,7 @@ function mapPull(
     targetCommits: 0,
     sourceSha: prCommits[0]?.hash,
     targetSha,
-    author: pull.author.name,
+    author: displayName(pull.author),
     authorAt: pull.created_at,
     updatedAt: prCommits[0]?.at ?? pull.created_at,
     reviewers: [],
@@ -364,7 +377,7 @@ function mapPull(
     files: ladderFiles(ladder),
     commits: prCommits,
     comments: comments.map((c) => ({
-      author: c.author.name,
+      author: displayName(c.author),
       role: c.author.id === pull.author.id ? "Author" : "Reviewer",
       isAuthor: c.author.id === pull.author.id,
       at: c.created_at,
@@ -375,19 +388,17 @@ function mapPull(
   };
 }
 
-// Load a merge request for the page: resolve the project by slug, fetch the pull
+// Load a merge request for the page. The project id comes from the caller's
+// cached project, so this makes no extra /projects request; it fetches the pull
 // request, its comments, the target -> source diff (ladder + change-set), and the
 // commits the request would merge (source minus target).
 export async function getMergeRequest(
-  slug: string,
+  projectId: number,
   mrId: string,
 ): Promise<MergeRequest> {
   const number = pullNumber(mrId);
-  const projects = await listProjects();
-  const project = projects.find((p) => p.slug === slug);
-  if (!project) throw new Error("Project not found");
 
-  const base = `/projects/${project.id}/pulls/${number}`;
+  const base = `/projects/${projectId}/pulls/${number}`;
   const pull = await apiFetch<PullOut>(base);
 
   // Once merged, the target branch already contains the change, so a
@@ -395,18 +406,18 @@ export async function getMergeRequest(
   // its parent (what actually landed); for an open one diff target -> source.
   const merged = pull.status === "merged" && Boolean(pull.merge_sha);
   const ladderReq = merged
-    ? getCommitLadderDiff(project.id, pull.merge_sha as string)
-    : getLadderDiff(project.id, pull.target_branch, pull.source_branch);
+    ? getCommitLadderDiff(projectId, pull.merge_sha as string)
+    : getLadderDiff(projectId, pull.target_branch, pull.source_branch);
   const changeReq = merged
-    ? getCommitDiff(project.id, pull.merge_sha as string)
-    : getDiff(project.id, pull.target_branch, pull.source_branch);
+    ? getCommitDiff(projectId, pull.merge_sha as string)
+    : getDiff(projectId, pull.target_branch, pull.source_branch);
 
   const [comments, ladder, changeSet, srcCommits, tgtCommits] = await Promise.all([
     apiFetch<CommentOut[]>(`${base}/comments`).catch(() => [] as CommentOut[]),
     ladderReq.then((d) => d.routines).catch(() => [] as IRRoutineLadderDiff[]),
     changeReq.catch(() => EMPTY_CHANGESET),
-    listCommits(project.id, pull.source_branch).catch(() => []),
-    listCommits(project.id, pull.target_branch).catch(() => []),
+    listCommits(projectId, pull.source_branch).catch(() => []),
+    listCommits(projectId, pull.target_branch).catch(() => []),
   ]);
 
   // The commits this PR would merge: those on the source branch not already on

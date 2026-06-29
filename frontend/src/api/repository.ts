@@ -1,7 +1,7 @@
 // Types for the repository detail view. The backend doesn't expose commit /
 // change-request / controller endpoints yet, so the page renders empty states
 // until a real detail payload is available; this describes its shape.
-import { listProjects, type ProjectRow, type RepoStatus } from "./projects";
+import { type ProjectRow, type RepoStatus } from "./projects";
 import type { Rung } from "./compare";
 
 export interface Commit {
@@ -146,7 +146,7 @@ export const CR_META: Record<CRStatus, { tone: string; label: string }> = {
 // left empty here — the page loads those from their own endpoints — and the
 // controller/tags/linked-controller cards degrade to empty until a detail
 // endpoint exists.
-function mapRepository(row: ProjectRow): RepositoryDetail {
+export function mapRepository(row: ProjectRow): RepositoryDetail {
   return {
     description: row.description ?? "",
     status: row.status ?? "draft",
@@ -170,11 +170,3 @@ function mapRepository(row: ProjectRow): RepositoryDetail {
   };
 }
 
-// Load a repository's detail: resolve the project by slug, then map what the
-// project row exposes.
-export async function getRepository(slug: string): Promise<RepositoryDetail> {
-  const projects = await listProjects();
-  const project = projects.find((p) => p.slug === slug);
-  if (!project) throw new Error("Repository not found");
-  return mapRepository(project);
-}
