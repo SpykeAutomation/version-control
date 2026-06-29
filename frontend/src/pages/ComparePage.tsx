@@ -18,7 +18,7 @@ import {
   Settings2,
   SplitSquareHorizontal,
 } from "lucide-react";
-import { TopBar } from "../app/TopBar";
+import { useTopBarActions } from "../app/TopBarActions";
 import { RungView } from "../components/Ladder";
 import type {
   ChangeKind,
@@ -58,9 +58,9 @@ export function ComparePage() {
     </>
   );
 
+  useTopBarActions(actions);
+
   return (
-    <>
-      <TopBar actions={actions} />
       <div className="app-scroll">
         <div className="mr-page">
           <nav className="crumb">
@@ -161,7 +161,6 @@ export function ComparePage() {
           </div>
         </div>
       </div>
-    </>
   );
 }
 

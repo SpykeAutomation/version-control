@@ -117,6 +117,9 @@ export function ProjectTree({
       <div key={node.key}>
         <button
           type="button"
+          role="treeitem"
+          aria-expanded={hasChildren ? open : undefined}
+          aria-selected={isSelected(node)}
           className={`tree-row${isSelected(node) ? " tree-row-active" : ""}`}
           style={{ paddingLeft: 8 + depth * 14 }}
           onClick={onClick}
@@ -142,7 +145,7 @@ export function ProjectTree({
           ) : null}
         </button>
         {hasChildren && open ? (
-          <div className="tree-children">
+          <div className="tree-children" role="group">
             {node.children.map((child) => renderNode(child, depth + 1))}
           </div>
         ) : null}
@@ -150,5 +153,9 @@ export function ProjectTree({
     );
   };
 
-  return <div className="project-tree">{renderNode(root, 0)}</div>;
+  return (
+    <div className="project-tree" role="tree">
+      {renderNode(root, 0)}
+    </div>
+  );
 }

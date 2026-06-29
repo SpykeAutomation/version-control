@@ -22,7 +22,6 @@ import {
   Settings,
   Workflow,
 } from "lucide-react";
-import { TopBar } from "../app/TopBar";
 import { FilesTable } from "../components/FilesTable";
 import { StatusBadge } from "../components/StatusBadge";
 import {
@@ -114,8 +113,6 @@ export function RepositoryPage() {
   const projectFatal = Boolean(projectError);
 
   return (
-    <>
-      <TopBar />
       <div className="app-scroll">
         {projectFatal ? (
           <div className="page-pad">
@@ -152,7 +149,6 @@ export function RepositoryPage() {
           />
         )}
       </div>
-    </>
   );
 }
 
@@ -425,7 +421,7 @@ function CommitsCard({
                 </td>
                 <td className="muted-cell">{timeAgo(c.at)}</td>
                 <td className="row-action">
-                  <button className="icon-btn" aria-label="More actions">
+                  <button className="icon-btn" aria-label="More actions" disabled title="Coming soon">
                     <MoreHorizontal size={16} strokeWidth={1.8} />
                   </button>
                 </td>
@@ -482,11 +478,14 @@ function BranchesCard({
             {branches.map((b) => (
               <tr key={b.name}>
                 <td>
-                  <span className="branch-name">
+                  <Link
+                    to={`/projects/${slug}/tree/${encodeURIComponent(b.name)}`}
+                    className="branch-name crlink"
+                  >
                     <GitBranch size={13} strokeWidth={2} />
                     {b.name}
                     {b.isDefault && <span className="mini-badge">Default</span>}
-                  </span>
+                  </Link>
                 </td>
                 <td>
                   {b.lastCommitHash ? (
@@ -604,7 +603,7 @@ function ChangeRequestsCard({
                   </td>
                   <td className="muted-cell">{timeAgo(cr.at)}</td>
                   <td className="row-action">
-                    <button className="icon-btn" aria-label="More actions">
+                    <button className="icon-btn" aria-label="More actions" disabled title="Coming soon">
                       <MoreHorizontal size={16} strokeWidth={1.8} />
                     </button>
                   </td>
@@ -661,7 +660,7 @@ function ChangeRequestsCard({
                   </td>
                   <td className="muted-cell">{timeAgo(cr.createdAt)}</td>
                   <td className="row-action">
-                    <button className="icon-btn" aria-label="More actions">
+                    <button className="icon-btn" aria-label="More actions" disabled title="Coming soon">
                       <MoreHorizontal size={16} strokeWidth={1.8} />
                     </button>
                   </td>
@@ -696,7 +695,7 @@ function DetailsCard({
     <section className="rail-section">
       <div className="rail-head">
         <span className="rail-title">Project details</span>
-        <button className="link-btn">Edit</button>
+        <button className="link-btn" disabled title="Coming soon">Edit</button>
       </div>
       <dl className="kv">
         {rows.map((r) => (
@@ -716,7 +715,7 @@ function TagsCard({ detail }: { detail: RepositoryDetail | null }) {
     <section className="rail-section">
       <div className="rail-head">
         <span className="rail-title">Tags</span>
-        <button className="link-btn">Edit</button>
+        <button className="link-btn" disabled title="Coming soon">Edit</button>
       </div>
       {tags.length === 0 ? (
         <div className="rail-empty">No tags yet.</div>
@@ -727,7 +726,7 @@ function TagsCard({ detail }: { detail: RepositoryDetail | null }) {
               {t.label}
             </span>
           ))}
-          <button className="tag-add" aria-label="Add tag">
+          <button className="tag-add" aria-label="Add tag" disabled title="Coming soon">
             <Plus size={13} strokeWidth={2} />
           </button>
         </div>
@@ -905,6 +904,8 @@ function CodeView({
           <input
             placeholder="Search files, folders, commits…"
             aria-label="Search files, folders, commits"
+            disabled
+            title="Search is coming soon"
           />
           <kbd className="search-kbd">⌘K</kbd>
         </div>
@@ -991,7 +992,7 @@ function CodeView({
                   <td className="muted-cell">{c.filesChanged ?? "—"}</td>
                   <td className="muted-cell">{timeAgo(c.at)}</td>
                   <td className="row-action">
-                    <button className="icon-btn" aria-label="More actions">
+                    <button className="icon-btn" aria-label="More actions" disabled title="Coming soon">
                       <MoreHorizontal size={16} strokeWidth={1.8} />
                     </button>
                   </td>

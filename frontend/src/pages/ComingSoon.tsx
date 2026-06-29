@@ -1,10 +1,6 @@
-import { TopBar } from "../app/TopBar";
-
 // Placeholder for nav sections that aren't built yet, so the shell is navigable.
 export function ComingSoon({ title }: { title: string }) {
   return (
-    <>
-      <TopBar />
       <div className="app-scroll">
         <div className="page-pad">
           <div className="page-header">
@@ -16,6 +12,5 @@ export function ComingSoon({ title }: { title: string }) {
           </div>
         </div>
       </div>
-    </>
   );
 }

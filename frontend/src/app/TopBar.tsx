@@ -8,7 +8,12 @@ export function TopBar({ actions }: { actions?: ReactNode }) {
       <div className="topbar-col" />
       <div className="topbar-search">
         <Search size={16} strokeWidth={1.8} />
-        <input placeholder="Search projects, controllers, tags…" aria-label="Search" />
+        <input
+          placeholder="Search projects, controllers, tags…"
+          aria-label="Search"
+          disabled
+          title="Search is coming soon"
+        />
         <kbd>⌘K</kbd>
       </div>
       <div className="topbar-col topbar-actions">{actions}</div>

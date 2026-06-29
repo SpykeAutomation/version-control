@@ -4,7 +4,6 @@
 // LadderDiff renderer, and the file/routine grouping reuses the shapes from
 // ./mergeRequest so the two review pages stay structurally aligned.
 import { apiFetch } from "./client";
-import { listProjects } from "./projects";
 import { listCommits } from "./commits";
 import { getCommitDiff, getCommitLadderDiff } from "./diff";
 import type {
@@ -232,13 +231,15 @@ export async function getRoutineContent(
   return apiFetch<RoutineFull>(`/projects/${projectId}/commits/${sha}/routine${q}`);
 }
 
-// Load a commit for the review page: resolve the project by slug, then fetch the
-// commit list (for meta) and the ladder diff.
-export async function getCommit(slug: string, sha: string): Promise<CommitDetail> {
-  const projects = await listProjects();
-  const project = projects.find((p) => p.slug === slug);
-  if (!project) throw new Error("Project not found");
-  const branches = project.branches.length > 0 ? project.branches : ["main"];
+// Load a commit for the review page. The project (id + branch list) is resolved
+// by the caller from the cached project list, so this makes no extra /projects
+// request — it just fetches the commit list (for meta) and the diffs.
+export async function getCommit(
+  projectId: number,
+  projectBranches: string[],
+  sha: string,
+): Promise<CommitDetail> {
+  const branches = projectBranches.length > 0 ? projectBranches : ["main"];
 
   // The commit's metadata and parent live in its branch history, which may not be
   // the first branch — so fetch every branch's log and use the one that contains
@@ -246,14 +247,14 @@ export async function getCommit(slug: string, sha: string): Promise<CommitDetail
   const [perBranch, ladder, changeSet, tree] = await Promise.all([
     Promise.all(
       branches.map((b) =>
-        listCommits(project.id, b).catch(() => [] as CommitOut[]),
+        listCommits(projectId, b).catch(() => [] as CommitOut[]),
       ),
     ),
-    getCommitLadderDiff(project.id, sha)
+    getCommitLadderDiff(projectId, sha)
       .then((d) => d.routines)
       .catch(() => [] as IRRoutineLadderDiff[]),
-    getCommitDiff(project.id, sha).catch(() => EMPTY_CHANGESET),
-    getCommitTree(project.id, sha).catch(() => emptyTree("Controller")),
+    getCommitDiff(projectId, sha).catch(() => EMPTY_CHANGESET),
+    getCommitTree(projectId, sha).catch(() => emptyTree("Controller")),
   ]);
 
   let branch = branches[0];

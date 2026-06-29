@@ -2,19 +2,20 @@
   /* Fonts */
   --sans: Inter, "Google Sans", system-ui, -apple-system, BlinkMacSystemFont,
     "Segoe UI", sans-serif;
-  --mono: Inter, ui-monospace, monospace;
+  --mono: ui-monospace, "SF Mono", "Menlo", "Consolas", monospace;
 
   /* Surfaces — bg and cards share one warm off-white; outlines do the separating */
   --bg: #fbfaf7;
   --panel: #fbfaf7;
   --panel2: #f3f2ef; /* subtle warm fill (table header, chips) */
   --hover: #f5f4f1; /* row / hover */
+  --surface-dark: #1f242b; /* dark fill for diff headers */
 
   /* Text */
   --ink-title: #111315;
   --ink: #111315;
   --ink2: #555b61;
-  --ink3: #7a8087;
+  --ink3: #6a7077; /* muted text — darkened to meet WCAG AA (4.5:1) on --bg */
   --ink4: #a7abb0; /* disabled */
 
   /* Borders: --line2 subtle divider, --line default, --border strong */
@@ -48,6 +49,7 @@
   /* Status: error / safety-critical */
   --danger: #d93025;
   --danger-bg: #fceeee;
+  --danger-line: #f0c6c3;
   /* Accent: purple */
   --purple: #6f42c1;
   --purple-bg: #f3efff;
@@ -385,7 +387,7 @@ a {
   display: block;
 }
 .cli-badge-warn {
-  border-color: #f4c4bd;
+  border-color: var(--danger-line);
   background: #fdecea;
   color: var(--danger);
 }
@@ -566,6 +568,15 @@ a {
   text-decoration: none;
   cursor: pointer;
 }
+/* Lets .link be used on a real <button> for keyboard/AT support */
+button.link {
+  background: none;
+  border: none;
+  padding: 0;
+}
+button.link:hover {
+  text-decoration: underline;
+}
 .accent-link {
   color: var(--accent);
   font-weight: 600;
@@ -589,6 +600,21 @@ a {
 }
 .btn:disabled {
   opacity: 0.55;
+  cursor: not-allowed;
+}
+/* Controls for features that aren't wired to the backend yet are disabled
+   (dimmed, not-allowed cursor) with a "Coming soon" tooltip, so a click clearly
+   does nothing rather than failing silently. */
+.icon-btn:disabled,
+.link-btn:disabled,
+.link:disabled,
+.disc-kebab:disabled,
+.tag-add:disabled,
+.cmr-tool:disabled,
+.btn-quiet:disabled,
+.topbar-search input:disabled,
+.toolbar-search input:disabled {
+  opacity: 0.5;
   cursor: not-allowed;
 }
 .btn-primary {
@@ -650,7 +676,7 @@ a {
 }
 .form-error {
   background: #fdecea;
-  border: 1px solid #f4c4bd;
+  border: 1px solid var(--danger-line);
   color: var(--danger);
   border-radius: 9px;
   padding: 9px 12px;
@@ -957,6 +983,12 @@ a {
   flex-direction: column;
   padding: 20px 12px 16px;
   overflow: hidden;
+  /* Animate the rail width so collapse/expand slides; labels fade in step
+     (see .sidebar-word / .nav-label / .user-meta) and are clipped by the
+     overflow above as the rail narrows. white-space:nowrap keeps them on one
+     line so they slide out cleanly instead of reflowing. */
+  white-space: nowrap;
+  transition: width 0.22s ease;
 }
 /* Low-contrast ascending-chevron texture, confined to the lower sidebar so it
    never competes with navigation. Mirrors the brand-panel motif. */
@@ -1007,14 +1039,22 @@ a {
   cursor: pointer;
 }
 .sidebar-mark-btn svg {
+  transition: transform 0.22s ease, opacity 0.15s ease;
+}
+/* collapsed: rotate the mark to point right, hinting "click to expand" */
+.sidebar.collapsed .sidebar-mark-btn svg {
   transform: rotate(90deg);
-  transition: opacity 0.15s ease;
 }
 .sidebar-mark-btn:hover {
   opacity: 0.7;
 }
 .sidebar-word {
-  margin-right: auto;
+  /* Fills the space (pushing the chevron right) and is the shrinkable element,
+     so as the rail narrows it collapses to zero instead of squeezing the mark. */
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  transition: opacity 0.18s ease;
 }
 /* collapse / expand toggle — the two sideways chevrons */
 .sidebar-collapse {
@@ -1029,29 +1069,25 @@ a {
   background: rgba(255, 255, 255, 0.06);
   color: rgba(255, 255, 255, 0.55);
   cursor: pointer;
+  transition: opacity 0.18s ease;
 }
 .sidebar-collapse:hover {
   background: rgba(255, 255, 255, 0.12);
   color: #fff;
 }
-/* collapsed rail: icons only */
+/* collapsed rail: icons only. The horizontal paddings are left unchanged from
+   the expanded state so icons keep their x-position through the width animation
+   (at 72px those paddings land them ~centered). The text just fades and is
+   clipped by the rail's overflow as it narrows — no reflow, no sideways jump. */
 .sidebar.collapsed {
   width: 72px;
-  padding-left: 12px;
-  padding-right: 12px;
 }
-.sidebar.collapsed .sidebar-logo {
-  justify-content: center;
-  padding: 6px 0 20px;
-}
-.sidebar.collapsed .nav-item {
-  justify-content: center;
-  padding-left: 0;
-  padding-right: 0;
-}
-.sidebar.collapsed .user-block {
-  justify-content: center;
-  padding: 8px;
+.sidebar.collapsed .sidebar-word,
+.sidebar.collapsed .nav-label,
+.sidebar.collapsed .user-meta,
+.sidebar.collapsed .sidebar-collapse {
+  opacity: 0;
+  pointer-events: none;
 }
 .sidebar-nav {
   display: flex;
@@ -1069,6 +1105,11 @@ a {
   font: 500 14px/20px var(--sans);
   text-decoration: none;
   cursor: pointer;
+}
+/* The icon never shrinks, so it keeps its size and x-position as the rail
+   collapses; the label (below) is the part that shrinks away. */
+.nav-item svg {
+  flex: none;
 }
 .nav-item:hover {
   background: var(--sidebar-surface);
@@ -1092,8 +1133,12 @@ a {
   border-radius: 0 3px 3px 0;
   background: var(--add);
 }
-.sidebar.collapsed .nav-item.active::before {
-  left: -12px;
+.nav-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  transition: opacity 0.18s ease;
 }
 .sidebar-foot {
   margin-top: auto;
@@ -1122,7 +1167,10 @@ a {
   font: 600 12px/1 var(--sans);
 }
 .user-meta {
+  flex: 1 1 auto;
   min-width: 0;
+  overflow: hidden;
+  transition: opacity 0.18s ease;
 }
 .user-name {
   color: #fff;
@@ -1134,6 +1182,17 @@ a {
 .user-sub {
   color: rgba(255, 255, 255, 0.45);
   font: 500 12px/1.3 var(--sans);
+}
+/* Respect users who ask for less motion: collapse/expand snaps instantly. */
+@media (prefers-reduced-motion: reduce) {
+  .sidebar,
+  .sidebar-word,
+  .nav-label,
+  .user-meta,
+  .sidebar-collapse,
+  .sidebar-mark-btn svg {
+    transition: none;
+  }
 }
 
 /* main column */
@@ -1185,7 +1244,7 @@ a {
   border: none;
   background: none;
   font-size: 13px;
-  color: #202124;
+  color: var(--ink);
 }
 .topbar-search input:focus {
   outline: none;
@@ -1325,7 +1384,7 @@ a {
   padding: 16px 24px;
   border-bottom: 1px solid var(--line2);
   font: 400 13px/18px var(--sans);
-  color: #202124;
+  color: var(--ink);
   vertical-align: middle;
 }
 .table-wrap .dtable tbody tr {
@@ -1356,7 +1415,7 @@ a.repo-cell:hover .repo-name {
   border: 1px solid var(--line);
   display: grid;
   place-items: center;
-  color: #202124;
+  color: var(--ink);
 }
 /* Per-repository colour tones, shared by the table and rail list icons. */
 .repo-ico.tone-blue,
@@ -1395,7 +1454,7 @@ a.repo-cell:hover .repo-name {
 }
 .repo-sub {
   font: 400 12px/17px var(--mono);
-  color: #6f747a;
+  color: var(--ink3);
   margin-top: 2px;
 }
 .branch-tag {
@@ -1403,7 +1462,7 @@ a.repo-cell:hover .repo-name {
   align-items: center;
   gap: 6px;
   font: 500 13px/1 var(--sans);
-  color: #202124;
+  color: var(--ink);
 }
 .muted-cell {
   color: var(--ink2);
@@ -1462,7 +1521,7 @@ a.repo-cell:hover .repo-name {
 .badge.red {
   color: var(--danger);
   background: var(--danger-bg);
-  border-color: #f3cdc9;
+  border-color: var(--danger-line);
 }
 .badge.gray {
   color: var(--gray);
@@ -1523,15 +1582,15 @@ a.rail-item:hover,
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #202124;
+  color: var(--ink);
 }
 .rail-label {
   font: 550 13px/18px var(--sans);
-  color: #202124;
+  color: var(--ink);
 }
 .rail-sub {
   font: 400 12px/17px var(--sans);
-  color: #6f747a;
+  color: var(--ink3);
   margin-top: 2px;
 }
 .rail-empty {
@@ -1574,7 +1633,7 @@ a.rail-item:hover,
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #202124;
+  color: var(--ink);
   margin-bottom: 16px;
 }
 .empty-state h3 {
@@ -1604,7 +1663,11 @@ a.rail-item:hover,
 .icon-btn:focus-visible,
 .toolbar-select:focus-visible,
 a.rail-item:focus-visible,
-.seg-btn:focus-visible {
+.seg-btn:focus-visible,
+.repo-tab:focus-visible,
+.pr-tab:focus-visible,
+.tree-row:focus-visible,
+.link:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
@@ -1630,7 +1693,7 @@ a.rail-item:focus-visible,
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--panel);
-  color: #202124;
+  color: var(--ink);
   font: 500 13px/1 var(--sans);
   cursor: pointer;
   appearance: none;
@@ -1808,7 +1871,7 @@ a.rail-item:focus-visible,
 }
 .cmp-select-ico {
   display: inline-flex;
-  color: #202124;
+  color: var(--ink);
   flex: none;
 }
 .cmp-select-val {
@@ -1873,7 +1936,7 @@ a.rail-item:focus-visible,
 .cmp-ico.red {
   color: var(--danger);
   background: var(--danger-bg);
-  border-color: #f3cdc9;
+  border-color: var(--danger-line);
 }
 .cmp-ico.green {
   color: var(--add);
@@ -2069,7 +2132,7 @@ a.rail-item:focus-visible,
   margin-bottom: 1px;
 }
 .el-symbol {
-  color: #202124;
+  color: var(--ink);
   display: block;
 }
 .el-addr {
@@ -2326,7 +2389,7 @@ a.rail-item:focus-visible,
   border: 1px solid var(--line);
   display: grid;
   place-items: center;
-  color: #202124;
+  color: var(--ink);
 }
 .file-name {
   font: 600 12.5px/1.3 var(--mono);
@@ -2823,7 +2886,7 @@ a.rail-item:focus-visible,
 .tag-chip.red {
   color: var(--danger);
   background: var(--danger-bg);
-  border-color: #f3cdc9;
+  border-color: var(--danger-line);
 }
 .tag-chip.blue {
   color: var(--accent);
@@ -4095,14 +4158,14 @@ a.mr-commit-row:hover {
   justify-content: space-between;
   gap: 12px;
   padding: 11px 16px;
-  background: #1f242b;
+  background: var(--surface-dark);
 }
 .sxs-head-l {
-  border: 1px solid #1f242b;
+  border: 1px solid var(--surface-dark);
   border-radius: var(--r-lg) var(--r-lg) 0 0;
 }
 .sxs-head-r {
-  border: 1px solid #1f242b;
+  border: 1px solid var(--surface-dark);
   border-radius: var(--r-lg) var(--r-lg) 0 0;
 }
 .sxs-head-ver {
@@ -4755,8 +4818,8 @@ a.mr-commit-row:hover {
   gap: 12px;
   min-width: 0;
   padding: 11px 16px;
-  background: #1f242b;
-  border: 1px solid #1f242b;
+  background: var(--surface-dark);
+  border: 1px solid var(--surface-dark);
   border-radius: var(--r-lg) var(--r-lg) 0 0;
 }
 .lad-col-ver {
@@ -4994,7 +5057,7 @@ a.mr-commit-row:hover {
   width: 100%;
 }
 .el-chip .el-symbol {
-  color: #202124;
+  color: var(--ink);
   display: block;
   flex: none;
 }
@@ -5009,7 +5072,7 @@ a.mr-commit-row:hover {
 .el-chip.el-removed {
   background: var(--danger-bg);
   box-shadow:
-    inset 0 0 0 1px #f0c6c3,
+    inset 0 0 0 1px var(--danger-line),
     0 0 0 1px rgba(217, 48, 37, 0.16);
 }
 .el-chip.el-modified {
@@ -5249,7 +5312,7 @@ a.mr-commit-row:hover {
   color: var(--add);
 }
 .ladder-raw.el-removed {
-  border-color: var(--danger-line, #f0c6c3);
+  border-color: var(--danger-line);
   background: var(--danger-bg);
   color: var(--danger);
 }
@@ -5416,7 +5479,7 @@ a.mr-commit-row:hover {
   padding: 14px;
 }
 .cmfull-head {
-  background: #1f242b;
+  background: var(--surface-dark);
   padding: 11px 16px;
   border-radius: var(--r-lg) var(--r-lg) 0 0;
 }
@@ -5514,7 +5577,7 @@ a.mr-commit-row:hover {
 }
 .cm-revert {
   background: var(--panel);
-  border: 1px solid #f0c6c3;
+  border: 1px solid var(--danger-line);
   color: var(--danger);
 }
 .cm-revert:hover {

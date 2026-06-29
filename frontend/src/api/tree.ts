@@ -36,12 +36,27 @@ export interface ProjectTree {
   root: TreeNode;
 }
 
+// The tree endpoints organize a single L5X file, so they need its `path`. The
+// changed file is read from the diff manifest (the commit detail, or the
+// base..head manifest), then its tree is fetched. Projects can hold several L5X
+// files; the organizer renders one root, so the first changed L5X is used.
+async function firstChangedL5x(manifestUrl: string): Promise<string> {
+  const manifest = await apiFetch<{ files: { path: string; kind: string }[] }>(
+    manifestUrl,
+  );
+  const file = manifest.files.find((f) => f.kind === "l5x");
+  if (!file) throw new Error("No L5X file changed");
+  return file.path;
+}
+
 // The organizer tree for one commit, tagged by the diff against its parent.
 export async function getCommitTree(
   projectId: number,
   sha: string,
 ): Promise<ProjectTree> {
-  return apiFetch<ProjectTree>(`/projects/${projectId}/commits/${sha}/tree`);
+  const base = `/projects/${projectId}/commits/${sha}`;
+  const path = await firstChangedL5x(base);
+  return apiFetch<ProjectTree>(`${base}/tree?path=${encodeURIComponent(path)}`);
 }
 
 // The organizer tree at `head`, tagged by the diff against `base`. Used when
@@ -52,5 +67,8 @@ export async function getTree(
   head: string,
 ): Promise<ProjectTree> {
   const q = `?base=${encodeURIComponent(base)}&head=${encodeURIComponent(head)}`;
-  return apiFetch<ProjectTree>(`/projects/${projectId}/tree${q}`);
+  const path = await firstChangedL5x(`/projects/${projectId}/diff${q}`);
+  return apiFetch<ProjectTree>(
+    `/projects/${projectId}/tree${q}&path=${encodeURIComponent(path)}`,
+  );
 }

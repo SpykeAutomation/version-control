@@ -14,7 +14,6 @@ import {
   Plus,
   RotateCcw,
 } from "lucide-react";
-import { TopBar } from "../app/TopBar";
 import {
   RoutineLadderDiffView,
   RoutineLadderFullView,
@@ -66,8 +65,6 @@ export function CommitReviewPage() {
       : null;
 
   return (
-    <>
-      <TopBar />
       <div className="app-scroll">
         {error ? (
           <div className="page-pad">
@@ -90,7 +87,6 @@ export function CommitReviewPage() {
           />
         )}
       </div>
-    </>
   );
 }
 
@@ -107,6 +103,7 @@ function CommitReviewView({
   projectId?: number;
 }) {
   const [showNumbers, setShowNumbers] = useState(true);
+  const [zoom, setZoom] = useState(100);
   // The tab strip switches the main view: "changes" shows the per-file diffs;
   // "files" shows the whole-project tree with a routine viewer.
   const [tab, setTab] = useState<"changes" | "files">("changes");
@@ -169,6 +166,8 @@ function CommitReviewView({
                 count={commit.files.length}
                 showNumbers={showNumbers}
                 onToggle={() => setShowNumbers((v) => !v)}
+                zoom={zoom}
+                onZoom={setZoom}
               />
               {commit.files.map((file, i) => (
                 <FileSection
@@ -176,6 +175,7 @@ function CommitReviewView({
                   index={i + 1}
                   file={file}
                   showNumbers={showNumbers}
+                  zoom={zoom}
                 />
               ))}
             </>
@@ -216,7 +216,7 @@ function CommitReviewView({
           <aside className="repo-rail cm-rail">
             <AboutCommitsCard />
             <FilesChangedCard files={commit.fileStats} />
-            <ActionsCard />
+            <ActionsCard slug={slug} branch={commit.branch} />
           </aside>
         )}
       </div>
@@ -637,10 +637,14 @@ function ChangesToolbar({
   count,
   showNumbers,
   onToggle,
+  zoom,
+  onZoom,
 }: {
   count: number;
   showNumbers: boolean;
   onToggle: () => void;
+  zoom: number;
+  onZoom: (z: number) => void;
 }) {
   return (
     <div className="pr-changes-bar">
@@ -653,7 +657,7 @@ function ChangesToolbar({
           <input type="checkbox" checked={showNumbers} onChange={onToggle} />
           Show rung numbers
         </label>
-        <ZoomControl />
+        <ZoomControl zoom={zoom} onZoom={onZoom} />
       </div>
     </div>
   );
@@ -665,10 +669,12 @@ function FileSection({
   index,
   file,
   showNumbers,
+  zoom,
 }: {
   index: number;
   file: PRFile;
   showNumbers: boolean;
+  zoom: number;
 }) {
   return (
     <section className="mr-section pr-file">
@@ -685,7 +691,7 @@ function FileSection({
           </span>
         </div>
       </div>
-      <div className="pr-file-body">
+      <div className="pr-file-body" style={{ zoom: zoom / 100 }}>
         {file.changes.map((ch, i) => (
           <RoutineChangeBlock key={i} change={ch} showNumbers={showNumbers} />
         ))}
@@ -719,8 +725,13 @@ function RoutineChangeBlock({
   );
 }
 
-function ZoomControl() {
-  const [zoom, setZoom] = useState(100);
+function ZoomControl({
+  zoom,
+  onZoom,
+}: {
+  zoom: number;
+  onZoom: (z: number) => void;
+}) {
   return (
     <div className="zoom cm-zoom">
       <span className="zoom-word">Zoom:</span>
@@ -728,7 +739,7 @@ function ZoomControl() {
         className="zoom-btn"
         type="button"
         aria-label="Zoom out"
-        onClick={() => setZoom((z) => Math.max(50, z - 10))}
+        onClick={() => onZoom(Math.max(50, zoom - 10))}
       >
         <Minus size={14} strokeWidth={2} />
       </button>
@@ -737,7 +748,7 @@ function ZoomControl() {
         className="zoom-btn"
         type="button"
         aria-label="Zoom in"
-        onClick={() => setZoom((z) => Math.min(200, z + 10))}
+        onClick={() => onZoom(Math.min(200, zoom + 10))}
       >
         <Plus size={14} strokeWidth={2} />
       </button>
@@ -870,7 +881,7 @@ function Discussion({
               <div className="disc-aside">
                 <div className="disc-aside-top">
                   <span className="disc-time">{timeAgo(c.at)}</span>
-                  <button className="disc-kebab" type="button" aria-label="More">
+                  <button className="disc-kebab" type="button" aria-label="More" disabled title="Coming soon">
                     <MoreVertical size={15} strokeWidth={2} />
                   </button>
                 </div>
@@ -1005,17 +1016,31 @@ function FilesChangedCard({ files }: { files: CommitFileStat[] }) {
   );
 }
 
-function ActionsCard() {
+function ActionsCard({ slug, branch }: { slug?: string; branch?: string }) {
+  // Opening a change request from this commit's branch is a real flow (the
+  // create-merge-request page), so this links straight to it with the branch
+  // pre-selected as the source. Revert has no backend yet, so it stays disabled.
+  const canCreate = Boolean(slug && branch);
   return (
     <section className="rail-section cm-actions">
       <div className="rail-head">
         <span className="rail-title">Actions</span>
       </div>
-      <button className="btn btn-outline btn-block btn-sm">
-        <GitPullRequestArrow size={15} strokeWidth={1.9} />
-        Create change request
-      </button>
-      <button className="btn btn-block btn-sm cm-revert">
+      {canCreate ? (
+        <Link
+          to={`/projects/${slug}/merge-requests/new?source=${encodeURIComponent(branch!)}`}
+          className="btn btn-outline btn-block btn-sm"
+        >
+          <GitPullRequestArrow size={15} strokeWidth={1.9} />
+          Create change request
+        </Link>
+      ) : (
+        <button className="btn btn-outline btn-block btn-sm" disabled>
+          <GitPullRequestArrow size={15} strokeWidth={1.9} />
+          Create change request
+        </button>
+      )}
+      <button className="btn btn-block btn-sm cm-revert" disabled title="Coming soon">
         <RotateCcw size={15} strokeWidth={1.9} />
         Revert commit
       </button>

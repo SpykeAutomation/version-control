@@ -35,11 +35,14 @@ export async function listCommits(
   }));
 }
 
-// A branch plus its latest commit. The backend doesn't expose branch
-// comparison, so there's no ahead/behind here.
+// A branch plus its latest commit and its position relative to the default
+// branch (ahead/behind), as the branches endpoint reports them.
 export interface BranchSummary {
   name: string;
   isDefault: boolean;
+  isProtected: boolean;
+  ahead: number;
+  behind: number;
   lastCommitHash?: string;
   lastCommitSha?: string;
   lastCommitMessage?: string;
@@ -47,35 +50,38 @@ export interface BranchSummary {
   lastCommitAt?: string;
 }
 
-// List a project's branches, each with its newest commit. The branches
-// endpoint returns names only, so we fetch the latest commit per branch to
-// fill in the rest.
+// What the backend returns per branch: enriched with its tip commit and
+// default/protected flags (see backend README, GET /branches).
+interface BranchOut {
+  name: string;
+  is_default: boolean;
+  is_protected: boolean;
+  latest_commit: CommitOut | null;
+  ahead: number;
+  behind: number;
+  merged: boolean;
+}
+
+// List a project's branches, each with its newest commit. The branches endpoint
+// already embeds the tip commit, so this is a single request.
 export async function listBranches(
   projectId: number,
 ): Promise<BranchSummary[]> {
-  const names = await apiFetch<string[]>(`/projects/${projectId}/branches`);
-  return Promise.all(
-    names.map(async (name) => {
-      let latest: CommitOut | undefined;
-      try {
-        const commits = await apiFetch<CommitOut[]>(
-          `/projects/${projectId}/commits?branch=${encodeURIComponent(name)}`,
-        );
-        latest = commits[0];
-      } catch {
-        latest = undefined;
-      }
-      return {
-        name,
-        isDefault: name === "main",
-        lastCommitHash: latest?.sha.slice(0, 7),
-        lastCommitSha: latest?.sha,
-        lastCommitMessage: latest?.title,
-        lastCommitAuthor: latest?.author,
-        lastCommitAt: latest?.date,
-      };
-    }),
+  const branches = await apiFetch<BranchOut[]>(
+    `/projects/${projectId}/branches`,
   );
+  return branches.map((b) => ({
+    name: b.name,
+    isDefault: b.is_default,
+    isProtected: b.is_protected,
+    ahead: b.ahead,
+    behind: b.behind,
+    lastCommitHash: b.latest_commit?.sha.slice(0, 7),
+    lastCommitSha: b.latest_commit?.sha,
+    lastCommitMessage: b.latest_commit?.title,
+    lastCommitAuthor: b.latest_commit?.author,
+    lastCommitAt: b.latest_commit?.date,
+  }));
 }
 
 // Create a branch off a start point (default main). Returns the project's
@@ -93,10 +99,9 @@ export function createBranch(
 
 // Commit one or more files to a branch as a single commit.
 //
-// Each file is appended under the `file` field of one multipart request, along
-// with the branch, the title (commit message) and an optional description. A
-// single file matches the current backend route; the multi-file endpoint being
-// added accepts repeated `file` entries so the whole set lands as one commit.
+// Each file is appended under the `files` field of one multipart request, along
+// with the branch, the title (commit message) and an optional description. The
+// backend accepts repeated `files` entries so the whole set lands as one commit.
 export async function commitFiles(
   projectId: number,
   input: {
@@ -110,7 +115,7 @@ export async function commitFiles(
   body.append("branch", input.branch);
   body.append("title", input.message);
   body.append("description", input.description ?? "");
-  for (const file of input.files) body.append("file", file, file.name);
+  for (const file of input.files) body.append("files", file, file.name);
 
   return apiFetch<CommitResult>(`/projects/${projectId}/commits`, {
     method: "POST",

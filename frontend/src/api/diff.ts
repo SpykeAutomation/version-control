@@ -79,37 +79,108 @@ export interface ChangeSet {
 }
 
 // --- API functions ---
+//
+// The diff is per file: the manifest endpoint lists which files changed, then
+// each L5X file is drilled into with its own `path` for the change-set and
+// ladder views (see backend README). A project can hold several L5X files, so
+// these resolve every changed L5X from the manifest and merge the results.
 
-// The semantic change-set for a commit: what changed by entity.
-export async function getCommitDiff(
-  projectId: number,
-  sha: string,
-): Promise<ChangeSet> {
-  return apiFetch<ChangeSet>(`/projects/${projectId}/commits/${sha}/diff`);
+// A changed-file entry from a diff manifest (also a commit's file list).
+interface ChangedFile {
+  path: string;
+  kind: "l5x" | "file";
+  change: "added" | "modified" | "removed";
+  views: string[];
 }
 
-// The ladder-diff IR for a commit: rung-by-rung before/after for each routine.
-export async function getCommitLadderDiff(
-  projectId: number,
-  sha: string,
-): Promise<LadderDiffDoc> {
-  return apiFetch<LadderDiffDoc>(
-    `/projects/${projectId}/commits/${sha}/diff/ladder`,
-  );
+const EMPTY_CHANGESET: ChangeSet = {
+  controller: [],
+  modules: [],
+  data_types: [],
+  add_on_instructions: [],
+  controller_tags: [],
+  programs: [],
+  tasks: [],
+};
+
+function mergeChangeSets(sets: ChangeSet[]): ChangeSet {
+  return {
+    controller: sets.flatMap((s) => s.controller),
+    modules: sets.flatMap((s) => s.modules),
+    data_types: sets.flatMap((s) => s.data_types),
+    add_on_instructions: sets.flatMap((s) => s.add_on_instructions),
+    controller_tags: sets.flatMap((s) => s.controller_tags),
+    programs: sets.flatMap((s) => s.programs),
+    tasks: sets.flatMap((s) => s.tasks),
+  };
 }
 
-// Generic diff between any two refs (base = current/old, head = proposed/new).
-// Used when the commit page's Left selector picks a base other than the parent.
+// The L5X file paths that changed, from a manifest ({files:[...]}) or a commit
+// detail (also {files:[...]}).
+async function changedL5xPaths(manifestUrl: string): Promise<string[]> {
+  const manifest = await apiFetch<{ files: ChangedFile[] }>(manifestUrl);
+  return manifest.files.filter((f) => f.kind === "l5x").map((f) => f.path);
+}
+
 function refQuery(base: string, head: string): string {
   return `?base=${encodeURIComponent(base)}&head=${encodeURIComponent(head)}`;
 }
 
+// The semantic change-set for a commit: what changed by entity, across every
+// L5X file the commit touched (vs its parent).
+export async function getCommitDiff(
+  projectId: number,
+  sha: string,
+): Promise<ChangeSet> {
+  // The manifest of changed files is the commit detail itself ({files:[...]});
+  // each file's change-set hangs off .../diff/changeset.
+  const base = `/projects/${projectId}/commits/${sha}`;
+  const paths = await changedL5xPaths(base);
+  const sets = await Promise.all(
+    paths.map((p) =>
+      apiFetch<ChangeSet>(`${base}/diff/changeset?path=${encodeURIComponent(p)}`),
+    ),
+  );
+  return mergeChangeSets(sets.length ? sets : [EMPTY_CHANGESET]);
+}
+
+// The ladder-diff IR for a commit: rung-by-rung before/after for each changed
+// routine, across every L5X file the commit touched.
+export async function getCommitLadderDiff(
+  projectId: number,
+  sha: string,
+): Promise<LadderDiffDoc> {
+  const base = `/projects/${projectId}/commits/${sha}`;
+  const paths = await changedL5xPaths(base);
+  const docs = await Promise.all(
+    paths.map((p) =>
+      apiFetch<LadderDiffDoc>(`${base}/diff/ladder?path=${encodeURIComponent(p)}`),
+    ),
+  );
+  return {
+    schema_version: docs[0]?.schema_version ?? 1,
+    commit: sha,
+    routines: docs.flatMap((d) => d.routines),
+  };
+}
+
+// Generic change-set between any two refs (base = current/old, head =
+// proposed/new), merged across every changed L5X file.
 export async function getDiff(
   projectId: number,
   base: string,
   head: string,
 ): Promise<ChangeSet> {
-  return apiFetch<ChangeSet>(`/projects/${projectId}/diff${refQuery(base, head)}`);
+  const q = refQuery(base, head);
+  const paths = await changedL5xPaths(`/projects/${projectId}/diff${q}`);
+  const sets = await Promise.all(
+    paths.map((p) =>
+      apiFetch<ChangeSet>(
+        `/projects/${projectId}/diff/changeset${q}&path=${encodeURIComponent(p)}`,
+      ),
+    ),
+  );
+  return mergeChangeSets(sets.length ? sets : [EMPTY_CHANGESET]);
 }
 
 export async function getLadderDiff(
@@ -117,7 +188,18 @@ export async function getLadderDiff(
   base: string,
   head: string,
 ): Promise<LadderDiffDoc> {
-  return apiFetch<LadderDiffDoc>(
-    `/projects/${projectId}/diff/ladder${refQuery(base, head)}`,
+  const q = refQuery(base, head);
+  const paths = await changedL5xPaths(`/projects/${projectId}/diff${q}`);
+  const docs = await Promise.all(
+    paths.map((p) =>
+      apiFetch<LadderDiffDoc>(
+        `/projects/${projectId}/diff/ladder${q}&path=${encodeURIComponent(p)}`,
+      ),
+    ),
   );
+  return {
+    schema_version: docs[0]?.schema_version ?? 1,
+    commit: null,
+    routines: docs.flatMap((d) => d.routines),
+  };
 }
