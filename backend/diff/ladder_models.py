@@ -26,7 +26,8 @@ from typing import List, Literal, Optional
 from pydantic import BaseModel, Field
 
 # Bump when the shape below changes in a way a renderer must notice.
-SCHEMA_VERSION = 1
+# v2: added Element.io and lays each rung out reads-left / writes-right.
+SCHEMA_VERSION = 2
 
 # Per-element diff state. A "modified" element appears on both sides (e.g. a
 # box whose operand value changed); which operand differs is marked on the
@@ -66,6 +67,11 @@ class Element(BaseModel):
 
     kind: Literal["contact", "coil", "box", "branch", "raw"]
     status: ElementStatus = "unchanged"
+
+    # Whether this instruction reads ("input") or writes ("output"). Lets a
+    # renderer group a rung's reads on the left and writes on the right, the way
+    # ladder logic is laid out. Set when the rung is ordered for display.
+    io: Optional[Literal["input", "output"]] = None
 
     # contact / coil
     form: Optional[str] = None

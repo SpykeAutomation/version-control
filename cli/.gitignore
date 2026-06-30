@@ -1,0 +1,7 @@
+# Build outputs
+/spyke
+/spyke.exe
+/dist/
+
+# Local credential store written during dev (file fallback)
+credentials.json

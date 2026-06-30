@@ -7,6 +7,7 @@
     "ABL": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Channel",
         "Serial Port Control",
@@ -16,6 +17,7 @@
     "ABS": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Source",
         "Dest"
@@ -24,6 +26,7 @@
     "ACB": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Channel",
         "SerialPortControl",
@@ -33,6 +36,7 @@
     "ACL": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Channel",
         "Clear Serial Port Read",
@@ -42,6 +46,7 @@
     "ACOS": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Source",
         "Dest"
@@ -50,6 +55,7 @@
     "ACS": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Source",
         "Dest"
@@ -58,6 +64,7 @@
     "ADD": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Source A",
         "Source B",
@@ -67,11 +74,13 @@
     "AFI": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": []
     },
     "AHL": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Channel",
         "ANDMask",
@@ -83,6 +92,7 @@
     "ALMA": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "ALMA",
         "In",
@@ -94,6 +104,7 @@
     "ALMD": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "ALMD",
         "ProgAck",
@@ -107,6 +118,7 @@
     "AND": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Source A",
         "Source B",
@@ -116,6 +128,7 @@
     "ARD": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Channel",
         "Destination",
@@ -127,6 +140,7 @@
     "ARL": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Channel",
         "Destination",
@@ -137,6 +151,7 @@
     "ASIN": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Source",
         "Dest"
@@ -145,6 +160,7 @@
     "ASN": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Source",
         "Dest"
@@ -153,6 +169,7 @@
     "ASO": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Alarm Set",
         "Alarm Set Control",
@@ -162,6 +179,7 @@
     "ATAN": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Source",
         "Dest"
@@ -170,6 +188,7 @@
     "ATN": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Source",
         "Dest"
@@ -178,6 +197,7 @@
     "AVC": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Feedback Type",
         "Feedback Reaction Time",
@@ -189,6 +209,7 @@
     "AVE": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Array",
         "Dimension to vary",
@@ -201,6 +222,7 @@
     "AWA": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Channel",
         "Source",
@@ -212,6 +234,7 @@
     "AWT": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Channel",
         "Source",
@@ -223,6 +246,7 @@
     "BCD_TO": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Source",
         "Dest"
@@ -231,6 +255,7 @@
     "BPT": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Format String",
         "Trace This"
@@ -239,6 +264,7 @@
     "BSL": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Array",
         "Control",
@@ -249,6 +275,7 @@
     "BSR": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Array",
         "Control",
@@ -259,6 +286,7 @@
     "BTD": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Source",
         "Source bit",
@@ -270,6 +298,7 @@
     "CBCM": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Ack Type",
         "Mode"
@@ -278,6 +307,7 @@
     "CLR": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Dest"
       ]
@@ -285,6 +315,7 @@
     "CONCAT": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Source A",
         "Source B",
@@ -294,6 +325,7 @@
     "COP": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Source",
         "Dest",
@@ -303,6 +335,7 @@
     "COS": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Source",
         "Dest"
@@ -311,6 +344,7 @@
     "CPS": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Source",
         "Dest",
@@ -320,6 +354,7 @@
     "CPT": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Dest",
         "Expression"
@@ -328,6 +363,7 @@
     "CROUT": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Actuate",
         "Feedback 1",
@@ -339,6 +375,7 @@
     "CTD": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Counter",
         "Preset",
@@ -348,6 +385,7 @@
     "CTU": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Counter",
         "Preset",
@@ -357,6 +395,7 @@
     "DCM": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Safety Function",
         "Input Type",
@@ -366,6 +405,7 @@
     "DCS": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Safety Function",
         "Input Type",
@@ -375,6 +415,7 @@
     "DCSRT": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Safety Function",
         "Input Type",
@@ -384,6 +425,7 @@
     "DCST": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Safety Function",
         "Input Type",
@@ -393,6 +435,7 @@
     "DDT": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Source",
         "Reference",
@@ -408,6 +451,7 @@
     "DEG": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Source",
         "Dest"
@@ -416,6 +460,7 @@
     "DELETE": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Source",
         "Quantity",
@@ -426,6 +471,7 @@
     "DIV": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Source A",
         "Source B",
@@ -435,6 +481,7 @@
     "DTR": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Source",
         "Mask",
@@ -444,6 +491,7 @@
     "EOT": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "State Bit"
       ]
@@ -451,6 +499,7 @@
     "EQ": {
       "display": "box",
       "form": null,
+      "role": "input",
       "operands": [
         "Source A",
         "Source B"
@@ -459,6 +508,7 @@
     "EQU": {
       "display": "box",
       "form": null,
+      "role": "input",
       "operands": [
         "Source A",
         "Source B"
@@ -467,6 +517,7 @@
     "EVENT": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Task"
       ]
@@ -474,6 +525,7 @@
     "EXPT": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Source A",
         "Source B",
@@ -483,6 +535,7 @@
     "FAL": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Control",
         "Length",
@@ -495,6 +548,7 @@
     "FBC": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Source",
         "Reference",
@@ -510,6 +564,7 @@
     "FFL": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Source",
         "FIFO",
@@ -521,6 +576,7 @@
     "FFU": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "FIFO",
         "Destination",
@@ -532,6 +588,7 @@
     "FGEN": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "In",
         "X1",
@@ -543,6 +600,7 @@
     "FIND": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Source",
         "Search",
@@ -553,6 +611,7 @@
     "FLL": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Source",
         "Destination",
@@ -562,6 +621,7 @@
     "FOR": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Routine name",
         "Index",
@@ -573,6 +633,7 @@
     "FRD": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Source",
         "Dest"
@@ -581,6 +642,7 @@
     "FSBM": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Restart Type",
         "S1-S2 Time",
@@ -590,6 +652,7 @@
     "FSC": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Control",
         "Length",
@@ -601,6 +664,7 @@
     "GE": {
       "display": "box",
       "form": null,
+      "role": "input",
       "operands": [
         "Source A",
         "Source B"
@@ -609,6 +673,7 @@
     "GEQ": {
       "display": "box",
       "form": null,
+      "role": "input",
       "operands": [
         "Source A",
         "Source B"
@@ -617,6 +682,7 @@
     "GRT": {
       "display": "box",
       "form": null,
+      "role": "input",
       "operands": [
         "Source A",
         "Source B"
@@ -625,6 +691,7 @@
     "GSV": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Class Name",
         "Instance Name",
@@ -635,6 +702,7 @@
     "GT": {
       "display": "box",
       "form": null,
+      "role": "input",
       "operands": [
         "Source A",
         "Source B"
@@ -643,6 +711,7 @@
     "INSERT": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Source A",
         "Source B",
@@ -653,6 +722,7 @@
     "JMP": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Label Name"
       ]
@@ -660,6 +730,7 @@
     "JSR": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Routine Name"
       ]
@@ -667,6 +738,7 @@
     "JXR": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "External routine name",
         "External routine control",
@@ -677,6 +749,7 @@
     "LBL": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Label Name"
       ]
@@ -684,6 +757,7 @@
     "LE": {
       "display": "box",
       "form": null,
+      "role": "input",
       "operands": [
         "Source A",
         "Source B"
@@ -692,6 +766,7 @@
     "LES": {
       "display": "box",
       "form": null,
+      "role": "input",
       "operands": [
         "Source A",
         "Source B"
@@ -700,6 +775,7 @@
     "LFL": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Source",
         "LIFO",
@@ -711,6 +787,7 @@
     "LFU": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "LIFO",
         "Destination",
@@ -722,6 +799,7 @@
     "LIM": {
       "display": "box",
       "form": null,
+      "role": "input",
       "operands": [
         "Low Limit",
         "Test",
@@ -731,6 +809,7 @@
     "LIMIT": {
       "display": "box",
       "form": null,
+      "role": "input",
       "operands": [
         "Low Limit",
         "Test",
@@ -740,6 +819,7 @@
     "LN": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Source",
         "Dest"
@@ -748,6 +828,7 @@
     "LOG": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Source",
         "Dest"
@@ -756,6 +837,7 @@
     "LT": {
       "display": "box",
       "form": null,
+      "role": "input",
       "operands": [
         "Source A",
         "Source B"
@@ -764,6 +846,7 @@
     "LV": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Vendor Code",
         "Product Code"
@@ -772,6 +855,7 @@
     "MAAT": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Axis",
         "Motion Control"
@@ -780,6 +864,7 @@
     "MAHD": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Axis",
         "Motion Control",
@@ -790,6 +875,7 @@
     "MCCD": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Coordinate System",
         "Motion Control",
@@ -808,6 +894,7 @@
     "MCCM": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Coordinate System",
         "Motion Control",
@@ -823,6 +910,7 @@
     "MCCP": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Motion Control",
         "Cam",
@@ -835,6 +923,7 @@
     "MCLM": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Coordinate System",
         "Motion Control",
@@ -851,6 +940,7 @@
     "MCPM": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Coordinate System",
         "Motion Control",
@@ -863,11 +953,13 @@
     "MCR": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": []
     },
     "MCS": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Coordinate System",
         "Motion Control",
@@ -878,6 +970,7 @@
     "MCSD": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Coordinate System",
         "Motion Control"
@@ -886,6 +979,7 @@
     "MCSR": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Coordinate System",
         "Motion Control"
@@ -894,6 +988,7 @@
     "MCSV": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Motion Control",
         "Cam Profile",
@@ -906,6 +1001,7 @@
     "MCT": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Source System",
         "Target System",
@@ -915,6 +1011,7 @@
     "MCTO": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Cartesian System",
         "Robot System",
@@ -925,6 +1022,7 @@
     "MCTP": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Source System",
         "Target System",
@@ -935,6 +1033,7 @@
     "MCTPO": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Cartesian System",
         "Robot System",
@@ -945,6 +1044,7 @@
     "MEQ": {
       "display": "box",
       "form": null,
+      "role": "input",
       "operands": [
         "Source",
         "Mask",
@@ -954,6 +1054,7 @@
     "MGS": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Group",
         "Motion Control",
@@ -963,6 +1064,7 @@
     "MGSD": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Group",
         "Motion Control"
@@ -971,6 +1073,7 @@
     "MGSP": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Group",
         "Motion Control"
@@ -979,6 +1082,7 @@
     "MGSR": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Group",
         "Motion Control"
@@ -987,6 +1091,7 @@
     "MID": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Source",
         "Quantity",
@@ -997,6 +1102,7 @@
     "MOD": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Source A",
         "Source B",
@@ -1006,6 +1112,7 @@
     "MOV": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Source",
         "Dest"
@@ -1014,6 +1121,7 @@
     "MOVE": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Source",
         "Dest"
@@ -1022,6 +1130,7 @@
     "MSG": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Message"
       ]
@@ -1029,6 +1138,7 @@
     "MUL": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Source A",
         "Source B",
@@ -1038,6 +1148,7 @@
     "MVM": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Source",
         "Mask",
@@ -1047,6 +1158,7 @@
     "NE": {
       "display": "box",
       "form": null,
+      "role": "input",
       "operands": [
         "Source A",
         "Source B"
@@ -1055,6 +1167,7 @@
     "NEG": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Source",
         "Dest"
@@ -1063,6 +1176,7 @@
     "NEQ": {
       "display": "box",
       "form": null,
+      "role": "input",
       "operands": [
         "Source A",
         "Source B"
@@ -1071,11 +1185,13 @@
     "NOP": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": []
     },
     "NOT": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Source",
         "Dest"
@@ -1084,6 +1200,7 @@
     "ONS": {
       "display": "box",
       "form": null,
+      "role": "input",
       "operands": [
         "Storage Bit"
       ]
@@ -1091,6 +1208,7 @@
     "OR": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Source A",
         "Source B",
@@ -1100,6 +1218,7 @@
     "OSF": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Storage Bit",
         "Output Bit"
@@ -1108,6 +1227,7 @@
     "OSR": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Storage Bit",
         "Output Bit"
@@ -1116,21 +1236,25 @@
     "OTE": {
       "display": "coil",
       "form": "ote",
+      "role": "output",
       "operands": []
     },
     "OTL": {
       "display": "coil",
       "form": "otl",
+      "role": "output",
       "operands": []
     },
     "OTU": {
       "display": "coil",
       "form": "otu",
+      "role": "output",
       "operands": []
     },
     "PATT": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Phase Name",
         "Result"
@@ -1139,6 +1263,7 @@
     "PCLF": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Phase Name"
       ]
@@ -1146,6 +1271,7 @@
     "PDET": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Phase Name"
       ]
@@ -1153,6 +1279,7 @@
     "PFL": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Failure Code"
       ]
@@ -1160,6 +1287,7 @@
     "PID": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "PID",
         "Process variable",
@@ -1173,6 +1301,7 @@
     "POVR": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Phase Name",
         "Command",
@@ -1182,6 +1311,7 @@
     "PXRQ": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Phase Instruction",
         "External Request",
@@ -1191,6 +1321,7 @@
     "RAD": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Source",
         "Dest"
@@ -1199,6 +1330,7 @@
     "RES": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Structure"
       ]
@@ -1206,11 +1338,13 @@
     "RET": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": []
     },
     "RTO": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Timer",
         "Preset",
@@ -1220,6 +1354,7 @@
     "RTOS": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Source",
         "Destination"
@@ -1228,6 +1363,7 @@
     "SASI": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Sequence Name",
         "Sequence Id",
@@ -1237,6 +1373,7 @@
     "SATT": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Sequence Name",
         "Result"
@@ -1245,11 +1382,13 @@
     "SBR": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": []
     },
     "SCLF": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Sequence Name",
         "Result"
@@ -1258,6 +1397,7 @@
     "SCMD": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Sequence Name",
         "Command",
@@ -1267,6 +1407,7 @@
     "SDET": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Sequence Name"
       ]
@@ -1274,6 +1415,7 @@
     "SFP": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "SFCRoutineName",
         "TargetState"
@@ -1282,6 +1424,7 @@
     "SFR": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "SFCRoutineName",
         "StepName"
@@ -1290,6 +1433,7 @@
     "SIN": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Source",
         "Dest"
@@ -1298,6 +1442,7 @@
     "SIZE": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Source",
         "Dimension to Vary",
@@ -1307,6 +1452,7 @@
     "SMAT": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Restart Type",
         "Short Circuit Detect Delay Time"
@@ -1315,6 +1461,7 @@
     "SOVR": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Sequence Name",
         "Command",
@@ -1324,6 +1471,7 @@
     "SQI": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Array",
         "Mask",
@@ -1336,6 +1484,7 @@
     "SQL": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Array",
         "Source",
@@ -1347,6 +1496,7 @@
     "SQO": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Array",
         "Mask",
@@ -1359,6 +1509,7 @@
     "SQR": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Source",
         "Dest"
@@ -1367,6 +1518,7 @@
     "SQRT": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Source",
         "Dest"
@@ -1375,6 +1527,7 @@
     "SRT": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Array",
         "Dimension to vary",
@@ -1386,6 +1539,7 @@
     "SSV": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Class Name",
         "Instance Name",
@@ -1396,6 +1550,7 @@
     "STD": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Array",
         "Dimension to vary",
@@ -1408,6 +1563,7 @@
     "STOD": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Source",
         "Destination"
@@ -1416,6 +1572,7 @@
     "STOR": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Source",
         "Destination"
@@ -1424,6 +1581,7 @@
     "SUB": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Source A",
         "Source B",
@@ -1433,6 +1591,7 @@
     "SWPB": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Source",
         "Order Mode",
@@ -1442,6 +1601,7 @@
     "TAN": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Source",
         "Dest"
@@ -1450,11 +1610,13 @@
     "TND": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": []
     },
     "TOD": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Source",
         "Dest"
@@ -1463,6 +1625,7 @@
     "TOF": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Timer",
         "Preset",
@@ -1472,6 +1635,7 @@
     "TON": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Timer",
         "Preset",
@@ -1481,6 +1645,7 @@
     "TO_BCD": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Source",
         "Dest"
@@ -1489,6 +1654,7 @@
     "TPT": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Format String",
         "Trace"
@@ -1497,6 +1663,7 @@
     "TRN": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Source",
         "Dest"
@@ -1505,6 +1672,7 @@
     "TRUNC": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Source",
         "Dest"
@@ -1513,16 +1681,19 @@
     "UID": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": []
     },
     "UIE": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": []
     },
     "UPPER": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Source",
         "Destination"
@@ -1531,16 +1702,19 @@
     "XIC": {
       "display": "contact",
       "form": "no",
+      "role": "input",
       "operands": []
     },
     "XIO": {
       "display": "contact",
       "form": "nc",
+      "role": "input",
       "operands": []
     },
     "XOR": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Source A",
         "Source B",
@@ -1550,6 +1724,7 @@
     "XPY": {
       "display": "box",
       "form": null,
+      "role": "output",
       "operands": [
         "Source A",
         "Source B",

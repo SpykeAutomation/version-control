@@ -5,11 +5,19 @@
 {$DOMAIN} {
 	encode gzip
 
-	# Cap request bodies so a malformed or oversized L5X upload cannot
-	# exhaust the disk. Raise if real projects legitimately exceed this.
+	# Cap the whole request body at the edge so an oversized upload cannot
+	# exhaust the disk before the app sees it. This is a *per-request* limit
+	# (a multi-file upload sums up); the app enforces the precise per-file cap
+	# (PLCVC_MAX_UPLOAD_MB, default 100MB). Sized for a small batch (~5 files).
 	request_body {
-		max_size 25MB
+		max_size 512MB
 	}
+
+	# Public self-service registration is closed; accounts are created by an
+	# admin (see README). Block the route at the edge so it is unreachable
+	# from the internet, even though it still exists in the app for admin use.
+	@register path /auth/register
+	respond @register "Registration is closed. Contact us to request access." 403
 
 	reverse_proxy api:8000
 

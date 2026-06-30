@@ -36,3 +36,7 @@ fixtures/private/
 
 # Local environment overrides
 .env
+
+# Local-only demo seeding (synthetic data — never commit)
+seed_*.py
+data-demo*/
