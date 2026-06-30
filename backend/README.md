@@ -77,8 +77,8 @@ PLCVC_DATA_DIR=./data PLCVC_CORS_ORIGINS=http://localhost:5173 \
 
 ## Accounts & organizations
 
-Public signup is removed from the app (and blocked at the Caddy edge as a second
-layer). Accounts come from two places:
+Public signup is removed from the app (and blocked at the reverse proxy as a
+second layer). Accounts come from two places:
 
 **1. Bootstrap a company + its owner** (admin, on the server). `create_user`
 enforces the password policy (**≥12 chars with an upper- and lower-case letter
@@ -626,7 +626,7 @@ All settings are `PLCVC_*` environment variables — see [`.env.example`](.env.e
 | `PLCVC_CORS_ORIGINS` | Allowed frontend origin(s), comma-separated, or `*` |
 | `PLCVC_LOGIN_RATE_MAX` / `PLCVC_LOGIN_RATE_WINDOW_SECONDS` | Login attempts allowed per client IP per window (default 10 / 60s) |
 | `PLCVC_INVITE_RATE_MAX` / `PLCVC_INVITE_RATE_WINDOW_SECONDS` | Invite preview/accept calls per client IP per window (default 20 / 60s) |
-| `PLCVC_MAX_UPLOAD_MB` | Max size of a single uploaded file (default 100). Per-file (→ `413`); the Caddy edge caps the whole request separately |
+| `PLCVC_MAX_UPLOAD_MB` | Max size of a single uploaded file (default 100). Per-file (→ `413`); the reverse proxy caps the whole request separately |
 | `PLCVC_ORG_STORAGE_LIMIT_GB` | Per-organization storage cap in GB (default 2); counts repos + cached diffs (→ `507`) |
 | `PLCVC_DIFF_CACHE_MAX_MB` | Soft cap on the diff cache in MB (default 500); least-recently-used entries are evicted past it |
 | `PLCVC_WEB_APP_URL` | Web-app base URL used to build the CLI device-login verification link (default `https://app.spykeautomation.com`) |

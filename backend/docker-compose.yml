@@ -1,4 +1,4 @@
-# Production stack for a DigitalOcean droplet (also the reference for any host).
+# Production stack for any Linux host (a single small VPS is plenty).
 #
 # Caddy terminates TLS on 80/443 and reverse-proxies to the API over the
 # internal Docker network. The API port is NEVER published to the host.

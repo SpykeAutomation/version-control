@@ -43,8 +43,7 @@ Two things the host must do:
    `PLCVC_CORS_ORIGINS=https://app.spykeautomation.com`.
 2. **Serve `index.html` for every path (SPA fallback).** The app uses
    client-side routes (`/login`, `/onboarding`, …), so a direct request to any
-   of them must return `index.html` or it will 404. With Caddy (matching the
-   backend stack):
+   of them must return `index.html` or it will 404. With Caddy, for example:
 
    ```
    app.spykeautomation.com {
