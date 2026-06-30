@@ -1,25 +1,25 @@
 #!/usr/bin/env bash
 #
 # Off-site backup of the PLC version-control data (per-project Git repos + the
-# SQLite database) to DigitalOcean Spaces (S3-compatible). Run nightly via cron.
+# SQLite database) to any S3-compatible object store. Run nightly via cron.
 #
-# Prerequisites on the droplet:
+# Prerequisites on the server:
 #   sudo apt-get install -y sqlite3 awscli     # or use rclone
-#   aws configure                              # with your Spaces key/secret
+#   aws configure                              # with your object-store key/secret
 #
 # Required environment variables:
 #   PLCVC_HOST_DATA_DIR   host data dir (default: /opt/plc-vcs/data)
 #   BACKUP_BUCKET         e.g. s3://plc-vcs-backups
-#   SPACES_ENDPOINT       e.g. https://nyc3.digitaloceanspaces.com
+#   S3_ENDPOINT           your object store's S3 endpoint URL
 #
-# Retention: set a lifecycle rule on the Spaces bucket to expire objects after
+# Retention: set a lifecycle rule on the bucket to expire objects after
 # N days. That is safer and simpler than deleting from this script.
 #
 set -euo pipefail
 
 DATA_DIR="${PLCVC_HOST_DATA_DIR:-/opt/plc-vcs/data}"
 : "${BACKUP_BUCKET:?set BACKUP_BUCKET, e.g. s3://plc-vcs-backups}"
-: "${SPACES_ENDPOINT:?set SPACES_ENDPOINT, e.g. https://nyc3.digitaloceanspaces.com}"
+: "${S3_ENDPOINT:?set S3_ENDPOINT, your object store's S3 endpoint URL}"
 
 stamp="$(date -u +%Y%m%dT%H%M%SZ)"
 work="$(mktemp -d)"
@@ -46,11 +46,11 @@ fi
 # 3) Bundle and upload off-site.
 archive="$work/plc-vcs-$stamp.tar.gz"
 tar -czf "$archive" "${sources[@]}"
-aws --endpoint-url "$SPACES_ENDPOINT" s3 cp "$archive" "$BACKUP_BUCKET/$stamp.tar.gz"
+aws --endpoint-url "$S3_ENDPOINT" s3 cp "$archive" "$BACKUP_BUCKET/$stamp.tar.gz"
 
 echo "backup uploaded: $BACKUP_BUCKET/$stamp.tar.gz"
 
 # Cron (daily 02:30 UTC) — add via `crontab -e` as the deploy user:
 #   30 2 * * * PLCVC_HOST_DATA_DIR=/opt/plc-vcs/data BACKUP_BUCKET=s3://plc-vcs-backups \
-#     SPACES_ENDPOINT=https://nyc3.digitaloceanspaces.com \
+#     S3_ENDPOINT=https://your-object-store-endpoint \
 #     /opt/plc-vcs/version-control/scripts/backup.sh >> /var/log/plc-backup.log 2>&1
