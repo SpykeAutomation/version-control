@@ -33,9 +33,9 @@ app or the git-like `spyke` CLI.
 
 The hosted beta is the fastest start — nothing to run.
 
-- **Web app:** <https://app.spykeautomation.com>
 - **Request access:** <https://www.spykeautomation.com>
-- **CLI (Windows):** `irm https://get.spykeautomation.com/install.ps1 | iex`, then `spyke login`
+- **Web app:** <https://app.spykeautomation.com>
+- [Coming soon] **CLI (Windows):** `irm https://get.spykeautomation.com/install.ps1 | iex`, then `spyke login`
 
 ## Self-host
 
