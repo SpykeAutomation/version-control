@@ -29,14 +29,6 @@ terms:
 Docs, drawings, and configs are versioned alongside the program. Work in the web
 app or the git-like `spyke` CLI.
 
-## Try it
-
-The hosted beta is the fastest start — nothing to run.
-
-- **Request access:** <https://www.spykeautomation.com>
-- **Web app:** <https://app.spykeautomation.com>
-- [Coming soon] **CLI (Windows):** `irm https://get.spykeautomation.com/install.ps1 | iex`, then `spyke login`
-
 ## Self-host
 
 Three parts, each with its own README: [`backend/`](backend/) (FastAPI · Git ·
@@ -63,3 +55,5 @@ npm run build            # deploy dist/ with SPA fallback (serve index.html for 
 ```
 
 The serving origin must match the backend's `PLCVC_CORS_ORIGINS`.
+
+
