@@ -721,6 +721,15 @@ def upload_files(
     try:
         for upload in files:
             name = upload.filename or "upload"
+            # Fast reject: the multipart parser reports each part's size, so an
+            # oversized file gets its 413 before we spool a copy of it. The
+            # in-copy cap in _spool_capped stays as the fallback for parsers
+            # that don't report a size.
+            if upload.size is not None and upload.size > limit:
+                raise HTTPException(
+                    status.HTTP_413_CONTENT_TOO_LARGE,
+                    f"{name!r} exceeds the {settings.max_upload_mb} MB per-file limit",
+                )
             with tempfile.NamedTemporaryFile(
                 delete=False, suffix=Path(name).suffix
             ) as tmp:

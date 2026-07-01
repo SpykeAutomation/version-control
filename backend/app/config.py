@@ -1,6 +1,7 @@
 """Runtime settings, all overridable via PLCVC_* environment variables."""
 from __future__ import annotations
 
+import tempfile
 from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -73,9 +74,20 @@ class Settings(BaseSettings):
         return self.data_dir / "repos"
 
     @property
+    def tmp_dir(self) -> Path:
+        """Scratch space for upload spooling, kept on the data volume."""
+        return self.data_dir / "tmp"
+
+    @property
     def db_url(self) -> str:
         return f"sqlite:///{(self.data_dir / 'app.db').resolve()}"
 
 
 settings = Settings()
 settings.repos_dir.mkdir(parents=True, exist_ok=True)
+settings.tmp_dir.mkdir(parents=True, exist_ok=True)
+# Spool temp files (Starlette's multipart buffer and the upload handler's
+# copies) on the same filesystem as the data dir: a same-FS copy never moves
+# data across devices, and a filling OS /tmp (often small, sometimes
+# RAM-backed) can't take the API down mid-upload.
+tempfile.tempdir = str(settings.tmp_dir)
