@@ -315,8 +315,10 @@ def delete_project(
     """Delete a project and everything tied to it (owner/admin only).
 
     Members, pull requests, and comments go via FK cascade; the Git repo and
-    cached diffs are removed from disk."""
+    cached diffs are removed from disk. The project's logical bytes go back to
+    the org's storage counter."""
     project = require_manager(project_id, db, user)
+    usage.credit_project_deletion(db, project)
     db.delete(project)  # cascades to members, pull requests, and comments
     db.commit()
     diff_cache.clear_project(project_id)
@@ -737,21 +739,22 @@ def upload_files(
                 _spool_capped(upload, tmp, limit, name)
             specs.append(UploadSpec(local_path=Path(tmp.name), filename=name))
         incoming = sum(os.path.getsize(p) for p in tmp_paths)
-        if usage.org_usage_bytes(db, user) + incoming > settings.org_storage_limit_bytes:
-            raise HTTPException(
-                status.HTTP_507_INSUFFICIENT_STORAGE,
-                f"Organization storage limit of {settings.org_storage_limit_gb} GB "
-                "reached",
-            )
-        with locked_repo(project_id) as repo:
-            info = repo.commit_files(
-                specs,
-                branch=branch,
-                title=title,
-                description=description,
-                author_name=f"{user.first_name} {user.last_name}".strip(),
-                author_email=user.email,
-            )
+        # Reserve the bytes against the org quota (507 if they don't fit); if
+        # the Git work then fails for any reason, give the reservation back.
+        usage.reserve(db, user, incoming)
+        try:
+            with locked_repo(project_id) as repo:
+                info = repo.commit_files(
+                    specs,
+                    branch=branch,
+                    title=title,
+                    description=description,
+                    author_name=f"{user.first_name} {user.last_name}".strip(),
+                    author_email=user.email,
+                )
+        except BaseException:
+            usage.release(db, user, incoming)
+            raise
     except ProjectRepoError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc))
     finally:
@@ -760,6 +763,7 @@ def upload_files(
                 os.unlink(path)
             except OSError:
                 pass
+    usage.add_project_bytes(db, project_id, incoming)
     activity.record(
         db, project_id=project_id, actor_id=user.id, verb="commit.pushed",
         target_type="commit", target_id=info.sha[:12],

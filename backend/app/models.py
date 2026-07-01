@@ -9,6 +9,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from sqlalchemy import (
+    BigInteger,
     Boolean,
     DateTime,
     ForeignKey,
@@ -35,6 +36,14 @@ class Organization(Base):
     # The user who owns/administers the org. Plain column (not a FK) to avoid a
     # circular foreign key with users.organization_id.
     owner_id: Mapped[int] = mapped_column(Integer)
+    # Maintained storage counter: logical bytes of every upload committed by the
+    # org's projects (the billing basis — deliberately NOT physical disk bytes,
+    # which shift with Git compression and diff-cache eviction). Uploads reserve
+    # against it atomically (app/usage.py); project deletion gives bytes back.
+    used_bytes: Mapped[int] = mapped_column(BigInteger, default=0)
+    # Per-org quota override in bytes; NULL means the PLCVC_ORG_STORAGE_LIMIT_GB
+    # default. Paid plans later just set this field.
+    storage_limit_bytes: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
 
 
@@ -71,6 +80,10 @@ class Project(Base):
     slug: Mapped[str] = mapped_column(String(200), index=True)
     description: Mapped[str] = mapped_column(Text, default="")
     owner_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    # Logical bytes committed to this project (see Organization.used_bytes).
+    # Per-project so deleting a project can give exactly its bytes back to the
+    # org's counter.
+    used_bytes: Mapped[int] = mapped_column(BigInteger, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
 
 

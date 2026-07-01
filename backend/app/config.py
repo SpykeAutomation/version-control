@@ -43,8 +43,10 @@ class Settings(BaseSettings):
     # whole request body (see Caddyfile `request_body max_size`), which must be
     # large enough to admit a batch of these.
     max_upload_mb: int = 100
-    # Per-organization storage cap (gigabytes). Counts each org's Git repos and
-    # their cached diffs on disk; enforced when a commit is uploaded.
+    # Per-organization storage cap (gigabytes). Counts the logical bytes of
+    # committed uploads via maintained counters (app/usage.py); enforced
+    # atomically when a commit is uploaded. Orgs can override it per-plan via
+    # Organization.storage_limit_bytes.
     org_storage_limit_gb: float = 2.0
     # Soft cap on the whole diff cache (megabytes). When exceeded, the least
     # recently used cache files are evicted (a diff is cheap to recompute lazily).
