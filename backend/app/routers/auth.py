@@ -26,7 +26,13 @@ from ..auth import (
 from ..config import settings
 from ..db import get_db
 from ..models import DeviceAuthorization, User
-from ..ratelimit import client_ip, login_rate_limit
+from ..ratelimit import (
+    check_account_login,
+    clear_login_failures,
+    client_ip,
+    login_rate_limit,
+    record_login_failure,
+)
 from ..schemas import (
     CliSessionOut,
     PasswordChange,
@@ -50,6 +56,9 @@ def login(
     db: Session = Depends(get_db),
     _: None = Depends(login_rate_limit),
 ) -> TokenOut:
+    # Account lockout first: a locked account is rejected before the
+    # (CPU-expensive) password verify.
+    check_account_login(form.username)
     # OAuth2 form uses "username"; we treat it as the email.
     user = db.scalar(select(User).where(User.email == form.username))
     # A soft-deleted account can't log in (kept generic so deletion isn't probeable).
@@ -58,7 +67,9 @@ def login(
         or user.deleted_at is not None
         or not verify_password(form.password, user.password_hash)
     ):
+        record_login_failure(form.username)
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Incorrect email or password")
+    clear_login_failures(form.username)
     return TokenOut(access_token=create_access_token(user.id))
 
 

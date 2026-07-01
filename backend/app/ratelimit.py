@@ -52,7 +52,11 @@ def _enforce(scope: str, request: Request, limit: int, window: int, message: str
 
 
 def login_rate_limit(request: Request) -> None:
-    """Dependency: cap login attempts per client IP within a time window."""
+    """Dependency: cap login attempts per client IP within a time window.
+
+    This is only the coarse flood guard (and per-IP is spoofable via
+    X-Forwarded-For anyway); the per-account lockout below is the real
+    anti-guessing control."""
     _enforce(
         "login",
         request,
@@ -60,6 +64,57 @@ def login_rate_limit(request: Request) -> None:
         settings.login_rate_window_seconds,
         "Too many login attempts; please try again later.",
     )
+
+
+# ---- Per-account login lockout ----------------------------------------------
+# Keyed by the submitted email (normalized), not the client IP, so it works
+# against distributed guessing and never punishes a whole site behind one NAT.
+# Called from inside the login handler (not as a dependency) because only the
+# handler knows whether the attempt failed.
+
+_account_failures: dict[str, deque[float]] = defaultdict(deque)
+
+
+def _account_key(email: str) -> str:
+    return email.strip().casefold()
+
+
+def check_account_login(email: str) -> None:
+    """Reject with 429 when this account has too many recent failed logins.
+
+    Checked *before* the password verify, so a locked account costs no bcrypt
+    work. Unknown emails are tracked like real ones so lockout behavior can't
+    be used to probe whether an account exists."""
+    key = _account_key(email)
+    window = settings.login_account_window_seconds
+    now = time.monotonic()
+    with _lock:
+        bucket = _account_failures[key]
+        while bucket and now - bucket[0] > window:
+            bucket.popleft()
+        if not bucket:
+            del _account_failures[key]  # keep the map from growing unbounded
+            return
+        if len(bucket) >= settings.login_account_max:
+            retry_after = int(window - (now - bucket[0])) + 1
+            raise HTTPException(
+                status.HTTP_429_TOO_MANY_REQUESTS,
+                "Too many failed login attempts for this account; "
+                "please try again later.",
+                headers={"Retry-After": str(retry_after)},
+            )
+
+
+def record_login_failure(email: str) -> None:
+    """A wrong password (or unknown email) counts toward the account lockout."""
+    with _lock:
+        _account_failures[_account_key(email)].append(time.monotonic())
+
+
+def clear_login_failures(email: str) -> None:
+    """A successful login forgives the account's earlier failures."""
+    with _lock:
+        _account_failures.pop(_account_key(email), None)
 
 
 def invite_rate_limit(request: Request) -> None:

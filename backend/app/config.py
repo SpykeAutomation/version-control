@@ -20,9 +20,18 @@ class Settings(BaseSettings):
     jwt_expire_minutes: int = 60 * 24 * 7  # one week
     # Comma-separated allowed origins, or "*" for any (fine for a pilot).
     cors_origins: str = "*"
-    # Login rate limit: max attempts per client IP within the window (seconds).
-    login_rate_max: int = 10
+    # Per-IP login rate limit: a coarse flood guard on the CPU-expensive login
+    # path. Deliberately high — a whole plant behind one corporate NAT shares a
+    # single client IP, so this must clear a site's worth of shift-start logins;
+    # the real anti-guessing control is the per-account lockout below.
+    login_rate_max: int = 600
     login_rate_window_seconds: int = 60
+    # Per-account lockout: this many *failed* attempts on one email within the
+    # window rejects further logins for that email (a success clears it).
+    # Generous for a human who fat-fingers a password; useless for cracking
+    # (8 guesses per 15 minutes ≈ 32/hour).
+    login_account_max: int = 8
+    login_account_window_seconds: int = 900
     # Invite rate limit: max preview/accept calls per client IP within the
     # window (seconds). Guards the public invite endpoints against token
     # enumeration. Roomier than login since a legit accept page makes a couple

@@ -624,7 +624,8 @@ All settings are `PLCVC_*` environment variables — see [`.env.example`](.env.e
 | `PLCVC_JWT_SECRET` | Signs JWTs — long random string |
 | `PLCVC_JWT_EXPIRE_MINUTES` | Token lifetime (default 1 week) |
 | `PLCVC_CORS_ORIGINS` | Allowed frontend origin(s), comma-separated, or `*` |
-| `PLCVC_LOGIN_RATE_MAX` / `PLCVC_LOGIN_RATE_WINDOW_SECONDS` | Login attempts allowed per client IP per window (default 10 / 60s) |
+| `PLCVC_LOGIN_RATE_MAX` / `PLCVC_LOGIN_RATE_WINDOW_SECONDS` | Login attempts allowed per client IP per window (default 600 / 60s — a coarse flood guard, sized so a site behind one NAT never trips it) |
+| `PLCVC_LOGIN_ACCOUNT_MAX` / `PLCVC_LOGIN_ACCOUNT_WINDOW_SECONDS` | Failed logins allowed per account (email) per window before that account is locked out with `429` (default 8 / 900s); a successful login clears it |
 | `PLCVC_INVITE_RATE_MAX` / `PLCVC_INVITE_RATE_WINDOW_SECONDS` | Invite preview/accept calls per client IP per window (default 20 / 60s) |
 | `PLCVC_MAX_UPLOAD_MB` | Max size of a single uploaded file (default 100). Per-file (→ `413`); the reverse proxy caps the whole request separately |
 | `PLCVC_ORG_STORAGE_LIMIT_GB` | Per-organization storage cap in GB (default 2); counts repos + cached diffs (→ `507`) |
