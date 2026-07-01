@@ -167,12 +167,12 @@ def create_pull(
     user: User = Depends(current_user),
 ) -> PullOut:
     require_member(project_id, db, user)
-    with locked_repo(project_id) as repo:
-        for branch in (payload.source_branch, payload.target_branch):
-            if not repo.branch_exists(branch):
-                raise HTTPException(
-                    status.HTTP_400_BAD_REQUEST, f"Unknown branch: {branch}"
-                )
+    repo = repo_for(project_id)  # branch-existence checks read refs; no lock
+    for branch in (payload.source_branch, payload.target_branch):
+        if not repo.branch_exists(branch):
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST, f"Unknown branch: {branch}"
+            )
 
     next_number = (
         db.scalar(

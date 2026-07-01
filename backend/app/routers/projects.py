@@ -265,8 +265,7 @@ def list_projects(
     ).all()
     out: list[ProjectOut] = []
     for project, role in rows:
-        with locked_repo(project.id) as repo:
-            branches = repo.list_branches()
+        branches = repo_for(project.id).list_branches()  # read-only; no lock
         out.append(_to_out(db, project, branches, role))
     return out
 
@@ -279,8 +278,7 @@ def get_project(
 ) -> ProjectOut:
     project = require_member(project_id, db, user)
     role = membership_role(project_id, db, user)
-    with locked_repo(project_id) as repo:
-        branches = repo.list_branches()
+    branches = repo_for(project_id).list_branches()  # read-only; no lock
     return _to_out(db, project, branches, role)
 
 
@@ -301,8 +299,7 @@ def update_project(
     db.commit()
     db.refresh(project)
     role = membership_role(project_id, db, user)
-    with locked_repo(project_id) as repo:
-        branches = repo.list_branches()
+    branches = repo_for(project_id).list_branches()  # read-only; no lock
     return _to_out(db, project, branches, role)
 
 
@@ -577,8 +574,8 @@ def list_branches(
     """Every branch with its tip commit, default/protected flags, and how far it
     is ahead/behind (and whether it's merged into) the default branch."""
     require_member(project_id, db, user)
-    with locked_repo(project_id) as repo:
-        return _branch_views(repo, db, project_id)
+    # Tip/ahead/behind reads on refs — no lock needed.
+    return _branch_views(repo_for(project_id), db, project_id)
 
 
 @router.post(
@@ -659,35 +656,37 @@ def set_branch_protection(
     approvals, but you can't unprotect it."""
     require_manager(project_id, db, user)
     required = max(0, payload.required_approvals)
-    with locked_repo(project_id) as repo:
-        if not repo.branch_exists(branch):
-            raise HTTPException(status.HTTP_404_NOT_FOUND, f"Unknown branch: {branch}")
-        if branch == DEFAULT_BRANCH and not payload.protected:
-            raise HTTPException(
-                status.HTTP_400_BAD_REQUEST,
-                "The default branch is always protected",
-            )
-        existing = db.scalar(
-            select(BranchProtection).where(
-                BranchProtection.project_id == project_id,
-                BranchProtection.branch == branch,
+    # Protection state lives in the DB; git is only consulted for existence
+    # and the branch views — reads, so no lock is needed.
+    repo = repo_for(project_id)
+    if not repo.branch_exists(branch):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"Unknown branch: {branch}")
+    if branch == DEFAULT_BRANCH and not payload.protected:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "The default branch is always protected",
+        )
+    existing = db.scalar(
+        select(BranchProtection).where(
+            BranchProtection.project_id == project_id,
+            BranchProtection.branch == branch,
+        )
+    )
+    # The default branch is protected even with no row, but a row lets it
+    # carry required_approvals; drop the row only for a non-default branch.
+    if not payload.protected and branch != DEFAULT_BRANCH:
+        if existing is not None:
+            db.delete(existing)
+    elif existing is not None:
+        existing.required_approvals = required
+    else:
+        db.add(
+            BranchProtection(
+                project_id=project_id, branch=branch, required_approvals=required
             )
         )
-        # The default branch is protected even with no row, but a row lets it
-        # carry required_approvals; drop the row only for a non-default branch.
-        if not payload.protected and branch != DEFAULT_BRANCH:
-            if existing is not None:
-                db.delete(existing)
-        elif existing is not None:
-            existing.required_approvals = required
-        else:
-            db.add(
-                BranchProtection(
-                    project_id=project_id, branch=branch, required_approvals=required
-                )
-            )
-        db.commit()
-        views = _branch_views(repo, db, project_id)
+    db.commit()
+    views = _branch_views(repo, db, project_id)
     for view in views:
         if view.name == branch:
             return view
@@ -810,9 +809,9 @@ def list_commits(
     Paginated via `limit`/`offset`, with the branch's total in `X-Total-Count`."""
     require_member(project_id, db, user)
     limit = max(1, min(limit, 200))
-    with locked_repo(project_id) as repo:
-        commits = repo.log(branch, limit=limit, offset=max(0, offset))
-        total = repo.commit_total(branch)
+    repo = repo_for(project_id)  # history reads — no lock needed
+    commits = repo.log(branch, limit=limit, offset=max(0, offset))
+    total = repo.commit_total(branch)
     response.headers["X-Total-Count"] = str(total)
     return [_commit_out(c, branch=branch) for c in commits]
 
@@ -827,14 +826,14 @@ def commit_detail(
     """One commit plus the files it changed vs its first parent (the root commit
     diffs against the empty tree, so its whole content shows as added)."""
     require_member(project_id, db, user)
-    with locked_repo(project_id) as repo:
-        commits = repo.log(sha, limit=1)
-        if not commits:
-            raise HTTPException(status.HTTP_404_NOT_FOUND, "Commit not found")
-        commit = commits[0]
-        parent = repo.commit_parent(commit.sha)
-        base = parent if parent is not None else repo.EMPTY_TREE
-        manifest = build_manifest(repo, base, commit.sha)
+    repo = repo_for(project_id)  # immutable-commit reads — no lock needed
+    commits = repo.log(sha, limit=1)
+    if not commits:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Commit not found")
+    commit = commits[0]
+    parent = repo.commit_parent(commit.sha)
+    base = parent if parent is not None else repo.EMPTY_TREE
+    manifest = build_manifest(repo, base, commit.sha)
     return CommitDetail(
         sha=commit.sha,
         title=commit.title,
@@ -1125,10 +1124,10 @@ def list_tags(
     require_member(project_id, db, user)
     limit = max(1, min(limit, 200))
     start = max(0, offset)
-    with locked_repo(project_id) as repo:
-        tags = repo.list_tags()
-        page = tags[start:start + limit]
-        out = [_tag_out(repo, tag) for tag in page]
+    repo = repo_for(project_id)  # tag/ref reads — no lock needed
+    tags = repo.list_tags()
+    page = tags[start:start + limit]
+    out = [_tag_out(repo, tag) for tag in page]
     response.headers["X-Total-Count"] = str(len(tags))
     return out
 

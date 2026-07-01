@@ -7,6 +7,8 @@ response carries an `X-Cache: HIT|MISS` header so callers can see what happened.
 """
 from __future__ import annotations
 
+import threading
+from collections import defaultdict
 from typing import Callable
 
 from fastapi import HTTPException, Response, status
@@ -22,7 +24,16 @@ from .schemas import (
     DiffManifest,
     TextDiff,
 )
-from .storage import locked_repo, repo_for
+from .storage import repo_for
+
+# Deduplicate concurrent computations of the SAME diff (per cache key), so a
+# popular cold diff is computed once, not once per request. Deliberately NOT
+# the per-project mutation lock: diff computation only reads immutable commits
+# (via git plumbing and its own ephemeral worktree), so it must not block — or
+# be blocked by — an upload. In-process only; across workers the worst case is
+# a redundant compute, and diff_cache.put is atomic (temp file + rename).
+_compute_locks: dict[tuple, threading.Lock] = defaultdict(threading.Lock)
+_compute_locks_guard = threading.Lock()
 
 # compute(repo, base_sha, head_sha) -> a Pydantic model with .model_dump_json()
 Compute = Callable[[ProjectRepo, str, str], object]
@@ -55,18 +66,27 @@ def serve_diff(
     if cached is not None:
         return _json(cached, "HIT")
 
-    # Only the (potentially slow) computation needs the lock. Re-check the cache
-    # inside it so a concurrent request can't trigger a duplicate computation.
-    with locked_repo(project_id) as locked:
-        cached = diff_cache.get(project_id, view, base_sha, head_sha, file_path)
-        if cached is not None:
-            return _json(cached, "HIT")
-        try:
-            model = compute(locked, base_sha, head_sha)
-        except ProjectRepoError as exc:
-            raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc))
-        payload = model.model_dump_json()
-        diff_cache.put(project_id, view, base_sha, head_sha, payload, file_path)
+    # Serialize only *identical* computations (same cache key), re-checking the
+    # cache inside so concurrent requests for one cold diff compute it once.
+    key = (project_id, view, base_sha, head_sha, file_path)
+    with _compute_locks_guard:
+        lock = _compute_locks[key]
+    try:
+        with lock:
+            cached = diff_cache.get(project_id, view, base_sha, head_sha, file_path)
+            if cached is not None:
+                return _json(cached, "HIT")
+            try:
+                model = compute(repo, base_sha, head_sha)
+            except ProjectRepoError as exc:
+                raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc))
+            payload = model.model_dump_json()
+            diff_cache.put(project_id, view, base_sha, head_sha, payload, file_path)
+    finally:
+        # Safe even with waiters still queued on the old lock object: everyone
+        # re-checks the cache first thing, so a stale lock only costs a re-read.
+        with _compute_locks_guard:
+            _compute_locks.pop(key, None)
     return _json(payload, "MISS")
 
 
