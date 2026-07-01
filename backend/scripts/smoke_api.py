@@ -709,12 +709,24 @@ bad = commit(pid, alice, "main", "Garbage", "this is not an L5X file")
 check("malformed upload returns 400 (not 500)", bad.status_code == 400)
 check("error message is helpful", "parse" in bad.json()["detail"].lower())
 
-print("== login rate limit ==")
-burst = [
+print("== account lockout ==")
+# Repeated failures on ONE email trip the per-account lockout (not the IP cap).
+lockout = [
     client.post(
         "/auth/login", data={"username": "alice@example.com", "password": "nope"}
     ).status_code
-    for _ in range(settings.login_rate_max + 5)
+    for _ in range(settings.login_account_max + 3)
+]
+check("failed logins below the cap return 401", lockout[0] == 401)
+check("account lockout returns 429 after the cap", 429 in lockout)
+
+print("== login rate limit (per IP) ==")
+# Distinct emails so the account lockout can't trip; only the IP cap can.
+burst = [
+    client.post(
+        "/auth/login", data={"username": f"ip-burst-{i}@example.com", "password": "nope"}
+    ).status_code
+    for i in range(settings.login_rate_max + 5)
 ]
 check("login rate limit returns 429 after the cap", 429 in burst)
 

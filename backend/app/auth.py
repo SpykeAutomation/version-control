@@ -30,7 +30,10 @@ def now_utc_naive() -> dt.datetime:
 
 def hash_password(password: str) -> str:
     # bcrypt only considers the first 72 bytes; truncating keeps it explicit.
-    return bcrypt.hashpw(password.encode()[:72], bcrypt.gensalt()).decode()
+    # Cost factor 10 (~60ms/hash) keeps login throughput workable on a small
+    # single-core host; the cost is embedded in each hash, so existing
+    # higher-cost hashes keep verifying unchanged.
+    return bcrypt.hashpw(password.encode()[:72], bcrypt.gensalt(rounds=10)).decode()
 
 
 def verify_password(password: str, hashed: str) -> bool:

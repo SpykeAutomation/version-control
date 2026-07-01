@@ -1,6 +1,7 @@
 """Runtime settings, all overridable via PLCVC_* environment variables."""
 from __future__ import annotations
 
+import tempfile
 from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -19,9 +20,18 @@ class Settings(BaseSettings):
     jwt_expire_minutes: int = 60 * 24 * 7  # one week
     # Comma-separated allowed origins, or "*" for any (fine for a pilot).
     cors_origins: str = "*"
-    # Login rate limit: max attempts per client IP within the window (seconds).
-    login_rate_max: int = 10
+    # Per-IP login rate limit: a coarse flood guard on the CPU-expensive login
+    # path. Deliberately high — a whole plant behind one corporate NAT shares a
+    # single client IP, so this must clear a site's worth of shift-start logins;
+    # the real anti-guessing control is the per-account lockout below.
+    login_rate_max: int = 600
     login_rate_window_seconds: int = 60
+    # Per-account lockout: this many *failed* attempts on one email within the
+    # window rejects further logins for that email (a success clears it).
+    # Generous for a human who fat-fingers a password; useless for cracking
+    # (8 guesses per 15 minutes ≈ 32/hour).
+    login_account_max: int = 8
+    login_account_window_seconds: int = 900
     # Invite rate limit: max preview/accept calls per client IP within the
     # window (seconds). Guards the public invite endpoints against token
     # enumeration. Roomier than login since a legit accept page makes a couple
@@ -33,8 +43,10 @@ class Settings(BaseSettings):
     # whole request body (see Caddyfile `request_body max_size`), which must be
     # large enough to admit a batch of these.
     max_upload_mb: int = 100
-    # Per-organization storage cap (gigabytes). Counts each org's Git repos and
-    # their cached diffs on disk; enforced when a commit is uploaded.
+    # Per-organization storage cap (gigabytes). Counts the logical bytes of
+    # committed uploads via maintained counters (app/usage.py); enforced
+    # atomically when a commit is uploaded. Orgs can override it per-plan via
+    # Organization.storage_limit_bytes.
     org_storage_limit_gb: float = 2.0
     # Soft cap on the whole diff cache (megabytes). When exceeded, the least
     # recently used cache files are evicted (a diff is cheap to recompute lazily).
@@ -73,9 +85,20 @@ class Settings(BaseSettings):
         return self.data_dir / "repos"
 
     @property
+    def tmp_dir(self) -> Path:
+        """Scratch space for upload spooling, kept on the data volume."""
+        return self.data_dir / "tmp"
+
+    @property
     def db_url(self) -> str:
         return f"sqlite:///{(self.data_dir / 'app.db').resolve()}"
 
 
 settings = Settings()
 settings.repos_dir.mkdir(parents=True, exist_ok=True)
+settings.tmp_dir.mkdir(parents=True, exist_ok=True)
+# Spool temp files (Starlette's multipart buffer and the upload handler's
+# copies) on the same filesystem as the data dir: a same-FS copy never moves
+# data across devices, and a filling OS /tmp (often small, sometimes
+# RAM-backed) can't take the API down mid-upload.
+tempfile.tempdir = str(settings.tmp_dir)

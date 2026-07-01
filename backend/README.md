@@ -30,7 +30,8 @@ files upload ─▶ L5X parsed to a deterministic snapshot (JSON); other files k
   membership, pull requests, and comments.
 - Access is **per-project** (owner / admin / member). Deleting a project
   cascades to its members, pull requests, comments, repo, and cached diffs.
-  Each **organization** has a storage quota (repos + cached diffs).
+  Each **organization** has a storage quota counting the logical bytes of its
+  committed uploads (deleting a project gives its bytes back).
 
 ## Run the backend locally
 
@@ -624,10 +625,11 @@ All settings are `PLCVC_*` environment variables — see [`.env.example`](.env.e
 | `PLCVC_JWT_SECRET` | Signs JWTs — long random string |
 | `PLCVC_JWT_EXPIRE_MINUTES` | Token lifetime (default 1 week) |
 | `PLCVC_CORS_ORIGINS` | Allowed frontend origin(s), comma-separated, or `*` |
-| `PLCVC_LOGIN_RATE_MAX` / `PLCVC_LOGIN_RATE_WINDOW_SECONDS` | Login attempts allowed per client IP per window (default 10 / 60s) |
+| `PLCVC_LOGIN_RATE_MAX` / `PLCVC_LOGIN_RATE_WINDOW_SECONDS` | Login attempts allowed per client IP per window (default 600 / 60s — a coarse flood guard, sized so a site behind one NAT never trips it) |
+| `PLCVC_LOGIN_ACCOUNT_MAX` / `PLCVC_LOGIN_ACCOUNT_WINDOW_SECONDS` | Failed logins allowed per account (email) per window before that account is locked out with `429` (default 8 / 900s); a successful login clears it |
 | `PLCVC_INVITE_RATE_MAX` / `PLCVC_INVITE_RATE_WINDOW_SECONDS` | Invite preview/accept calls per client IP per window (default 20 / 60s) |
 | `PLCVC_MAX_UPLOAD_MB` | Max size of a single uploaded file (default 100). Per-file (→ `413`); the reverse proxy caps the whole request separately |
-| `PLCVC_ORG_STORAGE_LIMIT_GB` | Per-organization storage cap in GB (default 2); counts repos + cached diffs (→ `507`) |
+| `PLCVC_ORG_STORAGE_LIMIT_GB` | Per-organization storage cap in GB (default 2); counts the logical bytes of committed uploads (→ `507`); per-org overrides live on the org row |
 | `PLCVC_DIFF_CACHE_MAX_MB` | Soft cap on the diff cache in MB (default 500); least-recently-used entries are evicted past it |
 | `PLCVC_WEB_APP_URL` | Web-app base URL used to build the CLI device-login verification link (default `https://app.spykeautomation.com`) |
 | `PLCVC_DEVICE_CODE_TTL_MINUTES` / `PLCVC_DEVICE_POLL_INTERVAL_SECONDS` | CLI device-login code lifetime and poll interval (default 10 / 5) |
