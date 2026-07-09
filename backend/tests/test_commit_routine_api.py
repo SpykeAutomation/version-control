@@ -10,6 +10,13 @@ import tempfile
 os.environ["PLCVC_DATA_DIR"] = tempfile.mkdtemp(prefix="plcvc-routine-api-")
 
 import pytest
+
+# The engine-only environment (requirements-dev.txt: parser + diff deps) has no
+# app stack; these API tests need it (requirements-app.txt). CI runs them in
+# the dedicated api-tests job on the app's deployment Python; the engine
+# matrix (3.10/3.14, Windows) skips this module instead of failing collection.
+pytest.importorskip("fastapi", reason="API tests need requirements-app.txt")
+
 from fastapi.testclient import TestClient
 
 from app.auth import create_user
