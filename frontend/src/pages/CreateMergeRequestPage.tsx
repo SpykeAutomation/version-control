@@ -6,9 +6,11 @@
 // hooks the merge-request review page uses. Sections without a backend (labels,
 // linked work items, checks) render their structure plus an empty state only,
 // and never invent sample content.
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import {
   ArrowRight,
   Bold,
@@ -24,6 +26,7 @@ import {
   Link2,
   List,
   ListOrdered,
+  Pencil,
   Plus,
   Table,
   X,
@@ -32,6 +35,7 @@ import type { LucideIcon } from "lucide-react";
 import {
   queryKeys,
   useBranches,
+  useChangeRequests,
   useCommits,
   useDiff,
   useMembers,
@@ -94,13 +98,15 @@ export function CreateMergeRequestPage() {
             branches={branches ?? []}
             defaultSource={defaults.source}
             defaultTarget={defaults.target}
+            initialTitle={params.get("title")}
+            initialDescription={params.get("description")}
           />
         )}
       </div>
   );
 }
 
-type CreateTab = "overview" | "commits" | "files";
+type CreateTab = "overview" | "commits";
 
 function CreateMergeRequestView({
   slug,
@@ -109,6 +115,8 @@ function CreateMergeRequestView({
   branches,
   defaultSource,
   defaultTarget,
+  initialTitle,
+  initialDescription,
 }: {
   slug?: string;
   projectName?: string;
@@ -116,16 +124,18 @@ function CreateMergeRequestView({
   branches: BranchSummary[];
   defaultSource: string;
   defaultTarget: string;
+  initialTitle: string | null;
+  initialDescription: string | null;
 }) {
   const { user } = useAuth();
   const [tab, setTab] = useState<CreateTab>("overview");
 
-  // The chosen branches. They follow the resolved defaults until the user picks
-  // their own (tracked by a "touched" flag so a late branch load doesn't stomp
-  // a manual choice).
-  const [pickedSource, setPickedSource] = useState<string | null>(null);
+  // The chosen target branch. It follows the resolved default until the user
+  // picks their own (tracked by a "touched" flag so a late branch load doesn't
+  // stomp a manual choice). The source is fixed: a merge request proposes the
+  // branch you came from, so only the target is changeable.
   const [pickedTarget, setPickedTarget] = useState<string | null>(null);
-  const sourceBranch = pickedSource ?? defaultSource;
+  const sourceBranch = defaultSource;
   const targetBranch = pickedTarget ?? defaultTarget;
   const [editingBranches, setEditingBranches] = useState(false);
 
@@ -140,11 +150,7 @@ function CreateMergeRequestView({
   const diffBase = comparable ? targetBranch : undefined;
   const diffHead = comparable ? sourceBranch : undefined;
 
-  const { data: changeSet, isPending: diffPending } = useDiff(
-    projectId,
-    diffBase,
-    diffHead,
-  );
+  const { data: changeSet } = useDiff(projectId, diffBase, diffHead);
   const view = useMemo(
     () => (comparable && changeSet ? deriveChangeView(changeSet) : null),
     [comparable, changeSet],
@@ -160,6 +166,22 @@ function CreateMergeRequestView({
     return srcCommits.filter((c) => !seen.has(c.sha));
   }, [comparable, srcCommits, tgtCommits]);
 
+  // An open request already covering this source → target pair makes a new
+  // one a duplicate: creation is blocked and the existing request is linked.
+  const { data: existingRequests } = useChangeRequests(projectId);
+  const duplicate = useMemo(
+    () =>
+      comparable
+        ? (existingRequests?.find(
+            (c) =>
+              c.open &&
+              c.sourceBranch === sourceBranch &&
+              c.targetBranch === targetBranch,
+          ) ?? null)
+        : null,
+    [comparable, existingRequests, sourceBranch, targetBranch],
+  );
+
   // Reviewers come from the project's members (real backend). The author is
   // excluded — you don't review your own request.
   const { data: members } = useMembers(projectId);
@@ -168,14 +190,16 @@ function CreateMergeRequestView({
     [members, user?.id],
   );
 
-  // The title prefills from the source branch name, but only until the user
-  // edits it (tracked by a "touched" flag so a late branch load or a branch
-  // switch doesn't stomp a manual edit). The description starts empty.
-  const suggestedTitle = (sourceBranch ?? "").slice(0, TITLE_LIMIT);
+  // The title prefills from the ?title= param (the upload flow passes the
+  // commit message through), falling back to the source branch name — but only
+  // until the user edits it (tracked by a "touched" flag so a late branch load
+  // or a branch switch doesn't stomp a manual edit). The description prefills
+  // from ?description= the same way.
+  const suggestedTitle = (initialTitle ?? sourceBranch ?? "").slice(0, TITLE_LIMIT);
   const [titleTouched, setTitleTouched] = useState(false);
   const [titleInput, setTitleInput] = useState("");
   const title = titleTouched ? titleInput : suggestedTitle;
-  const [description, setDescription] = useState("");
+  const [description, setDescription] = useState(initialDescription ?? "");
 
   // Rung additions / removals across every changed routine, from the same ladder
   // summary the review page reads. These are real diff counts (rungs added /
@@ -194,7 +218,6 @@ function CreateMergeRequestView({
 
   const counts = {
     commits: commitsCount,
-    files: filesCount,
   };
 
   // Opening the request: create the pull, then attach the chosen reviewers
@@ -204,7 +227,7 @@ function CreateMergeRequestView({
   const qc = useQueryClient();
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const canSubmit = Boolean(projectId && comparable && title.trim());
+  const canSubmit = Boolean(projectId && comparable && title.trim() && !duplicate);
 
   async function handleCreate(reviewerIds: number[]) {
     if (!projectId || !canSubmit || submitting) return;
@@ -283,9 +306,18 @@ function CreateMergeRequestView({
         branches={branches}
         editing={editingBranches}
         onToggleEditing={() => setEditingBranches((v) => !v)}
-        onSource={(name) => setPickedSource(name)}
         onTarget={(name) => setPickedTarget(name)}
       />
+
+      {duplicate && (
+        <div className="panel-msg error cmr-duplicate">
+          A merge request from <strong>{sourceBranch}</strong> into{" "}
+          <strong>{targetBranch}</strong> already exists:{" "}
+          <Link to={`/projects/${slug}/merge/${duplicate.number}`}>
+            #{duplicate.number} — {duplicate.title}
+          </Link>
+        </div>
+      )}
 
       <div className="repo-grid mr-grid">
         <div className="repo-col">
@@ -306,10 +338,8 @@ function CreateMergeRequestView({
               submitting={submitting}
               submitError={submitError}
             />
-          ) : tab === "commits" ? (
-            <CommitsTab commits={uniqueCommits} slug={slug} ready={comparable} />
           ) : (
-            <FilesTab files={view?.files ?? []} ready={comparable} loading={diffPending} />
+            <CommitsTab commits={uniqueCommits} slug={slug} ready={comparable} />
           )}
         </div>
 
@@ -338,7 +368,6 @@ function BranchSelectorBar({
   branches,
   editing,
   onToggleEditing,
-  onSource,
   onTarget,
 }: {
   source?: BranchSummary;
@@ -348,7 +377,6 @@ function BranchSelectorBar({
   branches: BranchSummary[];
   editing: boolean;
   onToggleEditing: () => void;
-  onSource: (name: string) => void;
   onTarget: (name: string) => void;
 }) {
   return (
@@ -368,36 +396,23 @@ function BranchSelectorBar({
           <div className="cmr-branch-selects">
             <select
               className="select cmr-select"
-              value={sourceName}
-              onChange={(e) => onSource(e.target.value)}
-              aria-label="Source branch"
-            >
-              {branches.map((b) => (
-                <option key={b.name} value={b.name}>
-                  {b.name}
-                </option>
-              ))}
-            </select>
-            <span className="cmr-select-arrow" aria-hidden="true">
-              <ArrowRight size={16} strokeWidth={1.9} />
-            </span>
-            <select
-              className="select cmr-select"
               value={targetName}
               onChange={(e) => onTarget(e.target.value)}
               aria-label="Target branch"
             >
-              {branches.map((b) => (
-                <option key={b.name} value={b.name}>
-                  {b.name}
-                  {b.isDefault ? " (default)" : ""}
-                </option>
-              ))}
+              {branches
+                .filter((b) => b.name !== sourceName)
+                .map((b) => (
+                  <option key={b.name} value={b.name}>
+                    {b.name}
+                    {b.isDefault ? " (default)" : ""}
+                  </option>
+                ))}
             </select>
           </div>
         )}
         <button className="btn btn-ghost btn-sm" type="button" onClick={onToggleEditing}>
-          {editing ? "Done" : "Change branches"}
+          {editing ? "Done" : "Change target branch"}
         </button>
       </div>
     </section>
@@ -460,13 +475,12 @@ function Tabs({
   onSelect,
 }: {
   tab: CreateTab;
-  counts: { commits: number; files: number };
+  counts: { commits: number };
   onSelect: (t: CreateTab) => void;
 }) {
   const tabs: { key: CreateTab; label: string; count?: number }[] = [
     { key: "overview", label: "Overview" },
     { key: "commits", label: "Commits", count: counts.commits },
-    { key: "files", label: "Files changed", count: counts.files },
   ];
   return (
     <nav className="pr-tabs">
@@ -508,6 +522,60 @@ function OverviewForm({
   submitError: string | null;
 }) {
   const [preview, setPreview] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Apply a markdown format to the textarea's current selection: inline marks
+  // wrap it, line marks prefix each selected line, and blocks insert a
+  // template. Keeps focus and reselects the affected text so formats chain.
+  function applyFormat(kind: FormatKind) {
+    const el = textareaRef.current;
+    if (!el) return;
+    const { selectionStart: start, selectionEnd: end, value } = el;
+    const selected = value.slice(start, end);
+    let next: string;
+    let selFrom: number;
+    let selTo: number;
+
+    if (kind === "bold" || kind === "italic" || kind === "code") {
+      const mark = kind === "bold" ? "**" : kind === "italic" ? "*" : "`";
+      const inner = selected || "text";
+      next = value.slice(0, start) + mark + inner + mark + value.slice(end);
+      selFrom = start + mark.length;
+      selTo = selFrom + inner.length;
+    } else if (kind === "link") {
+      const label = selected || "link text";
+      const insert = `[${label}](url)`;
+      next = value.slice(0, start) + insert + value.slice(end);
+      // Select the "url" placeholder so the user types the address right away.
+      selFrom = start + label.length + 3;
+      selTo = selFrom + 3;
+    } else if (kind === "ul" || kind === "ol") {
+      // Prefix every line in the selection; operate on whole lines.
+      const lineStart = value.lastIndexOf("\n", start - 1) + 1;
+      const block = value.slice(lineStart, end);
+      const lines = (block || "List item").split("\n");
+      const marked = lines
+        .map((l, i) => (kind === "ul" ? `- ${l}` : `${i + 1}. ${l}`))
+        .join("\n");
+      next = value.slice(0, lineStart) + marked + value.slice(end);
+      selFrom = lineStart;
+      selTo = lineStart + marked.length;
+    } else {
+      const table =
+        "| Column | Column |\n| ------ | ------ |\n| Cell   | Cell   |";
+      const prefix = start > 0 && value[start - 1] !== "\n" ? "\n\n" : "";
+      next = value.slice(0, start) + prefix + table + "\n" + value.slice(end);
+      selFrom = start + prefix.length;
+      selTo = selFrom + table.length;
+    }
+
+    onDescription(next);
+    requestAnimationFrame(() => {
+      el.focus();
+      el.setSelectionRange(selFrom, selTo);
+    });
+  }
+
   // Reviewers the author has added to this request. Starts empty; the menu
   // lists real project members.
   const [reviewers, setReviewers] = useState<number[]>([]);
@@ -553,37 +621,83 @@ function OverviewForm({
         <div className="cmr-editor">
           <div className="cmr-toolbar">
             <div className="cmr-toolbar-group">
-              <ToolbarButton label="Bold" icon={<Bold size={15} strokeWidth={2} />} />
-              <ToolbarButton label="Italic" icon={<Italic size={15} strokeWidth={2} />} />
-              <ToolbarButton label="Code" icon={<Code2 size={15} strokeWidth={2} />} />
-              <ToolbarButton label="Link" icon={<Link2 size={15} strokeWidth={2} />} />
+              <ToolbarButton
+                label="Bold"
+                icon={<Bold size={15} strokeWidth={2} />}
+                disabled={preview}
+                onClick={() => applyFormat("bold")}
+              />
+              <ToolbarButton
+                label="Italic"
+                icon={<Italic size={15} strokeWidth={2} />}
+                disabled={preview}
+                onClick={() => applyFormat("italic")}
+              />
+              <ToolbarButton
+                label="Code"
+                icon={<Code2 size={15} strokeWidth={2} />}
+                disabled={preview}
+                onClick={() => applyFormat("code")}
+              />
+              <ToolbarButton
+                label="Link"
+                icon={<Link2 size={15} strokeWidth={2} />}
+                disabled={preview}
+                onClick={() => applyFormat("link")}
+              />
               <span className="cmr-toolbar-div" />
-              <ToolbarButton label="Bulleted list" icon={<List size={15} strokeWidth={2} />} />
+              <ToolbarButton
+                label="Bulleted list"
+                icon={<List size={15} strokeWidth={2} />}
+                disabled={preview}
+                onClick={() => applyFormat("ul")}
+              />
               <ToolbarButton
                 label="Numbered list"
                 icon={<ListOrdered size={15} strokeWidth={2} />}
+                disabled={preview}
+                onClick={() => applyFormat("ol")}
               />
-              <ToolbarButton label="Table" icon={<Table size={15} strokeWidth={2} />} />
+              <ToolbarButton
+                label="Table"
+                icon={<Table size={15} strokeWidth={2} />}
+                disabled={preview}
+                onClick={() => applyFormat("table")}
+              />
             </div>
             <button
               type="button"
               className={`cmr-preview-toggle${preview ? " active" : ""}`}
               onClick={() => setPreview((v) => !v)}
             >
-              <Eye size={14} strokeWidth={1.9} />
-              Preview
+              {preview ? (
+                <>
+                  <Pencil size={14} strokeWidth={1.9} />
+                  Edit
+                </>
+              ) : (
+                <>
+                  <Eye size={14} strokeWidth={1.9} />
+                  Preview
+                </>
+              )}
             </button>
           </div>
           {preview ? (
             <div className="cmr-preview-body">
               {description.trim() ? (
-                <p className="cmr-preview-text">{description}</p>
+                <div className="md-body">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {description}
+                  </ReactMarkdown>
+                </div>
               ) : (
                 <span className="cmr-preview-empty">Nothing to preview yet.</span>
               )}
             </div>
           ) : (
             <textarea
+              ref={textareaRef}
               className="cmr-textarea"
               placeholder="Describe what changed and why, so reviewers have the context they need."
               value={description}
@@ -656,9 +770,6 @@ function OverviewForm({
       {/* Footer */}
       {submitError && <div className="panel-msg error cmr-submit-error">{submitError}</div>}
       <div className="cmr-footer">
-        <button type="button" className="btn btn-ghost btn-sm" disabled title="Coming soon">
-          Save as draft
-        </button>
         <button
           type="submit"
           className="btn btn-primary btn-sm"
@@ -676,16 +787,27 @@ function OverviewForm({
   );
 }
 
-function ToolbarButton({ label, icon }: { label: string; icon: React.ReactNode }) {
-  // Formatting isn't wired up yet; disable with a hint so the markdown textarea
-  // (which does work) is the clear path until rich-text editing lands.
+type FormatKind = "bold" | "italic" | "code" | "link" | "ul" | "ol" | "table";
+
+function ToolbarButton({
+  label,
+  icon,
+  disabled,
+  onClick,
+}: {
+  label: string;
+  icon: React.ReactNode;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
   return (
     <button
       type="button"
       className="cmr-tool"
-      aria-label={`${label} (coming soon)`}
-      title="Coming soon"
-      disabled
+      aria-label={label}
+      title={label}
+      disabled={disabled}
+      onClick={onClick}
     >
       {icon}
     </button>
@@ -755,57 +877,6 @@ function CommitsTab({
             </li>
           );
         })}
-      </ul>
-    </section>
-  );
-}
-
-// ---- Files changed tab ----
-function FilesTab({
-  files,
-  ready,
-  loading,
-}: {
-  files: string[];
-  ready: boolean;
-  loading: boolean;
-}) {
-  if (!ready) {
-    return (
-      <section className="mr-section">
-        <div className="mr-empty">
-          Choose two different branches to see their changed files.
-        </div>
-      </section>
-    );
-  }
-  if (loading) {
-    return (
-      <section className="mr-section">
-        <div className="mr-empty">Loading changes…</div>
-      </section>
-    );
-  }
-  if (files.length === 0) {
-    return (
-      <section className="mr-section">
-        <div className="mr-empty">No files changed between these branches.</div>
-      </section>
-    );
-  }
-  return (
-    <section className="mr-section mr-files">
-      <ul className="mr-files-rows">
-        {files.map((f) => (
-          <li key={f}>
-            <div className="mr-file-row">
-              <span className="pr-file-ico">
-                <FileCode2 size={15} strokeWidth={1.8} />
-              </span>
-              <span className="mr-file-name">{f}</span>
-            </div>
-          </li>
-        ))}
       </ul>
     </section>
   );
