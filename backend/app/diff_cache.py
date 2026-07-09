@@ -31,6 +31,10 @@ SCHEMA_VERSION = {
     "compare": 1,
     # The per-L5X project-organizer tree at a ref (full structure + change status).
     "tree": TREE_SCHEMA,
+    # One raw section of a parsed L5X file at a ref (controller / datatypes /
+    # tags / modules / one AOI). Cached with base == head: a snapshot depends
+    # on a single commit; the section (and AOI name) is folded into file_path.
+    "l5x-section": 1,
 }
 
 
