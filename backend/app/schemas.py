@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, EmailStr
 
@@ -311,6 +311,17 @@ class RoutineFullLadder(BaseModel):
 
     kind: Literal["ladder"] = "ladder"
     ladder: RoutineLadderDiff
+
+
+class L5XSection(BaseModel):
+    """Envelope for GET /projects/{id}/l5x — one section of a parsed L5X file
+    at a ref. `data` is serialized straight from the parser models (see
+    backend/README.md for the per-section shape and the heavy per-entity
+    fields each list section excludes)."""
+
+    schema_version: int = 1
+    section: str
+    data: Any = None
 
 
 # --- pull requests ---

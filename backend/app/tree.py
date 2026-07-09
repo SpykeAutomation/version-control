@@ -23,8 +23,11 @@ from parsers.l5x.models import L5XDocument
 # Bump alongside the cache view in diff_cache.SCHEMA_VERSION when this shape
 # changes in a way a renderer must notice. v2: include I/O modules whose parent
 # is a self-reference or missing (previously dropped, so the I/O folder was
-# absent).
-SCHEMA_VERSION = 2
+# absent). v3: Studio 5000 organizer categories — Data Types subfolders
+# (User-Defined / Strings / Add-On-Defined), AOI routine children, Motion
+# Groups, Power-Up / Controller Fault Handler folders, and task program
+# references now carrying the program's routine subtree.
+SCHEMA_VERSION = 3
 
 NodeKind = Literal[
     "controller", "folder", "program", "routine", "aoi", "datatype", "tag", "module", "task"
@@ -96,6 +99,49 @@ def _finalize(node: TreeNode) -> None:
     node.descendant_changed = changed
 
 
+def _routine_nodes(
+    prog, pc: Optional[ProgramChange], ctrl_name: str, key_prefix: str
+) -> list[TreeNode]:
+    """Routine nodes for one program, with ladder identity set and removed
+    routines injected from its ProgramChange. `key_prefix` namespaces the keys
+    (e.g. "program:P" or "task:T/program:P") so the same program can appear
+    both in the flat Programs folder and under the task that schedules it."""
+    rc_by_name = {r.name: r for r in (pc.routines if pc else [])}
+    prog_added = pc is not None and pc.kind == "added"
+    nodes: list[TreeNode] = []
+    for rt in prog.routines:
+        rc = rc_by_name.get(rt.name)
+        status: Status = rc.kind if rc else ("added" if prog_added else "unchanged")
+        nodes.append(
+            TreeNode(
+                key=f"{key_prefix}/routine:{rt.name}",
+                label=rt.name,
+                kind="routine",
+                status=status,
+                routine_type=rt.type,
+                controller=ctrl_name,
+                program=prog.name,
+                routine=rt.name,
+            )
+        )
+    head_rt_names = {rt.name for rt in prog.routines}
+    for rc in pc.routines if pc else []:
+        if rc.kind == "removed" and rc.name not in head_rt_names:
+            nodes.append(
+                TreeNode(
+                    key=f"{key_prefix}/routine:{rc.name}",
+                    label=rc.name,
+                    kind="routine",
+                    status="removed",
+                    routine_type=rc.routine_type,
+                    controller=ctrl_name,
+                    program=prog.name,
+                    routine=rc.name,
+                )
+            )
+    return nodes
+
+
 def build_project_tree(doc: L5XDocument, changes: ChangeSet) -> ProjectTree:
     """Build the organizer tree for `doc`, tagged with `changes`.
 
@@ -113,20 +159,32 @@ def build_project_tree(doc: L5XDocument, changes: ChangeSet) -> ProjectTree:
 
     folders: list[TreeNode] = []
 
-    # --- Tasks: each task lists the programs it schedules (a reference, not a
-    # second copy of the routine tree — the Programs folder owns those).
+    # --- Tasks: each task lists the programs it schedules, each carrying the
+    # program's full routine subtree (namespaced keys, so they stay unique
+    # against the flat Programs folder, which the frontend still relies on).
+    progs_by_name = {p.name: p for p in doc.programs}
     task_nodes: list[TreeNode] = []
     for task in doc.tasks:
-        refs = [
-            TreeNode(
-                key=f"task:{task.name}/program:{pname}",
-                label=pname,
-                kind="program",
-                status=_program_status(prog_changes.get(pname)),
-                program=pname,
+        refs = []
+        for pname in task.scheduled_programs:
+            prog = progs_by_name.get(pname)
+            refs.append(
+                TreeNode(
+                    key=f"task:{task.name}/program:{pname}",
+                    label=pname,
+                    kind="program",
+                    status=_program_status(prog_changes.get(pname)),
+                    program=pname,
+                    children=_routine_nodes(
+                        prog,
+                        prog_changes.get(pname),
+                        ctrl_name,
+                        f"task:{task.name}/program:{pname}",
+                    )
+                    if prog is not None  # a partial export can schedule an absent program
+                    else [],
+                )
             )
-            for pname in task.scheduled_programs
-        ]
         task_nodes.append(
             TreeNode(
                 key=f"task:{task.name}",
@@ -147,43 +205,44 @@ def build_project_tree(doc: L5XDocument, changes: ChangeSet) -> ProjectTree:
             TreeNode(key="folder:tasks", label="Tasks", kind="folder", children=task_nodes)
         )
 
+    # --- Motion Groups: MOTION_GROUP tags with their axes nested beneath.
+    motion_nodes = _motion_nodes(doc, tag_status)
+    if motion_nodes:
+        folders.append(
+            TreeNode(
+                key="folder:motion", label="Motion Groups", kind="folder",
+                children=motion_nodes,
+            )
+        )
+
+    # --- Handler folders: a program *reference* (like a task's), shown only
+    # when the controller names one.
+    for handler, key, label in (
+        (doc.controller.power_loss_program, "folder:powerup-handler", "Power-Up Handler"),
+        (doc.controller.fault_handler_program, "folder:fault-handler", "Controller Fault Handler"),
+    ):
+        if handler:
+            folders.append(
+                TreeNode(
+                    key=key,
+                    label=label,
+                    kind="folder",
+                    children=[
+                        TreeNode(
+                            key=f"{key}/program:{handler}",
+                            label=handler,
+                            kind="program",
+                            status=_program_status(prog_changes.get(handler)),
+                            program=handler,
+                        )
+                    ],
+                )
+            )
+
     # --- Programs (flat) -> Routines. Routine nodes carry ladder identity.
     prog_nodes: list[TreeNode] = []
     for prog in doc.programs:
         pc = prog_changes.get(prog.name)
-        rc_by_name = {r.name: r for r in (pc.routines if pc else [])}
-        prog_added = pc is not None and pc.kind == "added"
-        rout_nodes: list[TreeNode] = []
-        for rt in prog.routines:
-            rc = rc_by_name.get(rt.name)
-            status: Status = rc.kind if rc else ("added" if prog_added else "unchanged")
-            rout_nodes.append(
-                TreeNode(
-                    key=f"program:{prog.name}/routine:{rt.name}",
-                    label=rt.name,
-                    kind="routine",
-                    status=status,
-                    routine_type=rt.type,
-                    controller=ctrl_name,
-                    program=prog.name,
-                    routine=rt.name,
-                )
-            )
-        head_rt_names = {rt.name for rt in prog.routines}
-        for rc in pc.routines if pc else []:
-            if rc.kind == "removed" and rc.name not in head_rt_names:
-                rout_nodes.append(
-                    TreeNode(
-                        key=f"program:{prog.name}/routine:{rc.name}",
-                        label=rc.name,
-                        kind="routine",
-                        status="removed",
-                        routine_type=rc.routine_type,
-                        controller=ctrl_name,
-                        program=prog.name,
-                        routine=rc.name,
-                    )
-                )
         prog_nodes.append(
             TreeNode(
                 key=f"program:{prog.name}",
@@ -191,7 +250,7 @@ def build_project_tree(doc: L5XDocument, changes: ChangeSet) -> ProjectTree:
                 kind="program",
                 status=_program_status(pc),
                 program=prog.name,
-                children=rout_nodes,
+                children=_routine_nodes(prog, pc, ctrl_name, f"program:{prog.name}"),
             )
         )
     head_prog_names = {p.name for p in doc.programs}
@@ -227,27 +286,48 @@ def build_project_tree(doc: L5XDocument, changes: ChangeSet) -> ProjectTree:
             )
         )
 
-    # --- Add-On Instructions (leaves; AOI routines have no ladder card).
-    folders.extend(
-        _entity_folder(
-            "folder:aois",
-            "Add-On Instructions",
-            "aoi",
-            [a.name for a in doc.add_on_instructions],
-            aoi_status,
+    # --- Add-On Instructions: each AOI with its routines as children. AOI
+    # routine nodes carry NO ladder identity (controller/program/routine stay
+    # None) — they map to no ladder-diff card; renderers key off the prefix.
+    aoi_nodes: list[TreeNode] = []
+    for aoi in doc.add_on_instructions:
+        st = aoi_status.get(aoi.name, "unchanged")
+        aoi_nodes.append(
+            TreeNode(
+                key=f"aoi:{aoi.name}",
+                label=aoi.name,
+                kind="aoi",
+                status=st,
+                children=[
+                    TreeNode(
+                        key=f"aoi:{aoi.name}/routine:{rt.name}",
+                        label=rt.name,
+                        kind="routine",
+                        routine_type=rt.type,
+                        # The ChangeSet tracks an AOI as one entity, so routines
+                        # only inherit a whole-AOI add; edits badge the AOI node.
+                        status="added" if st == "added" else "unchanged",
+                    )
+                    for rt in aoi.routines
+                ],
+            )
         )
-    )
+    head_aoi_names = {a.name for a in doc.add_on_instructions}
+    for name, st in aoi_status.items():
+        if st == "removed" and name not in head_aoi_names:
+            aoi_nodes.append(
+                TreeNode(key=f"aoi:{name}", label=name, kind="aoi", status="removed")
+            )
+    if aoi_nodes:
+        folders.append(
+            TreeNode(
+                key="folder:aois", label="Add-On Instructions", kind="folder",
+                children=aoi_nodes,
+            )
+        )
 
-    # --- Data Types.
-    folders.extend(
-        _entity_folder(
-            "folder:datatypes",
-            "Data Types",
-            "datatype",
-            [d.name for d in doc.data_types],
-            dt_status,
-        )
-    )
+    # --- Data Types, split into Studio 5000's subfolders.
+    folders.extend(_datatype_folder(doc, dt_status, aoi_status))
 
     # --- Controller Tags.
     folders.extend(
@@ -301,6 +381,105 @@ def _entity_folder(
     if not nodes:
         return []
     return [TreeNode(key=key, label=label, kind="folder", children=nodes)]
+
+
+def _datatype_folder(
+    doc: L5XDocument, dt_status: dict[str, str], aoi_status: dict[str, str]
+) -> list[TreeNode]:
+    """The Data Types folder, split into Studio 5000's subfolders — each shown
+    only when non-empty: "User-Defined", "Strings" (family == "StringFamily"),
+    and "Add-On-Defined" (one reference leaf per AOI, since every AOI defines a
+    data type). Predefined / Module-Defined types are not present in an L5X
+    export, so those subfolders are omitted. A removed type's family is unknown
+    at head, so removed types list under User-Defined."""
+    user: list[str] = []
+    strings: list[str] = []
+    for d in doc.data_types:
+        (strings if d.family == "StringFamily" else user).append(d.name)
+    head = {d.name for d in doc.data_types}
+    user += [n for n, s in dt_status.items() if s == "removed" and n not in head]
+
+    def leaves(names: list[str], key_fmt: str, status: dict[str, str]) -> list[TreeNode]:
+        return [
+            TreeNode(
+                key=key_fmt.format(name=n), label=n, kind="datatype",
+                status=status.get(n, "unchanged"),
+            )
+            for n in names
+        ]
+
+    aoi_names = [a.name for a in doc.add_on_instructions]
+    aoi_names += [
+        n for n, s in aoi_status.items()
+        if s == "removed" and n not in set(aoi_names)
+    ]
+
+    subfolders: list[TreeNode] = []
+    if user:
+        subfolders.append(
+            TreeNode(
+                key="folder:datatypes/user-defined", label="User-Defined",
+                kind="folder", children=leaves(user, "datatype:{name}", dt_status),
+            )
+        )
+    if strings:
+        subfolders.append(
+            TreeNode(
+                key="folder:datatypes/strings", label="Strings",
+                kind="folder", children=leaves(strings, "datatype:{name}", dt_status),
+            )
+        )
+    if aoi_names:
+        subfolders.append(
+            TreeNode(
+                key="folder:datatypes/add-on-defined", label="Add-On-Defined",
+                kind="folder", children=leaves(aoi_names, "datatype:aoi:{name}", aoi_status),
+            )
+        )
+    if not subfolders:
+        return []
+    return [
+        TreeNode(key="folder:datatypes", label="Data Types", kind="folder", children=subfolders)
+    ]
+
+
+def _motion_nodes(doc: L5XDocument, tag_status: dict[str, str]) -> list[TreeNode]:
+    """Motion Groups content: each MOTION_GROUP tag as a group node with its
+    AXIS_* tags nested by the axis's MotionGroup reference. An axis whose group
+    is missing/absent still renders, flat; a group with no axes is childless.
+    These are tags, so they ALSO stay listed under Controller Tags (no
+    de-duplication). Empty when the project has no groups and no axes."""
+    groups = [t for t in doc.controller_tags if t.data_type == "MOTION_GROUP"]
+    axes = [t for t in doc.controller_tags if t.data_type.startswith("AXIS")]
+    if not groups and not axes:
+        return []
+    group_names = {g.name for g in groups}
+    by_group: dict[Optional[str], list] = {}
+    for ax in axes:
+        ref = ax.motion_config.get("MotionGroup")
+        by_group.setdefault(ref if ref in group_names else None, []).append(ax)
+
+    def axis_node(ax, group_ref: str) -> TreeNode:
+        return TreeNode(
+            key=f"motion:{group_ref}/axis:{ax.name}", label=ax.name, kind="tag",
+            status=tag_status.get(ax.name, "unchanged"),
+        )
+
+    nodes = [
+        TreeNode(
+            key=f"motion:{g.name}", label=g.name, kind="tag",
+            status=tag_status.get(g.name, "unchanged"),
+            children=[axis_node(ax, g.name) for ax in by_group.get(g.name, [])],
+        )
+        for g in groups
+    ]
+    # Orphan axes keep their (missing) group reference in the key so keys stay
+    # unique and the broken reference stays visible.
+    nodes += [
+        axis_node(ax, ax.motion_config.get("MotionGroup") or "")
+        for ax in by_group.get(None, [])
+    ]
+    return nodes
 
 
 def _module_nodes(doc: L5XDocument, status: dict[str, str]) -> list[TreeNode]:

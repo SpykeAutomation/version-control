@@ -227,6 +227,7 @@ separate from the per-project activity feed.
 | `GET`  | `/projects/{id}/diff/ladder` | `?base=<ref>&head=<ref>&path=l5x/<name>` | `LadderDocument` |
 | `GET`  | `/projects/{id}/diff/text` | `?base=<ref>&head=<ref>&path=files/<nested/path>` | `TextDiff` |
 | `GET`  | `/projects/{id}/tree` | `?base=<ref>&head=<ref>&path=l5x/<name>` | `ProjectTree` (organizer of one L5X at `head`, tagged by the `base..head` diff) |
+| `GET`  | `/projects/{id}/l5x` | `?ref=<ref>&path=l5x/<name>&section=controller\|datatypes\|tags\|modules\|aoi` (`section=aoi` also needs `&name=<aoi>`) | `L5XSection` — one raw section of the parsed file at `ref`, for the organizer's detail tables; cached per commit |
 | `POST` | `/projects/{id}/pulls` | `{title, description?, source_branch, target_branch?="main"}` | `201` `Pull` |
 | `GET`  | `/projects/{id}/pulls` | `?status_filter=open&limit=50&offset=0` | `[Pull]` + `X-Total-Count` |
 | `GET`  | `/projects/{id}/pulls/{n}` | — | `Pull` |
@@ -319,6 +320,14 @@ FileEntry   = { "path": string, "kind": "l5x"|"file",     // "l5x/<name>" or "fi
                 "modified_by": string, "modified_at": string }  // last commit's author + ISO-8601 date
 DiffManifest = { "files": [ChangedFile] }
 ProjectTree = { "schema_version": int, "root": TreeNode }   // per-L5X organizer, nested under the file tree
+                // schema_version 3 adds: Data Types subfolders (User-Defined / Strings /
+                // Add-On-Defined AOI refs, keys "datatype:aoi:<name>"), AOI routine children
+                // (keys "aoi:<a>/routine:<r>", NO ladder-card identity), a Motion Groups
+                // folder ("motion:<group>" / "motion:<group>/axis:<tag>"; motion tags also
+                // stay under Controller Tags), Power-Up / Controller Fault Handler folders,
+                // and task program refs carrying the routine subtree
+                // ("task:<t>/program:<p>/routine:<r>", WITH ladder-card identity). The flat
+                // Programs folder and its keys are unchanged.
 TreeNode    = { "key": string, "label": string,
                 "kind": "controller"|"folder"|"program"|"routine"|"aoi"|"datatype"|"tag"|"module"|"task",
                 "status": "unchanged"|"added"|"removed"|"modified",  // the node's own change
@@ -443,6 +452,32 @@ RoutineFullCode   = { "kind": "structured",
                       "ref": string,                             // short commit label, e.g. "a7f3c9d"
                       "lines": [{ "ln": int, "text": string }] } // 1-based line numbers
 ```
+
+### `L5XSection` — raw sections of one L5X file (organizer detail tables)
+
+Returned by `/l5x?ref=&path=l5x/<name>&section=`. The data behind the
+organizer's detail views: UDT members, AOI parameters/routines, the
+controller-tag grid, the I/O module table, controller properties. Everything
+is serialized straight from the parsed snapshot (the same field names the
+parser models use); responses are cached per commit like every diff view.
+
+```jsonc
+L5XSection = { "schema_version": 1, "section": string, "data": ... }
+// data by section:
+//   controller  -> Controller object (name, processor_type, revs, safety/redundancy blocks, ...)
+//   datatypes   -> [DataType] incl. members (name, data_type, dimension, radix, hidden, ...)
+//   tags        -> [Tag] controller tags WITHOUT the heavy per-tag blobs:
+//                  `values`, `comments`, `message_config` are excluded
+//                  (measured 1.36 MB -> 91 KB on a real export); scalar `value` stays
+//   modules     -> [Module] WITHOUT `config_values`, `connections`,
+//                  `rack_connections`, `extended_properties` (78 -> 28 KB)
+//   aoi         -> ONE full AOI (parameters, local_tags, routines with content);
+//                  requires &name=<aoi>. The whole AOI list is deliberately not
+//                  offered (812 KB+ raw); fetch per AOI (~13 KB) on click.
+```
+
+Errors: unknown `section` → `422`; `section=aoi` without `name` → `400`;
+no such L5X file / AOI at the ref, or a bad ref → `400`.
 
 ## Behaviors to handle in the UI
 
@@ -706,3 +741,16 @@ approval gate (`409` if short). `Comment` gains `parent_id`, `anchor`,
 edits the body too (author only). `User` gains `avatar`. List endpoints
 (`commits`, `pulls`, `comments`, `tags`, `activity`, `orgs/{id}/users`) take
 `?limit=&offset=` and return `X-Total-Count`.
+
+### 2026-07-09 · L5X sections & organizer detail
+
+| Method | Path | What it adds |
+|--------|------|--------------|
+| `GET` | `/projects/{id}/l5x` | Raw sections of a parsed L5X at a ref (`section=controller\|datatypes\|tags\|modules\|aoi`, per-AOI via `&name=`) — the data for the organizer's detail tables. Cached per commit; list sections exclude measured-heavy per-entity fields (see `L5XSection`). |
+
+*Changed shapes:* `ProjectTree` schema_version bumped to **3** — Data Types
+now splits into User-Defined / Strings / Add-On-Defined subfolders, AOI nodes
+carry their routines as children (no ladder-card identity), new Motion Groups
+and Power-Up / Controller Fault Handler folders, and a task's program
+references now carry the program's routine subtree under namespaced keys. The
+flat Programs folder and all existing keys are unchanged.

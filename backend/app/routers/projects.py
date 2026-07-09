@@ -11,6 +11,7 @@ import re
 import tempfile
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 from fastapi import (
     APIRouter,
@@ -71,6 +72,7 @@ from ..schemas import (
     DiffManifest,
     FileEntry,
     FileListing,
+    L5XSection,
     MemberIn,
     MemberOut,
     ProjectIn,
@@ -1193,6 +1195,94 @@ def project_tree(
     name = l5x_name(path)
     return serve_diff(
         project_id, "tree", base, head, _tree_compute(name), file_path=f"l5x/{name}"
+    )
+
+
+# The sections of a parsed L5X file the organizer's detail tables can request.
+L5XSectionName = Literal["controller", "datatypes", "tags", "modules", "aoi"]
+
+# Heavy per-entity fields excluded from the list sections, measured on a real
+# 16.5 MB production export (351 UDTs / 193 tags / 32 modules): tags drop from
+# 1.36 MB to 91 KB without value/comment/MSG blobs; modules from 78 KB to
+# 28 KB without config/connection blobs. Per-entity detail that needs the
+# excluded fields can be added later the way section=aoi already works.
+_L5X_TAG_EXCLUDE = {"values", "comments", "message_config"}
+_L5X_MODULE_EXCLUDE = {
+    "config_values", "connections", "rack_connections", "extended_properties",
+}
+
+
+def _l5x_section_compute(name: str, section: str, aoi_name: str | None):
+    """A serve_diff compute closure for one section of one L5X file at a ref.
+
+    Reads the already-parsed document at head (base == head: a snapshot is a
+    pure function of a single commit) and serializes the section straight from
+    the parser models — no new schemas."""
+
+    def compute(repo: ProjectRepo, base_sha: str, head_sha: str) -> L5XSection:
+        doc = repo.document_at(head_sha, name)
+        if doc is None:
+            raise ProjectRepoError(f"no L5X file {name!r} at this ref")
+        if section == "controller":
+            data = doc.controller.model_dump(mode="json")
+        elif section == "datatypes":
+            data = [d.model_dump(mode="json") for d in doc.data_types]
+        elif section == "tags":
+            data = [
+                t.model_dump(mode="json", exclude=_L5X_TAG_EXCLUDE)
+                for t in doc.controller_tags
+            ]
+        elif section == "modules":
+            data = [
+                m.model_dump(mode="json", exclude=_L5X_MODULE_EXCLUDE)
+                for m in doc.modules
+            ]
+        else:  # aoi — one full definition (params, local tags, routine content)
+            aoi = next(
+                (a for a in doc.add_on_instructions if a.name == aoi_name), None
+            )
+            if aoi is None:
+                raise ProjectRepoError(f"no AOI {aoi_name!r} in {name!r} at this ref")
+            data = aoi.model_dump(mode="json")
+        return L5XSection(section=section, data=data)
+
+    return compute
+
+
+@router.get("/{project_id}/l5x", response_model=L5XSection)
+def l5x_section(
+    project_id: int,
+    ref: str,
+    path: str,
+    section: L5XSectionName,
+    name: str | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+) -> Response:
+    """One raw section of a parsed L5X file at a ref — the data behind the
+    organizer's detail tables (UDT members, AOI parameters/routines, the
+    controller-tag grid, the I/O module table, controller properties).
+
+    `path` is an `l5x/<name>` manifest path. `section=aoi` returns ONE full
+    AOI and requires `&name=`; the whole AOI list is deliberately not offered
+    (812 KB+ on a real export — per-AOI is ~13 KB). List sections exclude the
+    measured-heavy per-entity fields (see the exclusion sets above and the
+    README contract). Parsing a large export costs ~0.4 s, so responses are
+    served through the sha-keyed disk cache like every diff view."""
+    require_member(project_id, db, user)
+    if section == "aoi" and not name:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, "section=aoi requires &name=<AOI name>"
+        )
+    l5x = l5x_name(path)
+    file_key = f"l5x/{l5x}#aoi:{name}" if section == "aoi" else f"l5x/{l5x}#{section}"
+    return serve_diff(
+        project_id,
+        "l5x-section",
+        ref,
+        ref,
+        _l5x_section_compute(l5x, section, name),
+        file_path=file_key,
     )
 
 
