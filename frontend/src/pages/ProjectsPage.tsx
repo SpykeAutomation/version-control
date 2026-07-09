@@ -19,12 +19,11 @@ import {
   MoreHorizontal,
   Plus,
   Search,
-  SlidersHorizontal,
   Workflow,
 } from "lucide-react";
 import { useTopBarActions } from "../app/TopBarActions";
 import { StatusBadge } from "../components/StatusBadge";
-import { RailSection } from "../components/RailSection";
+import { useAuth } from "../auth/AuthContext";
 import { type ProjectRow, type RepoStatus } from "../api/projects";
 import { errorText, useProjects } from "../api/queries";
 import { timeAgo } from "../lib/time";
@@ -80,16 +79,10 @@ export function ProjectsPage() {
   const { data: projects, isPending, error } = useProjects();
 
   const actions = (
-    <>
-      <button className="btn btn-outline btn-sm">
-        <SlidersHorizontal size={15} strokeWidth={1.8} />
-        Filters
-      </button>
-      <Link to="/onboarding" className="btn btn-primary btn-sm">
-        <Plus size={16} strokeWidth={2} />
-        New repository
-      </Link>
-    </>
+    <Link to="/onboarding" className="btn btn-primary btn-sm">
+      <Plus size={16} strokeWidth={2} />
+      New repository
+    </Link>
   );
 
   useTopBarActions(actions);
@@ -120,6 +113,7 @@ export function ProjectsPage() {
 // The presentational repositories view, independent of data loading. Holds all
 // view state (search, filters, sort, page) and the pure derivations off it.
 function ProjectsView({ projects }: { projects: ProjectRow[] }) {
+  const { user } = useAuth();
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortKey>("updated");
   const [status, setStatus] = useState<StatusFilter>("all");
@@ -183,15 +177,15 @@ function ProjectsView({ projects }: { projects: ProjectRow[] }) {
 
   return (
     <div className="page-grid">
-      <div className="page-main">
-        <div className="page-header">
-          <h1>Repositories</h1>
-          <p>
-            Manage PLC repositories, branches, releases, and commissioning
-            context across your plant.
-          </p>
-        </div>
+      <div className="page-header">
+        <h1>{user?.organization ? `${user.organization}'s Home` : "Home"}</h1>
+        <p>
+          Manage PLC repositories, branches, releases, and commissioning
+          context across your plant.
+        </p>
+      </div>
 
+      <div className="page-main">
         <div className="mr-meta stat-meta">
           <div className="mr-meta-card">
             <div className="mr-meta-label">
@@ -299,29 +293,6 @@ function ProjectsView({ projects }: { projects: ProjectRow[] }) {
       </div>
 
       <aside className="page-rail">
-        <RailSection title="Quick actions">
-          <Link to="/onboarding" className="rail-item action">
-            <span className="rail-ico">
-              <Plus size={15} strokeWidth={1.8} />
-            </span>
-            <div className="rail-main">
-              <div className="rail-label">New repository</div>
-              <div className="rail-sub">Create a repository</div>
-            </div>
-            <ChevronRight className="rail-chev" size={15} strokeWidth={1.8} />
-          </Link>
-          <Link to="/compare" className="rail-item action">
-            <span className="rail-ico">
-              <GitPullRequestArrow size={15} strokeWidth={1.8} />
-            </span>
-            <div className="rail-main">
-              <div className="rail-label">New merge request</div>
-              <div className="rail-sub">Propose and review changes</div>
-            </div>
-            <ChevronRight className="rail-chev" size={15} strokeWidth={1.8} />
-          </Link>
-        </RailSection>
-
         <AboutRepositoriesCard />
       </aside>
     </div>
@@ -403,11 +374,15 @@ function ProjectsTable({
                 </Link>
               </td>
 
-              {/* Default branch */}
+              {/* Default branch. The backend's branch list isn't ordered by
+                  default-ness, so prefer "main" (the backend's default) when
+                  present rather than whichever branch happens to be first. */}
               <td>
                 <span className="branch-tag">
                   <GitBranch size={14} strokeWidth={2} />
-                  {p.branches?.[0] ?? "main"}
+                  {p.branches?.includes("main")
+                    ? "main"
+                    : (p.branches?.[0] ?? "main")}
                 </span>
               </td>
 
