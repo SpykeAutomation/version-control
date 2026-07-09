@@ -180,7 +180,7 @@ function FileBody({ file }: { file: FileEntry }) {
   if (c.type === "table") {
     return (
       <div className="table-wrap files-table">
-        <table className="dtable">
+        <div className="dtable-scroll"><table className="dtable">
           <thead>
             <tr>
               {c.columns.map((col) => (
@@ -199,7 +199,7 @@ function FileBody({ file }: { file: FileEntry }) {
               </tr>
             ))}
           </tbody>
-        </table>
+        </table></div>
         <div className="table-foot">
           <span>{c.rows.length} rows</span>
         </div>

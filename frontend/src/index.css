@@ -1373,8 +1373,14 @@ button.link:hover {
   box-shadow: var(--shadow-card);
   overflow: hidden;
 }
+/* Tables scroll sideways inside their card once the window gets too narrow
+   for their columns, instead of cropping. */
+.dtable-scroll {
+  overflow-x: auto;
+}
 .dtable {
   width: 100%;
+  min-width: 640px;
   border-collapse: collapse;
 }
 .dtable th {
@@ -1507,6 +1513,30 @@ a.repo-cell:hover .repo-name {
   border: 1px solid transparent;
   white-space: nowrap;
 }
+/* Why revert is unavailable on non-tip commits. */
+.cm-revert-note {
+  margin: 8px 0 0;
+  font: 400 12px/1.5 var(--sans);
+  color: var(--ink3);
+}
+
+/* Threaded discussion: replies indent under their parent, reddit-style. */
+.disc-thread {
+  margin-bottom: 4px;
+}
+.disc-replies {
+  margin: 2px 0 10px 46px;
+  padding-left: 14px;
+  border-left: 2px solid var(--line);
+}
+.disc-reply {
+  margin-top: 6px;
+  font-size: 12px;
+}
+.disc-composer.compact .textarea {
+  height: 64px;
+}
+
 /* Duplicate-merge-request notice on the create page. */
 .cmr-duplicate {
   margin-bottom: 16px;
@@ -2553,9 +2583,19 @@ a.rail-item:focus-visible,
 }
 
 /* table cells specific to repo */
-.hash {
+/* Commit ids sit in a grey rounded box wherever they appear (GitHub-style). */
+.hash,
+.mr-commit-sha,
+.cmr-tl-sha,
+.cmr-branch-sha,
+.cm-meta .mr-meta-mono {
   font: 500 12.5px/1 var(--mono);
   color: var(--ink2);
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 3px 6px;
+  display: inline-block;
 }
 .cell-strong {
   font: 500 13px/1.4 var(--sans);
@@ -3409,6 +3449,13 @@ a.file-cell:hover .file-cell-name {
   flex-direction: column;
   gap: 4px;
   min-width: 0;
+}
+/* Chips inside the column-flex meta cards hug their text instead of
+   stretching to the card's width. */
+.mr-meta-val .branch-tag,
+.mr-meta-card > .branch-tag,
+.mr-meta-val > .mr-meta-mono {
+  align-self: flex-start;
 }
 .mr-meta-mono {
   font: 600 13px/1.2 var(--mono);
@@ -5518,9 +5565,13 @@ a.mr-commit-row:hover {
   color: var(--ink-title);
 }
 .cm-commit-sha {
-  font: 650 24px/1.15 var(--mono);
+  font: 650 22px/1.15 var(--mono);
   letter-spacing: -0.01em;
   color: var(--ink-title);
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 2px 10px;
 }
 .cm-branch-text {
   font-weight: 400;
@@ -5583,15 +5634,23 @@ a.mr-commit-row:hover {
 }
 
 /* Overview card: commit message | summary | stats strip. */
+/* Message and summary stack one after the other. */
 .cm-overview {
-  display: grid;
-  grid-template-columns: 1fr 1.4fr;
-  gap: 40px;
-  align-items: start;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
   border: 1px solid var(--line);
   border-radius: var(--r-lg);
   background: var(--panel);
   padding: 18px 20px;
+}
+/* Expanded summary scrolls instead of stretching the card. */
+.cm-ov-list.expanded {
+  max-height: 260px;
+  overflow-y: auto;
+}
+.cm-ov-more {
+  margin-top: 8px;
 }
 .cm-ov-label {
   font: 500 11.5px/1 var(--sans);

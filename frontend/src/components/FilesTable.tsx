@@ -32,7 +32,7 @@ export function initials(name: string): string {
 // surrounding card/footer so it can sit in a tab or on a branch page.
 export function FilesTable({ files, slug }: { files: FileEntry[]; slug: string }) {
   return (
-    <table className="dtable">
+    <div className="dtable-scroll"><table className="dtable">
       <thead>
         <tr>
           <th>Name</th>
@@ -73,6 +73,6 @@ export function FilesTable({ files, slug }: { files: FileEntry[]; slug: string }
           );
         })}
       </tbody>
-    </table>
+    </table></div>
   );
 }

@@ -346,7 +346,7 @@ function ProjectsTable({
   const to = Math.min(page * PAGE_SIZE, total);
   return (
     <div className="table-wrap">
-      <table className="dtable">
+      <div className="dtable-scroll"><table className="dtable">
         <thead>
           <tr>
             <th>Repository</th>
@@ -449,7 +449,7 @@ function ProjectsTable({
             </tr>
           ))}
         </tbody>
-      </table>
+      </table></div>
 
       <div className="table-foot">
         <span>

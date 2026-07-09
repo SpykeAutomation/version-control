@@ -95,7 +95,7 @@ export function CommitsPage() {
             ) : commits.length === 0 ? (
               <div className="rcard-empty">No commits on this branch yet.</div>
             ) : (
-              <table className="dtable">
+              <div className="dtable-scroll"><table className="dtable">
                 <thead>
                   <tr>
                     <th>Commit</th>
@@ -140,7 +140,7 @@ export function CommitsPage() {
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </table></div>
             )}
           </div>
         </div>
