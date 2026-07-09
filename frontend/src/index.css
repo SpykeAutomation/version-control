@@ -1294,6 +1294,12 @@ button.link:hover {
 .page-header {
   margin-bottom: 24px;
 }
+/* Header lifted out of the main column to span the grid, so the rail starts
+   level with the stat strip below it. The grid row gap provides the spacing. */
+.page-grid > .page-header {
+  grid-column: 1 / -1;
+  margin-bottom: 0;
+}
 .page-header h1 {
   margin: 0;
   font-size: 24px;
@@ -1457,12 +1463,17 @@ a.repo-cell:hover .repo-name {
   color: var(--ink3);
   margin-top: 2px;
 }
+/* Branch names render as a soft green rounded chip wherever they appear. */
 .branch-tag {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   font: 500 13px/1 var(--sans);
-  color: var(--ink);
+  color: var(--add);
+  background: var(--add-bg);
+  border: 1px solid var(--add-line);
+  border-radius: 6px;
+  padding: 3px 8px;
 }
 .muted-cell {
   color: var(--ink2);
@@ -1495,6 +1506,20 @@ a.repo-cell:hover .repo-name {
   border-radius: var(--r-sm);
   border: 1px solid transparent;
   white-space: nowrap;
+}
+/* Duplicate-merge-request notice on the create page. */
+.cmr-duplicate {
+  margin-bottom: 16px;
+}
+.cmr-duplicate a {
+  color: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+}
+
+/* Fully-rounded visibility label next to a repository title. */
+.badge.vis-pill {
+  border-radius: 999px;
 }
 .badge .badge-dot {
   width: 6px;
@@ -2418,7 +2443,7 @@ a.rail-item:focus-visible,
   display: flex;
   align-items: center;
   gap: 7px;
-  font: 500 13px/1 var(--sans);
+  font: 500 15px/1 var(--sans);
   color: var(--ink3);
   margin-bottom: 16px;
 }
@@ -2541,8 +2566,118 @@ a.rail-item:focus-visible,
   align-items: center;
   gap: 6px;
   font: 500 13px/1 var(--sans);
+  color: var(--add);
+  background: var(--add-bg);
+  border: 1px solid var(--add-line);
+  border-radius: 6px;
+  padding: 3px 8px;
+}
+/* modal dialog */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgb(15 18 23 / 0.45);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 18vh 24px 24px;
+}
+.modal {
+  width: 420px;
+  max-width: 100%;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-card);
+  padding: 20px;
+}
+.modal-title {
+  margin: 0 0 16px;
+  font: 650 16px/22px var(--sans);
+  color: var(--ink-title);
+}
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 20px;
+}
+.modal.modal-wide {
+  width: 720px;
+}
+
+/* file rows inside the upload-commit dialog */
+.upload-list {
+  margin-bottom: 16px;
+}
+/* Extended-description box: full input width, comfortably tall, and the
+   placeholder sits a little lower than the default textarea padding. */
+.textarea.upload-desc {
+  height: 130px;
+  padding-top: 14px;
+  resize: vertical;
+}
+.upload-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  margin-bottom: 6px;
+}
+.upload-row .file-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.upload-size {
+  font: 500 12px/1 var(--sans);
+  color: var(--ink3);
+  flex: none;
+}
+
+/* commit destination radios (direct vs. new branch) */
+.commit-choice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 2px;
+  cursor: pointer;
+}
+.commit-choice.disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.commit-choice input {
+  margin-top: 2px;
+  accent-color: var(--accent);
+}
+.commit-choice-main {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+  font: 450 13.5px/20px var(--sans);
   color: var(--ink);
 }
+.commit-choice-main svg {
+  color: var(--ink3);
+}
+.commit-choice-branch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 2px 0 4px 26px;
+  color: var(--ink3);
+}
+.commit-choice-branch .input {
+  flex: 1;
+}
+
 .mini-badge {
   font: 600 10.5px/1 var(--sans);
   color: var(--ink2);
@@ -2676,6 +2811,30 @@ a.rail-item:focus-visible,
 /* The info banner spans the column, so the parent gap owns its spacing. */
 .explorer .rail-callout {
   margin-top: 0;
+}
+/* The Explorer search hugs the right-hand buttons at about half width; the
+   leftover space sits between it and the branch-divergence chips. */
+.explorer .toolbar-search {
+  flex: 0 1 auto;
+  width: 340px;
+  margin-left: auto;
+}
+.explorer .code-bar-right {
+  margin-left: 0;
+}
+/* Fade tab bodies in on switch instead of snapping. */
+@keyframes tab-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.tab-fade {
+  animation: tab-fade-in 0.22s ease;
 }
 /* keyboard hint chip inside the Explorer search field */
 .search-kbd {
@@ -3048,6 +3207,13 @@ a.file-cell:hover .file-cell-name {
   align-items: flex-start;
   gap: 14px;
   margin-bottom: 20px;
+}
+/* Repository header: centre the icon tile against the title block. */
+.mr-head.repo-head {
+  align-items: center;
+}
+.mr-head.repo-head .repo-head-tile {
+  margin-top: 0;
 }
 .mr-back {
   width: 34px;
@@ -5778,6 +5944,14 @@ a.mr-commit-row:hover {
   margin-top: 1px;
   color: var(--accent);
 }
+/* Amber warning variant, e.g. committing to a protected branch. */
+.rail-callout.warn {
+  border-color: var(--mod-line, var(--line));
+  background: var(--mod-bg);
+}
+.rail-callout.warn svg {
+  color: var(--mod);
+}
 
 /* ============================================================
    Create merge request page
@@ -5820,7 +5994,11 @@ a.mr-commit-row:hover {
 }
 .cmr-branch-name {
   font: 650 14px/1 var(--mono);
-  color: var(--ink-title);
+  color: var(--add);
+  background: var(--add-bg);
+  border: 1px solid var(--add-line);
+  border-radius: 6px;
+  padding: 4px 9px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -6013,6 +6191,71 @@ a.mr-commit-row:hover {
   font: 400 14px/1.55 var(--sans);
   color: var(--ink);
   white-space: pre-wrap;
+}
+/* Rendered-markdown body (description previews). */
+.md-body {
+  font: 400 14px/1.55 var(--sans);
+  color: var(--ink);
+}
+.md-body > :first-child {
+  margin-top: 0;
+}
+.md-body > :last-child {
+  margin-bottom: 0;
+}
+.md-body p,
+.md-body ul,
+.md-body ol {
+  margin: 0 0 10px;
+}
+.md-body ul,
+.md-body ol {
+  padding-left: 22px;
+}
+.md-body code {
+  font: 500 12.5px/1.4 var(--mono);
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+.md-body pre {
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 10px 12px;
+  overflow-x: auto;
+}
+.md-body pre code {
+  background: none;
+  border: none;
+  padding: 0;
+}
+.md-body table {
+  border-collapse: collapse;
+  margin: 0 0 10px;
+}
+.md-body th,
+.md-body td {
+  border: 1px solid var(--line);
+  padding: 5px 10px;
+  font-size: 13px;
+}
+.md-body th {
+  background: var(--panel2);
+  font-weight: 600;
+}
+.md-body h1,
+.md-body h2,
+.md-body h3 {
+  margin: 14px 0 8px;
+  line-height: 1.3;
+}
+.md-body blockquote {
+  margin: 0 0 10px;
+  padding: 2px 12px;
+  border-left: 3px solid var(--line);
+  color: var(--ink2);
 }
 .cmr-preview-empty {
   font: 400 13px/1.4 var(--sans);
