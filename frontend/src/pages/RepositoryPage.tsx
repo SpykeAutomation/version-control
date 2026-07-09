@@ -776,7 +776,7 @@ function CommitsCard({
       {!commits || commits.length === 0 ? (
         <div className="rcard-empty">No commits yet.</div>
       ) : (
-        <table className="dtable">
+        <div className="dtable-scroll"><table className="dtable">
           <thead>
             <tr>
               <th>Commit</th>
@@ -821,7 +821,7 @@ function CommitsCard({
               </tr>
             ))}
           </tbody>
-        </table>
+        </table></div>
       )}
     </div>
   );
@@ -855,7 +855,7 @@ function BranchesCard({
             : "No branches yet."}
         </div>
       ) : (
-        <table className="dtable">
+        <div className="dtable-scroll"><table className="dtable">
           <thead>
             <tr>
               <th>Branch</th>
@@ -869,7 +869,7 @@ function BranchesCard({
               <tr key={b.name}>
                 <td>
                   <Link
-                    to={`/projects/${slug}/tree/${encodeURIComponent(b.name)}`}
+                    to={`/projects/${slug}?tab=Files&branch=${encodeURIComponent(b.name)}`}
                     className="branch-name crlink"
                   >
                     <GitBranch size={13} strokeWidth={2} />
@@ -930,7 +930,7 @@ function BranchesCard({
               </tr>
             ))}
           </tbody>
-        </table>
+        </table></div>
       )}
     </div>
   );
@@ -958,7 +958,7 @@ function ChangeRequestsCard({
     return (
       <div className="rcard">
         <CardHead title="Merge requests" action={action} />
-        <table className="dtable">
+        <div className="dtable-scroll"><table className="dtable">
           <thead>
             <tr>
               <th>ID</th>
@@ -1004,7 +1004,7 @@ function ChangeRequestsCard({
               );
             })}
           </tbody>
-        </table>
+        </table></div>
       </div>
     );
   }
@@ -1023,7 +1023,7 @@ function ChangeRequestsCard({
           </Link>
         </div>
       ) : (
-        <table className="dtable">
+        <div className="dtable-scroll"><table className="dtable">
           <thead>
             <tr>
               <th>ID</th>
@@ -1069,7 +1069,7 @@ function ChangeRequestsCard({
               );
             })}
           </tbody>
-        </table>
+        </table></div>
       )}
     </div>
   );
@@ -1222,15 +1222,20 @@ function CodeView({
 
   const defaultBranch =
     branchList.find((b) => b.isDefault)?.name ?? branchList[0]?.name ?? "";
-  const [selected, setSelected] = useState(defaultBranch);
+  // The viewed branch is URL state (?branch=), so branch names elsewhere can
+  // deep-link into this tab and back/forward moves between branches. Unknown
+  // or missing values fall back to the default branch.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedBranch = searchParams.get("branch");
+  const branchName =
+    requestedBranch && branchList.some((b) => b.name === requestedBranch)
+      ? requestedBranch
+      : defaultBranch;
+  const setBranch = (name: string) =>
+    setSearchParams({ tab: "Files", branch: name });
   // Files picked through "Add file"; non-null opens the commit dialog.
   const [uploadFiles, setUploadFiles] = useState<File[] | null>(null);
   const uploadRef = useRef<HTMLInputElement>(null);
-  // Branches load after the first render, so adopt the default once it arrives.
-  useEffect(() => {
-    if (!selected && defaultBranch) setSelected(defaultBranch);
-  }, [selected, defaultBranch]);
-  const branchName = selected || defaultBranch;
 
   const liveCommits = useCommits(project.id, branchName || "main").data ?? null;
   // The controller name (the L5X file's name) comes from the organizer tree at
@@ -1286,7 +1291,7 @@ function CodeView({
         <BranchPicker
           branches={branchList}
           selected={info.name}
-          onSelect={setSelected}
+          onSelect={setBranch}
         />
         {divergence && (
           <>
@@ -1398,7 +1403,7 @@ function CodeView({
         {commits.length === 0 ? (
           <div className="rcard-empty">No commits on this branch yet.</div>
         ) : (
-          <table className="dtable">
+          <div className="dtable-scroll"><table className="dtable">
             <thead>
               <tr>
                 <th>Commit</th>
@@ -1444,7 +1449,7 @@ function CodeView({
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         )}
       </div>
     </div>

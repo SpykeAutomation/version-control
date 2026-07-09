@@ -53,7 +53,7 @@ export function BranchesPage() {
             ) : branches.length === 0 ? (
               <div className="rcard-empty">No branches yet.</div>
             ) : (
-              <table className="dtable">
+              <div className="dtable-scroll"><table className="dtable">
                 <thead>
                   <tr>
                     <th>Branch</th>
@@ -67,7 +67,7 @@ export function BranchesPage() {
                     <tr key={b.name}>
                       <td>
                         <Link
-                          to={`/projects/${slug}/tree/${encodeURIComponent(b.name)}`}
+                          to={`/projects/${slug}?tab=Files&branch=${encodeURIComponent(b.name)}`}
                           className="branch-name crlink"
                         >
                           <GitBranch size={13} strokeWidth={2} />
@@ -135,7 +135,7 @@ export function BranchesPage() {
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </table></div>
             )}
           </div>
         </div>
