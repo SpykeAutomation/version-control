@@ -6,6 +6,8 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, EmailStr
 
+from diff import RoutineLadderDiff
+
 
 # --- auth ---
 class UserOut(BaseModel):
@@ -286,6 +288,29 @@ class TextDiff(BaseModel):
     path: str
     binary: bool
     unified: Optional[str] = None  # None for binary files (no line diff)
+
+
+# --- full routine content at a commit (not a diff) ---
+class RoutineLine(BaseModel):
+    ln: int  # 1-based line number
+    text: str
+
+
+class RoutineFullCode(BaseModel):
+    """A structured-text routine's full content as of one commit."""
+
+    kind: Literal["structured"] = "structured"
+    ref: str  # short commit label, e.g. "a7f3c9d"
+    lines: list[RoutineLine] = []
+
+
+class RoutineFullLadder(BaseModel):
+    """A ladder routine's full content as of one commit, in the ladder-diff IR
+    (every rung "unchanged" with only the `after` side filled) so the frontend
+    reuses its LadderDiff renderer single-column."""
+
+    kind: Literal["ladder"] = "ladder"
+    ladder: RoutineLadderDiff
 
 
 # --- pull requests ---

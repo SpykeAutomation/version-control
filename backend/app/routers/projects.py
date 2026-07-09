@@ -9,6 +9,7 @@ import json
 import os
 import re
 import tempfile
+from functools import lru_cache
 from pathlib import Path
 
 from fastapi import (
@@ -26,6 +27,11 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from diff import ChangeSet, LadderDocument
+from diff.ladder import LabelResolver, aoi_operand_labels, classify_rung, order_io
+from diff.ladder_models import Element, RoutineLadderDiff, RungDiff
+from parsers.l5x.models import AOI, Routine
+from parsers.rll import RLLParseError, RLLParser
+from snapshot.writer import _file_name as snapshot_file_name
 from vcs import CommitLog, ProjectRepo, ProjectRepoError, TagInfo, UploadSpec
 
 from .. import activity, audit, diff_cache, usage
@@ -72,6 +78,9 @@ from ..schemas import (
     ProjectUpdate,
     RepositoryOverview,
     RoleUpdate,
+    RoutineFullCode,
+    RoutineFullLadder,
+    RoutineLine,
     TagIn,
     TagOut,
     TextDiff,
@@ -930,6 +939,142 @@ def commit_tree(
     name = l5x_name(path)
     return serve_diff(
         project_id, "tree", base, head, _tree_compute(name), file_path=f"l5x/{name}"
+    )
+
+
+@lru_cache(maxsize=1)
+def _rll_parser() -> RLLParser:
+    """Building a parser compiles its grammar (slow), so build it once per
+    process; parsing never mutates it, so sharing across requests is safe."""
+    return RLLParser()
+
+
+def _routine_blob_path(l5x: str, program: str, routine: str) -> str:
+    """Snapshot path of one routine's JSON. Program and routine become file
+    names via the snapshot writer's escaping, so Windows-reserved names
+    (e.g. AUX -> AUX-) resolve to the blob that was actually committed."""
+    return (
+        f"l5x/{l5x}/snapshot/programs/{snapshot_file_name(program)}"
+        f"/routines/{snapshot_file_name(routine)}.json"
+    )
+
+
+def _aoi_labels_at(repo: ProjectRepo, ref: str, name: str) -> dict[str, list[str]]:
+    """Operand-row labels for one L5X file's AOIs at a ref, read lock-free from
+    the snapshot's aois/*.json (the same definitions the ladder-diff path loads).
+    A missing or unreadable AOI file only costs its labels, never the request."""
+    base = f"l5x/{name}/snapshot/aois"
+    aois: list[AOI] = []
+    for entry in repo.tree_names(ref, base):
+        if not entry.endswith(".json"):
+            continue
+        try:
+            aois.append(AOI.model_validate(json.loads(repo.read_blob(ref, f"{base}/{entry}"))))
+        except (ProjectRepoError, ValueError):
+            continue
+    return aoi_operand_labels(aois)
+
+
+def _full_rung_elements(
+    text: str | None, parser: RLLParser, resolver: LabelResolver
+) -> list[Element]:
+    """Drawable elements for one committed rung, laid out reads-left /
+    writes-right like the diff views. A rung the grammar cannot read renders
+    verbatim as a raw element rather than failing the whole routine."""
+    if not text:
+        return []
+    try:
+        parsed = parser.parse(text)
+    except RLLParseError:
+        return [Element(kind="raw", text=text)]
+    return order_io(classify_rung(parsed, resolver), resolver)
+
+
+@router.get(
+    "/{project_id}/commits/{sha}/routine",
+    response_model=RoutineFullLadder | RoutineFullCode,
+)
+def commit_routine(
+    project_id: int,
+    sha: str,
+    program: str,
+    routine: str,
+    path: str | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+) -> RoutineFullLadder | RoutineFullCode:
+    """The full content of one routine as it exists at a commit — not a diff.
+
+    Read lock-free from the committed snapshot (one small blob + the AOI
+    definitions for operand labels). A ladder routine returns the ladder-diff
+    IR with every rung "unchanged" and only the `after` side filled, so the
+    frontend renders it single-column with the same LadderDiff renderer; an
+    ST routine returns its numbered lines. `path` (an `l5x/<name>` manifest
+    path) pins the L5X file; without it every L5X file at the commit is
+    probed. Encoded (source-protected) routines and types without parsed
+    content (FBD/SFC) are 404 — the frontend shows its placeholder."""
+    require_member(project_id, db, user)
+    repo = repo_for(project_id)  # immutable-commit reads — no lock needed
+    try:
+        head = repo.resolve_ref(sha)
+    except ProjectRepoError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc))
+
+    names = [l5x_name(path)] if path else repo.tree_names(head, "l5x")
+    name = raw = None
+    for candidate in names:
+        try:
+            raw = repo.read_blob(head, _routine_blob_path(candidate, program, routine))
+            name = candidate
+            break
+        except ProjectRepoError:
+            continue
+    if raw is None or name is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Routine not found at this commit")
+
+    try:
+        rt = Routine.model_validate(json.loads(raw))
+    except ValueError:  # covers JSONDecodeError and pydantic's ValidationError
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "routine content not available")
+
+    label = head[:7]
+    if rt.encoded:
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND,
+            "routine content not available (source-protected)",
+        )
+    if rt.type == "ST" and rt.content.lines is not None:
+        return RoutineFullCode(
+            ref=label,
+            lines=[
+                RoutineLine(ln=i, text=line.text)
+                for i, line in enumerate(rt.content.lines, start=1)
+            ],
+        )
+    if rt.type != "RLL" or rt.content.rungs is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "routine content not available")
+
+    parser = _rll_parser()
+    resolver = LabelResolver(aoi_operands=_aoi_labels_at(repo, head, name))
+    rungs = [
+        RungDiff(
+            status="unchanged",
+            new_number=rung.number,
+            new_comment=rung.comment,
+            before=[],
+            after=_full_rung_elements(rung.text, parser, resolver),
+        )
+        for rung in rt.content.rungs
+    ]
+    return RoutineFullLadder(
+        ladder=RoutineLadderDiff(
+            controller=_controller_summary(repo, head, name)[0],
+            program=program,
+            routine=routine,
+            routine_type=rt.type,
+            new_label=label,
+            rungs=rungs,
+        )
     )
 
 

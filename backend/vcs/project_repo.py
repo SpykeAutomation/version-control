@@ -457,6 +457,25 @@ class ProjectRepo:
             raise ProjectRepoError(f"no file {path!r} at {ref}")
         return self._run_bytes("show", f"{ref}:{path}")
 
+    def tree_names(self, ref: str, path: str) -> list[str]:
+        """Immediate entry names under a directory at a ref, sorted.
+
+        A lock-free read of the committed tree (like read_blob). An unknown
+        ref or a path that is not a directory there returns an empty list."""
+        self._ensure_repo()
+        prefix = path.rstrip("/") + "/"
+        result = self._run("ls-tree", "--name-only", ref, prefix, check=False)
+        if result.returncode != 0:
+            return []
+        names: list[str] = []
+        for line in result.stdout.splitlines():
+            entry = line.strip()
+            if entry.startswith(prefix):
+                child = entry[len(prefix):].strip("/")
+                if child:
+                    names.append(child)
+        return sorted(names)
+
     def list_files(self, ref: str, *, with_history: bool = False) -> list[FileEntry]:
         """Logical files present at a ref: one entry per L5X file and files/ blob.
 

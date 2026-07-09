@@ -214,6 +214,7 @@ separate from the per-project activity feed.
 | `GET`  | `/projects/{id}/commits/{sha}/diff/ladder` | `?path=l5x/<name>` | `LadderDocument` (parent → commit) |
 | `GET`  | `/projects/{id}/commits/{sha}/diff/text` | `?path=files/<nested/path>` | `TextDiff` (parent → commit) |
 | `GET`  | `/projects/{id}/commits/{sha}/tree` | `?path=l5x/<name>` | `ProjectTree` (organizer of one L5X at the commit, vs its parent) |
+| `GET`  | `/projects/{id}/commits/{sha}/routine` | `?program=<name>&routine=<name>&path=l5x/<name>` (`path` optional; without it every L5X at the commit is probed) | `RoutineFull` — the routine's full content at the commit, not a diff; `404` for encoded (source-protected) routines and FBD/SFC |
 | `GET`  | `/projects/{id}/compare` | `?base=<ref>&head=<ref>` | `CompareView` (rolled-up summary + impact rows) |
 | `GET`  | `/projects/{id}/tags` | `?limit=50&offset=0` | `[Tag]` + `X-Total-Count` (newest first; tags = releases) |
 | `POST` | `/projects/{id}/tags` | `{name, ref?="main", message?}` (any member) | `201` `Tag` |
@@ -423,6 +424,24 @@ Element  = { "kind": "contact"|"coil"|"box"|"branch"|"raw",
              "legs": [[Element]],        // branch: parallel legs
              "text": string|null }       // raw: verbatim fallback
 Operand  = { "label": string, "value": string, "changed": bool }  // `changed` tints one operand row
+```
+
+### `RoutineFull` — one routine's full content at a commit (the Files tab)
+
+Returned by `/commits/{sha}/routine?program=<name>&routine=<name>`. Not a
+diff: the whole routine as committed, read straight from the snapshot. A
+discriminated union on `kind`:
+
+```jsonc
+RoutineFull       = RoutineFullLadder | RoutineFullCode
+RoutineFullLadder = { "kind": "ladder",
+                      "ladder": RoutineLadderDiff }  // same card shape as LadderDocument:
+                                                     // every rung "unchanged", `before` empty,
+                                                     // the content drawn in `after`;
+                                                     // new_label = short commit sha
+RoutineFullCode   = { "kind": "structured",
+                      "ref": string,                             // short commit label, e.g. "a7f3c9d"
+                      "lines": [{ "ln": int, "text": string }] } // 1-based line numbers
 ```
 
 ## Behaviors to handle in the UI
