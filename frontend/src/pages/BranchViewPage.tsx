@@ -28,6 +28,9 @@ export function BranchViewPage() {
     () => branches.data?.find((b) => b.name === branchName) ?? null,
     [branches.data, branchName],
   );
+  // Ahead/behind counts are measured against the default branch; name it in
+  // the labels so the comparison point is clear.
+  const defaultBranchName = branches.data?.find((b) => b.isDefault)?.name;
   const filesQuery = useProjectFiles(project?.id, branchName);
   const files = filesQuery.data ?? [];
   const commitsQuery = useCommits(project?.id, branchName);
@@ -108,7 +111,7 @@ export function BranchViewPage() {
                       <span className="mr-meta-ico">
                         <ArrowDown size={14} strokeWidth={1.8} />
                       </span>
-                      Behind
+                      Behind {defaultBranchName ?? "the default branch"}
                     </div>
                     <span className="stat-value">{info.behind}</span>
                   </div>
@@ -119,7 +122,7 @@ export function BranchViewPage() {
                       <span className="mr-meta-ico">
                         <ArrowUp size={14} strokeWidth={1.8} />
                       </span>
-                      Ahead
+                      Ahead of {defaultBranchName ?? "the default branch"}
                     </div>
                     <span className="stat-value">{info.ahead}</span>
                   </div>
