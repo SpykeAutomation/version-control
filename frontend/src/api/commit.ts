@@ -77,6 +77,7 @@ interface CommitOut {
   message: string;
   author: string;
   at: string;
+  filesChanged?: number;
 }
 
 function shortSha(sha: string): string {
@@ -200,11 +201,15 @@ function mapCommit(
     authorRole: "",
     authoredAt: meta?.at ?? new Date(0).toISOString(),
     parentSha: parent ? shortSha(parent.sha) : "—",
-    filesChanged: view.files.length || files.length,
+    // Real files touched by the commit (the backend's per-commit tally), not
+    // the count of changed components inside them — a single L5X edit is one
+    // file, however many routines moved.
+    filesChanged: meta?.filesChanged ?? files.length,
     additions,
     deletions,
     message,
-    summary: summarizeChangeSet(changeSet),
+    // Full bullet list — the view truncates and offers a "+N more" expander.
+    summary: summarizeChangeSet(changeSet, Infinity),
     rungsChanged: view.summary.rungsChanged,
     routinesModified: view.summary.routinesChanged,
     commentCount: 0,

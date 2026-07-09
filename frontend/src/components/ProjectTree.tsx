@@ -35,19 +35,10 @@ interface ProjectTreeProps {
   onClear: () => void;
 }
 
-// Default-open the root, its top-level folders, and every node on a path to a
-// change (descendant_changed marks exactly those ancestors), so changed logic
-// is visible on load and the rest stays collapsed.
+// Default-open only the root, so the project's first level is visible but
+// collapsed — the reader expands the paths they care about.
 function defaultExpanded(root: TreeNode): Set<string> {
-  const open = new Set<string>();
-  const walk = (node: TreeNode, depth: number) => {
-    if (depth === 0 || (node.kind === "folder" && depth === 1) || node.descendant_changed) {
-      open.add(node.key);
-    }
-    for (const child of node.children) walk(child, depth + 1);
-  };
-  walk(root, 0);
-  return open;
+  return new Set([root.key]);
 }
 
 const KIND_ICON: Record<TreeNodeKind, typeof Folder> = {

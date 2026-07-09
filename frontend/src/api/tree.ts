@@ -55,7 +55,20 @@ export async function getCommitTree(
   sha: string,
 ): Promise<ProjectTree> {
   const base = `/projects/${projectId}/commits/${sha}`;
-  const path = await firstChangedL5x(base);
+  let path: string;
+  try {
+    path = await firstChangedL5x(base);
+  } catch {
+    // The commit touched no L5X (e.g. images or documents only). Organize the
+    // project's first L5X present at the commit instead, so the Files tab
+    // still shows the full hierarchy — its nodes just read "unchanged".
+    const listing = await apiFetch<{ files: { path: string; kind: string }[] }>(
+      `/projects/${projectId}/files?ref=${encodeURIComponent(sha)}`,
+    );
+    const l5x = listing.files.find((f) => f.kind === "l5x");
+    if (!l5x) throw new Error("No L5X file at this commit");
+    path = l5x.path;
+  }
   return apiFetch<ProjectTree>(`${base}/tree?path=${encodeURIComponent(path)}`);
 }
 

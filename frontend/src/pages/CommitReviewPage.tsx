@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
   ArrowRight,
@@ -9,9 +9,7 @@ import {
   GitCommitHorizontal,
   GitPullRequestArrow,
   Hash,
-  Minus,
   MoreVertical,
-  Plus,
   RotateCcw,
 } from "lucide-react";
 import {
@@ -27,15 +25,11 @@ import {
   type CommitFileStat,
   type RoutineFull,
 } from "../api/commit";
-import type {
-  MRCodeDiff,
-  MRComment,
-  PRFile,
-  PRRoutineChange,
-} from "../api/mergeRequest";
+import type { MRCodeDiff, MRComment, PRFile } from "../api/mergeRequest";
 import {
   errorText,
   useCommit,
+  useCommits,
   useProject,
   useRoutineContent,
 } from "../api/queries";
@@ -103,20 +97,21 @@ function CommitReviewView({
   projectId?: number;
 }) {
   const [showNumbers, setShowNumbers] = useState(true);
-  const [zoom, setZoom] = useState(100);
-  // The tab strip switches the main view: "changes" shows the per-file diffs;
-  // "files" shows the whole-project tree with a routine viewer.
-  const [tab, setTab] = useState<"changes" | "files">("changes");
-  // Locally-added comments. There's no commit-comments backend endpoint yet, so
-  // new comments live in component state and reset when the commit changes.
-  const [added, setAdded] = useState<MRComment[]>([]);
+  // The tab strip switches the main view: "discussion" (default) holds the
+  // comment thread; "changes" is reserved for the upcoming diff view; "files"
+  // shows the whole-project tree with a routine viewer.
+  const [tab, setTab] = useState<"discussion" | "changes" | "files">(
+    "discussion",
+  );
+  // Locally-added comments (threaded). There's no commit-comments backend
+  // endpoint yet, so new comments live in component state and reset when the
+  // commit changes.
+  const [added, setAdded] = useState<ThreadComment[]>([]);
   useEffect(() => setAdded([]), [commit.sha]);
-  const comments = [...commit.comments, ...added];
-
-  // The "Comments" tab scrolls down to the discussion rather than switching view.
-  const discussionRef = useRef<HTMLElement>(null);
-  const scrollToDiscussion = () =>
-    discussionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  const comments: ThreadComment[] = [
+    ...commit.comments.map((c, i) => ({ ...c, id: -(i + 1), parentId: null })),
+    ...added,
+  ];
 
   // Files-tab selection lives here (not inside FilesBrowser) so it survives
   // switching to the Changes tab and back. Resets to the first changed routine
@@ -131,6 +126,14 @@ function CommitReviewView({
     setFilesSel(firstChanged);
     setFilesEntity(null);
   }, [firstChanged]);
+
+  // Reverting only makes sense on a branch's tip commit — anything older
+  // would silently drop the commits after it. (The backend has no revert
+  // endpoint yet; when it lands it must enforce this same rule server-side.)
+  const branchCommits = useCommits(projectId, commit.branch).data ?? null;
+  const isLatest = branchCommits
+    ? branchCommits[0]?.sha.slice(0, 7) === commit.sha
+    : false;
 
   return (
     <div className="mr-page">
@@ -149,36 +152,27 @@ function CommitReviewView({
       <CommitHeader commit={commit} />
       <MetaRow commit={commit} />
 
-      <div className={`repo-grid mr-grid${tab === "files" ? " cm-grid-full" : ""}`}>
+      <div className="repo-grid mr-grid">
         <div className="repo-col">
           <OverviewCard commit={commit} />
           <Tabs
-            commit={commit}
+            commentCount={comments.length}
             activeTab={tab}
-            onChangesClick={() => setTab("changes")}
-            onFilesClick={() => setTab("files")}
-            onCommentsClick={scrollToDiscussion}
+            onSelect={setTab}
           />
 
-          {tab === "changes" ? (
-            <>
-              <ChangesToolbar
-                count={commit.files.length}
-                showNumbers={showNumbers}
-                onToggle={() => setShowNumbers((v) => !v)}
-                zoom={zoom}
-                onZoom={setZoom}
-              />
-              {commit.files.map((file, i) => (
-                <FileSection
-                  key={i}
-                  index={i + 1}
-                  file={file}
-                  showNumbers={showNumbers}
-                  zoom={zoom}
-                />
-              ))}
-            </>
+          {tab === "discussion" ? (
+            <Discussion
+              comments={comments}
+              onAdd={(c) => setAdded((prev) => [...prev, c])}
+            />
+          ) : tab === "changes" ? (
+            <section className="mr-section">
+              <div className="mr-empty">
+                The changes view isn't built yet. Use the Files tab to inspect
+                what this commit touched.
+              </div>
+            </section>
           ) : (
             <FilesBrowser
               tree={commit.tree}
@@ -204,21 +198,17 @@ function CommitReviewView({
               }}
             />
           )}
-
-          <Discussion
-            sectionRef={discussionRef}
-            comments={comments}
-            onAdd={(c) => setAdded((prev) => [...prev, c])}
-          />
         </div>
 
-        {tab !== "files" && (
-          <aside className="repo-rail cm-rail">
-            <AboutCommitsCard />
-            <FilesChangedCard files={commit.fileStats} />
-            <ActionsCard slug={slug} branch={commit.branch} />
-          </aside>
-        )}
+        <aside className="repo-rail cm-rail">
+          <AboutCommitsCard />
+          <FilesChangedCard files={commit.fileStats} />
+          <ActionsCard
+            slug={slug}
+            branch={commit.branch}
+            isLatest={isLatest}
+          />
+        </aside>
       </div>
     </div>
   );
@@ -238,8 +228,12 @@ function CommitHeader({ commit }: { commit: CommitDetail }) {
           <h1 className="mr-title">{commit.title}</h1>
         </div>
         <p className="mr-sub">
-          Commit on <span className="cm-branch-text">{commit.branch}</span> by{" "}
-          {commit.author}
+          Commit on{" "}
+          <span className="branch-tag">
+            <GitBranch size={12} strokeWidth={2} />
+            {commit.branch}
+          </span>{" "}
+          by {commit.author}
         </p>
       </div>
     </header>
@@ -271,7 +265,10 @@ function MetaRow({ commit }: { commit: CommitDetail }) {
   return (
     <div className="mr-meta cm-meta">
       <MetaCard icon={<GitBranch size={14} strokeWidth={1.8} />} label="Branch">
-        <span className="mr-meta-strong">{commit.branch}</span>
+        <span className="branch-tag">
+          <GitBranch size={13} strokeWidth={2} />
+          {commit.branch}
+        </span>
       </MetaCard>
       <MetaCard
         icon={<span className="mr-meta-av">{initials(commit.author)}</span>}
@@ -317,7 +314,17 @@ function MetaRow({ commit }: { commit: CommitDetail }) {
 }
 
 // ---- Overview: message + summary + stats ----
+const SUMMARY_PREVIEW = 6;
+
 function OverviewCard({ commit }: { commit: CommitDetail }) {
+  // Long summaries start truncated; "+N more changes" expands the full list
+  // in a scrollable box.
+  const [expanded, setExpanded] = useState(false);
+  const hidden = commit.summary.length - SUMMARY_PREVIEW;
+  const shown = expanded
+    ? commit.summary
+    : commit.summary.slice(0, SUMMARY_PREVIEW);
+
   return (
     <section className="cm-overview">
       <div className="cm-ov-block">
@@ -327,11 +334,22 @@ function OverviewCard({ commit }: { commit: CommitDetail }) {
       <div className="cm-ov-block cm-ov-summary">
         <div className="cm-ov-label">Commit summary</div>
         {commit.summary.length > 0 ? (
-          <ul className="cm-ov-list">
-            {commit.summary.map((b) => (
-              <li key={b}>{b}</li>
-            ))}
-          </ul>
+          <>
+            <ul className={`cm-ov-list${expanded ? " expanded" : ""}`}>
+              {shown.map((b) => (
+                <li key={b}>{b}</li>
+              ))}
+            </ul>
+            {hidden > 0 && !expanded && (
+              <button
+                type="button"
+                className="link-btn cm-ov-more"
+                onClick={() => setExpanded(true)}
+              >
+                +{hidden} more changes
+              </button>
+            )}
+          </>
         ) : (
           <p className="cm-ov-message muted">No summary provided.</p>
         )}
@@ -341,30 +359,22 @@ function OverviewCard({ commit }: { commit: CommitDetail }) {
 }
 
 // ---- Tabs ----
+type CommitTab = "discussion" | "changes" | "files";
+
 function Tabs({
-  commit,
+  commentCount,
   activeTab,
-  onChangesClick,
-  onFilesClick,
-  onCommentsClick,
+  onSelect,
 }: {
-  commit: CommitDetail;
-  activeTab: "changes" | "files";
-  onChangesClick: () => void;
-  onFilesClick: () => void;
-  onCommentsClick: () => void;
+  commentCount: number;
+  activeTab: CommitTab;
+  onSelect: (t: CommitTab) => void;
 }) {
-  const tabs: { key: string; label: string; count?: number }[] = [
+  const tabs: { key: CommitTab; label: string; count?: number }[] = [
+    { key: "discussion", label: "Discussion", count: commentCount },
     { key: "changes", label: "Changes" },
     { key: "files", label: "Files" },
-    { key: "comments", label: "Comments", count: commit.comments.length },
   ];
-  // "Changes" / "Files" switch the view; "Comments" scrolls to the discussion.
-  const handlers: Record<string, (() => void) | undefined> = {
-    changes: onChangesClick,
-    files: onFilesClick,
-    comments: onCommentsClick,
-  };
   return (
     <nav className="pr-tabs cm-tabs">
       {tabs.map((t) => (
@@ -372,7 +382,7 @@ function Tabs({
           key={t.key}
           className={`pr-tab${t.key === activeTab ? " active" : ""}`}
           type="button"
-          onClick={handlers[t.key]}
+          onClick={() => onSelect(t.key)}
         >
           {t.label}
           {t.count != null && <span className="pr-tab-count">{t.count}</span>}
@@ -630,132 +640,6 @@ function RoutineCodeFullView({
   );
 }
 
-// ---- Changes, grouped by file ----
-// Toolbar above the changed-file list: file count on the left, diff controls
-// (rung numbers, zoom) on the right — they apply to every diff below.
-function ChangesToolbar({
-  count,
-  showNumbers,
-  onToggle,
-  zoom,
-  onZoom,
-}: {
-  count: number;
-  showNumbers: boolean;
-  onToggle: () => void;
-  zoom: number;
-  onZoom: (z: number) => void;
-}) {
-  return (
-    <div className="pr-changes-bar">
-      <span className="pr-changes-title">
-        Changed files
-        <span className="mr-section-count">{count}</span>
-      </span>
-      <div className="mr-section-tools">
-        <label className="mr-toggle">
-          <input type="checkbox" checked={showNumbers} onChange={onToggle} />
-          Show rung numbers
-        </label>
-        <ZoomControl zoom={zoom} onZoom={onZoom} />
-      </div>
-    </div>
-  );
-}
-
-// One changed file: a header naming the file, then each routine that changed
-// inside it (ladder and/or structured text).
-function FileSection({
-  index,
-  file,
-  showNumbers,
-  zoom,
-}: {
-  index: number;
-  file: PRFile;
-  showNumbers: boolean;
-  zoom: number;
-}) {
-  return (
-    <section className="mr-section pr-file">
-      <div className="mr-section-head">
-        <div className="mr-section-title">
-          <span className="mr-section-num">{index}.</span>
-          <span className="pr-file-ico">
-            <FileCode2 size={15} strokeWidth={1.8} />
-          </span>
-          <span className="pr-file-name">{file.name}</span>
-          <span className="mr-section-count">
-            {file.changes.length}{" "}
-            {file.changes.length === 1 ? "routine" : "routines"}
-          </span>
-        </div>
-      </div>
-      <div className="pr-file-body" style={{ zoom: zoom / 100 }}>
-        {file.changes.map((ch, i) => (
-          <RoutineChangeBlock key={i} change={ch} showNumbers={showNumbers} />
-        ))}
-      </div>
-    </section>
-  );
-}
-
-// One routine's change within a file: a quiet sub-header (routine name), then
-// the diff drawn by the matching renderer.
-function RoutineChangeBlock({
-  change,
-  showNumbers,
-}: {
-  change: PRRoutineChange;
-  showNumbers: boolean;
-}) {
-  return (
-    <div className="pr-routine">
-      <div className="pr-routine-head">
-        <span className="pr-routine-name">{change.routine}</span>
-      </div>
-      {change.kind === "ladder" && change.ladder ? (
-        <div className="mr-ladderwrap">
-          <RoutineLadderDiffView routine={change.ladder} showNumbers={showNumbers} />
-        </div>
-      ) : change.code ? (
-        <CodeDiffBody diff={change.code} />
-      ) : null}
-    </div>
-  );
-}
-
-function ZoomControl({
-  zoom,
-  onZoom,
-}: {
-  zoom: number;
-  onZoom: (z: number) => void;
-}) {
-  return (
-    <div className="zoom cm-zoom">
-      <span className="zoom-word">Zoom:</span>
-      <button
-        className="zoom-btn"
-        type="button"
-        aria-label="Zoom out"
-        onClick={() => onZoom(Math.max(50, zoom - 10))}
-      >
-        <Minus size={14} strokeWidth={2} />
-      </button>
-      <span className="zoom-val">{zoom}%</span>
-      <button
-        className="zoom-btn"
-        type="button"
-        aria-label="Zoom in"
-        onClick={() => onZoom(Math.min(200, zoom + 10))}
-      >
-        <Plus size={14} strokeWidth={2} />
-      </button>
-    </div>
-  );
-}
-
 // ---- Structured-text diff ----
 const ST_KEYWORDS = new Set([
   "IF", "THEN", "ELSE", "ELSIF", "END_IF", "AND", "OR", "NOT", "TRUE", "FALSE",
@@ -845,17 +729,35 @@ function CodeDiffBody({ diff }: { diff: MRCodeDiff }) {
 }
 
 // ---- Discussion ----
+// A comment in the local thread. Replies carry the id of the top-level
+// comment they belong to; replies-to-replies join the same thread (flat, one
+// indent level — deeper nesting can come later).
+type ThreadComment = MRComment & { id: number; parentId: number | null };
+
 function Discussion({
   comments,
   onAdd,
-  sectionRef,
 }: {
-  comments: MRComment[];
-  onAdd: (comment: MRComment) => void;
-  sectionRef?: React.Ref<HTMLElement>;
+  comments: ThreadComment[];
+  onAdd: (comment: ThreadComment) => void;
 }) {
+  const { user } = useAuth();
+  const name = user?.name ?? "You";
+
+  const makeComment = (body: string, parentId: number | null): ThreadComment => ({
+    id: Date.now(),
+    parentId,
+    author: name,
+    role: "You",
+    isAuthor: true,
+    at: new Date().toISOString(),
+    body,
+  });
+
+  const topLevel = comments.filter((c) => c.parentId === null);
+
   return (
-    <section className="mr-section" ref={sectionRef} style={{ scrollMarginTop: 12 }}>
+    <section className="mr-section">
       <div className="mr-section-head">
         <div className="mr-section-title">
           Discussion
@@ -866,39 +768,113 @@ function Discussion({
         {comments.length === 0 && (
           <div className="rail-empty">No comments yet.</div>
         )}
-        {comments.map((c, i) => (
-          <article className="disc-item" key={i}>
-            <span className="disc-av">{initials(c.author)}</span>
-            <div className="disc-main">
-              <div className="disc-content">
-                <div className="disc-top">
-                  <span className="disc-who">{c.author}</span>
-                  <span className="disc-role">{c.role}</span>
-                  {c.on && <span className="disc-on">Comment on {c.on}</span>}
-                </div>
-                <p className="disc-body">{c.body}</p>
-              </div>
-              <div className="disc-aside">
-                <div className="disc-aside-top">
-                  <span className="disc-time">{timeAgo(c.at)}</span>
-                  <button className="disc-kebab" type="button" aria-label="More" disabled title="Coming soon">
-                    <MoreVertical size={15} strokeWidth={2} />
-                  </button>
-                </div>
-              </div>
-            </div>
-          </article>
+        {topLevel.map((c) => (
+          <CommentThread
+            key={c.id}
+            comment={c}
+            replies={comments.filter((r) => r.parentId === c.id)}
+            onReply={(body) => onAdd(makeComment(body, c.id))}
+          />
         ))}
-        <DiscussionComposer onAdd={onAdd} />
+        <DiscussionComposer
+          placeholder="Add a comment…"
+          submitLabel="Comment"
+          onSubmit={(body) => onAdd(makeComment(body, null))}
+        />
       </div>
     </section>
   );
 }
 
-// Comment composer at the foot of the discussion. There's no commit-comments
-// backend endpoint yet, so a posted comment is added to the local thread (it
-// shows immediately but isn't persisted across reloads).
-function DiscussionComposer({ onAdd }: { onAdd: (comment: MRComment) => void }) {
+// One top-level comment with its replies indented beneath it, reddit-style.
+function CommentThread({
+  comment,
+  replies,
+  onReply,
+}: {
+  comment: ThreadComment;
+  replies: ThreadComment[];
+  onReply: (body: string) => void;
+}) {
+  const [replying, setReplying] = useState(false);
+  return (
+    <div className="disc-thread">
+      <CommentItem comment={comment} onReplyClick={() => setReplying((v) => !v)} />
+      {(replies.length > 0 || replying) && (
+        <div className="disc-replies">
+          {replies.map((r) => (
+            <CommentItem
+              key={r.id}
+              comment={r}
+              onReplyClick={() => setReplying(true)}
+            />
+          ))}
+          {replying && (
+            <DiscussionComposer
+              placeholder={`Reply to ${comment.author}…`}
+              submitLabel="Reply"
+              compact
+              onSubmit={(body) => {
+                onReply(body);
+                setReplying(false);
+              }}
+            />
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CommentItem({
+  comment: c,
+  onReplyClick,
+}: {
+  comment: ThreadComment;
+  onReplyClick: () => void;
+}) {
+  return (
+    <article className="disc-item">
+      <span className="disc-av">{initials(c.author)}</span>
+      <div className="disc-main">
+        <div className="disc-content">
+          <div className="disc-top">
+            <span className="disc-who">{c.author}</span>
+            <span className="disc-role">{c.role}</span>
+            {c.on && <span className="disc-on">Comment on {c.on}</span>}
+          </div>
+          <p className="disc-body">{c.body}</p>
+          <button type="button" className="link-btn disc-reply" onClick={onReplyClick}>
+            Reply
+          </button>
+        </div>
+        <div className="disc-aside">
+          <div className="disc-aside-top">
+            <span className="disc-time">{timeAgo(c.at)}</span>
+            <button className="disc-kebab" type="button" aria-label="More" disabled title="Coming soon">
+              <MoreVertical size={15} strokeWidth={2} />
+            </button>
+          </div>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+// Comment composer. There's no commit-comments backend endpoint yet, so a
+// posted comment is added to the local thread (it shows immediately but isn't
+// persisted across reloads).
+function DiscussionComposer({
+  placeholder,
+  submitLabel,
+  compact,
+  onSubmit,
+}: {
+  placeholder: string;
+  submitLabel: string;
+  compact?: boolean;
+  onSubmit: (body: string) => void;
+}) {
   const { user } = useAuth();
   const [body, setBody] = useState("");
   const name = user?.name ?? "You";
@@ -906,25 +882,20 @@ function DiscussionComposer({ onAdd }: { onAdd: (comment: MRComment) => void }) 
 
   const submit = () => {
     if (!canSubmit) return;
-    onAdd({
-      author: name,
-      role: "You",
-      isAuthor: true,
-      at: new Date().toISOString(),
-      body: body.trim(),
-    });
+    onSubmit(body.trim());
     setBody("");
   };
 
   return (
-    <div className="disc-composer">
+    <div className={`disc-composer${compact ? " compact" : ""}`}>
       <span className="disc-av">{initials(name)}</span>
       <div className="disc-composer-main">
         <textarea
-          className="textarea tall"
-          placeholder="Add a comment…"
+          className={`textarea${compact ? "" : " tall"}`}
+          placeholder={placeholder}
           value={body}
           onChange={(e) => setBody(e.target.value)}
+          autoFocus={compact}
         />
         <div className="disc-composer-actions">
           <button
@@ -933,7 +904,7 @@ function DiscussionComposer({ onAdd }: { onAdd: (comment: MRComment) => void }) 
             disabled={!canSubmit}
             onClick={submit}
           >
-            Comment
+            {submitLabel}
           </button>
         </div>
       </div>
@@ -1016,10 +987,20 @@ function FilesChangedCard({ files }: { files: CommitFileStat[] }) {
   );
 }
 
-function ActionsCard({ slug, branch }: { slug?: string; branch?: string }) {
-  // Opening a change request from this commit's branch is a real flow (the
+function ActionsCard({
+  slug,
+  branch,
+  isLatest,
+}: {
+  slug?: string;
+  branch?: string;
+  isLatest: boolean;
+}) {
+  // Opening a merge request from this commit's branch is a real flow (the
   // create-merge-request page), so this links straight to it with the branch
-  // pre-selected as the source. Revert has no backend yet, so it stays disabled.
+  // pre-selected as the source. Revert only applies to the branch's latest
+  // commit — reverting anything older would drop the commits after it — and
+  // has no backend yet, so it stays disabled either way.
   const canCreate = Boolean(slug && branch);
   return (
     <section className="rail-section cm-actions">
@@ -1032,18 +1013,31 @@ function ActionsCard({ slug, branch }: { slug?: string; branch?: string }) {
           className="btn btn-outline btn-block btn-sm"
         >
           <GitPullRequestArrow size={15} strokeWidth={1.9} />
-          Create change request
+          Create merge request
         </Link>
       ) : (
         <button className="btn btn-outline btn-block btn-sm" disabled>
           <GitPullRequestArrow size={15} strokeWidth={1.9} />
-          Create change request
+          Create merge request
         </button>
       )}
-      <button className="btn btn-block btn-sm cm-revert" disabled title="Coming soon">
+      <button
+        className="btn btn-block btn-sm cm-revert"
+        disabled
+        title={
+          isLatest
+            ? "Coming soon"
+            : `Only the latest commit on ${branch ?? "a branch"} can be reverted`
+        }
+      >
         <RotateCcw size={15} strokeWidth={1.9} />
         Revert commit
       </button>
+      {!isLatest && (
+        <p className="cm-revert-note">
+          Revert is only available on the branch's latest commit.
+        </p>
+      )}
     </section>
   );
 }

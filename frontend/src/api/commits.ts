@@ -14,6 +14,7 @@ interface CommitOut {
   description: string;
   author: string;
   date: string;
+  files_changed?: number;
 }
 
 // List a project's commits, newest first. The backend doesn't tag each commit
@@ -32,6 +33,7 @@ export async function listCommits(
     author: c.author,
     branch,
     at: c.date,
+    filesChanged: c.files_changed,
   }));
 }
 
