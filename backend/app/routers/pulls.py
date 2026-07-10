@@ -8,8 +8,6 @@ security.
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
-
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -18,9 +16,10 @@ from diff import ChangeSet, LadderDocument
 from vcs import MergeConflict, ProjectRepoError
 
 from .. import activity
+from .. import comments as discussion
 from ..auth import current_user
 from ..db import get_db
-from ..deps import MANAGER_ROLES, membership_role, require_member
+from ..deps import require_member
 from ..diffing import (
     build_manifest,
     build_text_diff,
@@ -41,7 +40,6 @@ from ..schemas import (
     CommentIn,
     CommentOut,
     CommentUpdate,
-    CommentAnchor,
     DiffManifest,
     MergeabilityOut,
     MergeResult,
@@ -81,10 +79,6 @@ def _required_approvals(db: Session, project_id: int, branch: str) -> int:
         )
     )
     return row.required_approvals if row else 0
-
-
-def _is_manager(db: Session, project_id: int, user: User) -> bool:
-    return membership_role(project_id, db, user) in MANAGER_ROLES
 
 
 def _pulls_out(db: Session, prs: list[PullRequest]) -> list[PullOut]:
@@ -278,7 +272,7 @@ def delete_pull(
         raise HTTPException(
             status.HTTP_409_CONFLICT, f"Cannot delete a {pr.status} pull request"
         )
-    if pr.author_id != user.id and not _is_manager(db, project_id, user):
+    if pr.author_id != user.id and not discussion.is_manager(db, project_id, user):
         raise HTTPException(
             status.HTTP_403_FORBIDDEN, "Only the author or a manager can delete this PR"
         )
@@ -303,7 +297,7 @@ def add_reviewer(
     """Invite a project member to review/approve a PR (the author or a manager)."""
     require_member(project_id, db, user)
     pr = _get_pull(db, project_id, number)
-    if pr.author_id != user.id and not _is_manager(db, project_id, user):
+    if pr.author_id != user.id and not discussion.is_manager(db, project_id, user):
         raise HTTPException(
             status.HTTP_403_FORBIDDEN, "Only the author or a manager can add reviewers"
         )
@@ -339,7 +333,7 @@ def remove_reviewer(
     """Uninvite a reviewer (the author or a manager)."""
     require_member(project_id, db, user)
     pr = _get_pull(db, project_id, number)
-    if pr.author_id != user.id and not _is_manager(db, project_id, user):
+    if pr.author_id != user.id and not discussion.is_manager(db, project_id, user):
         raise HTTPException(
             status.HTTP_403_FORBIDDEN, "Only the author or a manager can remove reviewers"
         )
@@ -597,14 +591,9 @@ def pull_text_diff(
     )
 
 
-# --- comments (PR-level and change-anchored, with one-level threading) -------
-def _anchor_out(c: Comment) -> CommentAnchor | None:
-    if not any((c.anchor_path, c.anchor_routine, c.anchor_rung, c.anchor_sha)):
-        return None
-    return CommentAnchor(
-        path=c.anchor_path, routine=c.anchor_routine,
-        rung=c.anchor_rung, sha=c.anchor_sha,
-    )
+# --- comments (PR-level and change-anchored, threaded at any depth) ----------
+# The mechanics live in app/comments.py, shared with the commit-page
+# discussions; these routes only pin the PR scope and record activity.
 
 
 @router.get("/{number}/comments", response_model=list[CommentOut])
@@ -622,32 +611,9 @@ def list_comments(
     is paginated via `limit`/`offset` (`X-Total-Count` header)."""
     require_member(project_id, db, user)
     pr = _get_pull(db, project_id, number)
-    limit = max(1, min(limit, 500))
-    total = db.scalar(
-        select(func.count()).select_from(Comment).where(Comment.pull_request_id == pr.id)
+    return discussion.list_comments(
+        db, response, [Comment.pull_request_id == pr.id], limit=limit, offset=offset
     )
-    comments = db.scalars(
-        select(Comment)
-        .where(Comment.pull_request_id == pr.id)
-        .order_by(Comment.created_at.asc(), Comment.id.asc())
-        .limit(limit)
-        .offset(max(0, offset))
-    ).all()
-    umap = users_out(db, [c.author_id for c in comments])
-    response.headers["X-Total-Count"] = str(total or 0)
-    return [
-        CommentOut(
-            id=c.id,
-            author=umap.get(c.author_id) or user_out(db, db.get(User, c.author_id)),
-            body=c.body,
-            resolved=c.resolved,
-            parent_id=c.parent_id,
-            anchor=_anchor_out(c),
-            created_at=c.created_at,
-            edited_at=c.edited_at,
-        )
-        for c in comments
-    ]
 
 
 @router.post(
@@ -660,52 +626,22 @@ def add_comment(
     db: Session = Depends(get_db),
     user: User = Depends(current_user),
 ) -> CommentOut:
-    """Add a PR-level comment, a reply (`parent_id`), or a change-level comment
-    anchored to a spot on the diff (`anchor`)."""
+    """Add a PR-level comment, a reply (`parent_id`, any depth — the true
+    parent is stored so the frontend can quote-link a reply-to-a-reply), or a
+    change-level comment anchored to a spot on the diff (`anchor`)."""
     require_member(project_id, db, user)
     pr = _get_pull(db, project_id, number)
-    if payload.parent_id is not None:
-        parent = db.scalar(
-            select(Comment).where(
-                Comment.id == payload.parent_id, Comment.pull_request_id == pr.id
-            )
-        )
-        if parent is None:
-            raise HTTPException(
-                status.HTTP_400_BAD_REQUEST, "Parent comment not found on this PR"
-            )
-        if parent.parent_id is not None:
-            raise HTTPException(
-                status.HTTP_400_BAD_REQUEST, "Replies are only one level deep"
-            )
-    anchor = payload.anchor or CommentAnchor()
-    comment = Comment(
+    comment = discussion.create_comment(
+        db, user, payload, [Comment.pull_request_id == pr.id], "PR",
         pull_request_id=pr.id,
-        author_id=user.id,
-        parent_id=payload.parent_id,
-        body=payload.body,
-        anchor_path=anchor.path,
-        anchor_routine=anchor.routine,
-        anchor_rung=anchor.rung,
-        anchor_sha=anchor.sha,
     )
-    db.add(comment)
     activity.record(
         db, project_id=project_id, actor_id=user.id, verb="comment.added",
         target_type="pull", target_id=number, summary=f"commented on #{number}",
     )
     db.commit()
     db.refresh(comment)
-    return CommentOut(
-        id=comment.id,
-        author=user_out(db, user),
-        body=comment.body,
-        resolved=comment.resolved,
-        parent_id=comment.parent_id,
-        anchor=_anchor_out(comment),
-        created_at=comment.created_at,
-        edited_at=comment.edited_at,
-    )
+    return discussion.comment_out(db, comment, user_out(db, user))
 
 
 @router.patch("/{number}/comments/{comment_id}", response_model=CommentOut)
@@ -720,34 +656,13 @@ def update_comment(
     """Edit a comment's body (author only) and/or resolve it (any member)."""
     require_member(project_id, db, user)
     pr = _get_pull(db, project_id, number)
-    comment = db.scalar(
-        select(Comment).where(
-            Comment.id == comment_id, Comment.pull_request_id == pr.id
-        )
+    comment = discussion.get_comment(
+        db, comment_id, [Comment.pull_request_id == pr.id]
     )
-    if comment is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Comment not found")
-    if payload.body is not None:
-        if comment.author_id != user.id:
-            raise HTTPException(
-                status.HTTP_403_FORBIDDEN, "Only the author can edit a comment"
-            )
-        comment.body = payload.body
-        comment.edited_at = datetime.now(timezone.utc)
-    if payload.resolved is not None:
-        comment.resolved = payload.resolved
+    discussion.apply_update(comment, payload, user)
     db.commit()
     db.refresh(comment)
-    return CommentOut(
-        id=comment.id,
-        author=user_out(db, db.get(User, comment.author_id)),
-        body=comment.body,
-        resolved=comment.resolved,
-        parent_id=comment.parent_id,
-        anchor=_anchor_out(comment),
-        created_at=comment.created_at,
-        edited_at=comment.edited_at,
-    )
+    return discussion.comment_out(db, comment)
 
 
 @router.delete(
@@ -760,20 +675,14 @@ def delete_comment(
     db: Session = Depends(get_db),
     user: User = Depends(current_user),
 ) -> Response:
-    """Delete a comment (its author or a manager). Replies cascade away."""
+    """Delete a comment (its author or a manager). The whole reply subtree
+    cascades away with it."""
     require_member(project_id, db, user)
     pr = _get_pull(db, project_id, number)
-    comment = db.scalar(
-        select(Comment).where(
-            Comment.id == comment_id, Comment.pull_request_id == pr.id
-        )
+    comment = discussion.get_comment(
+        db, comment_id, [Comment.pull_request_id == pr.id]
     )
-    if comment is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Comment not found")
-    if comment.author_id != user.id and not _is_manager(db, project_id, user):
-        raise HTTPException(
-            status.HTTP_403_FORBIDDEN, "Only the author or a manager can delete this comment"
-        )
+    discussion.ensure_can_delete(db, project_id, user, comment)
     db.delete(comment)
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)

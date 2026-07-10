@@ -208,6 +208,7 @@ separate from the per-project activity feed.
 | `DELETE` | `/projects/{id}/branches/{branch}` | — (any member) | `204`; `400` if it's the default or a protected branch |
 | `PUT` | `/projects/{id}/branches/{branch}/protection` | `{protected, required_approvals?=0}` (owner/admin) | `Branch`; `400` unprotecting the default branch |
 | `POST` | `/projects/{id}/commits` | multipart: `files` (one or more, ≤100 MB each), `branch`, `title`, `description?` | `201` `CommitResult` (or `413` if a file is too big) |
+| `POST` | `/projects/{id}/revert` | `{branch, target_sha, expected_tip_sha, message?}` | `201` `CommitResult` — restores `target_sha`'s repo state as ONE new commit on the branch (history preserved). **Preview = the existing diff endpoints** (`/diff`, `/compare`, `/tree`, per-file views) with `base=<current tip>&head=<target>` — there is no separate preview route. `409` (current tip in `detail`) when the branch moved past `expected_tip_sha`; `400` protected branch / target already the tip / non-ancestor target / identical trees; `404` unknown branch or target |
 | `GET`  | `/projects/{id}/commits` | `?branch=main&limit=50&offset=0` | `[Commit]` + `X-Total-Count` (each tagged with `branch` + `files_changed`) |
 | `GET`  | `/projects/{id}/commits/{sha}` | — | `CommitDetail` (the commit + files it changed vs its parent) |
 | `GET`  | `/projects/{id}/commits/{sha}/diff/changeset` | `?path=l5x/<name>` | `ChangeSet` (parent → commit) |
@@ -215,6 +216,10 @@ separate from the per-project activity feed.
 | `GET`  | `/projects/{id}/commits/{sha}/diff/text` | `?path=files/<nested/path>` | `TextDiff` (parent → commit) |
 | `GET`  | `/projects/{id}/commits/{sha}/tree` | `?path=l5x/<name>` | `ProjectTree` (organizer of one L5X at the commit, vs its parent) |
 | `GET`  | `/projects/{id}/commits/{sha}/routine` | `?program=<name>&routine=<name>&path=l5x/<name>` (`path` optional; without it every L5X at the commit is probed) | `RoutineFull` — the routine's full content at the commit, not a diff; `404` for encoded (source-protected) routines and FBD/SFC |
+| `GET`  | `/projects/{id}/commits/{sha}/comments` | `?limit=100&offset=0` | `[Comment]` + `X-Total-Count` (the commit page's discussion; flat, nest by `parent_id`); `404` if `sha` doesn't resolve |
+| `POST` | `/projects/{id}/commits/{sha}/comments` | `{body, parent_id?, anchor?}` — parent must belong to the same commit's discussion (any depth) | `201` `Comment` (stored under the fully resolved sha, so short-ref posts and full-sha reads converge) |
+| `PATCH` | `/projects/{id}/commits/{sha}/comments/{cid}` | `{body?, resolved?}` (body = author only) | `Comment` |
+| `DELETE` | `/projects/{id}/commits/{sha}/comments/{cid}` | — (author/manager) | `204` — the reply subtree cascades away |
 | `GET`  | `/projects/{id}/compare` | `?base=<ref>&head=<ref>` | `CompareView` (rolled-up summary + impact rows) |
 | `GET`  | `/projects/{id}/tags` | `?limit=50&offset=0` | `[Tag]` + `X-Total-Count` (newest first; tags = releases) |
 | `POST` | `/projects/{id}/tags` | `{name, ref?="main", message?}` (any member) | `201` `Tag` |
@@ -245,7 +250,7 @@ separate from the per-project activity feed.
 | `GET`  | `/projects/{id}/pulls/{n}/diff/text` | `?path=files/<nested/path>` | `TextDiff` |
 | `POST` | `/projects/{id}/pulls/{n}/merge` | — | `MergeResult`; `409` if not open or below required approvals |
 | `GET`  | `/projects/{id}/pulls/{n}/comments` | `?limit=100&offset=0` | `[Comment]` + `X-Total-Count` (flat; nest by `parent_id`) |
-| `POST` | `/projects/{id}/pulls/{n}/comments` | `{body, parent_id?, anchor?}` | `201` `Comment` |
+| `POST` | `/projects/{id}/pulls/{n}/comments` | `{body, parent_id?, anchor?}` — replies thread at any depth | `201` `Comment` |
 | `PATCH` | `/projects/{id}/pulls/{n}/comments/{cid}` | `{body?, resolved?}` (body = author only) | `Comment` |
 | `DELETE` | `/projects/{id}/pulls/{n}/comments/{cid}` | — (author/manager) | `204` |
 | `GET`  | `/storage` | — | `StorageUsage` — the caller's org usage vs. its quota |
@@ -591,10 +596,14 @@ rung, see a rolled-up "what changed", edit your profile, or audit who did what.
   (`git merge-tree --write-tree`, which merges in memory and touches nothing) and
   combines it with the approval count into `can_merge`. The `POST …/merge`
   endpoint **re-checks the gate itself** and returns `409` if approvals are short.
-- **Comments.** One `comments` table gained `parent_id` (one-level threading) and
-  nullable anchor fields (`path`/`routine`/`rung`/`sha`) for change-level
-  comments. The list is a single indexed query and **batch-loads authors** (the
-  old code did one query per comment).
+- **Comments.** One `comments` table serves BOTH discussion scopes — a PR
+  (`pull_request_id`) or a commit page (`project_id` + full `commit_sha`), one
+  scope per row (check-constrained). `parent_id` threads replies **at any
+  depth** (the true parent chain is stored; render one visual level and
+  quote-link deeper replies), and nullable anchor fields
+  (`path`/`routine`/`rung`/`sha`) pin change-level comments. Deleting a
+  comment cascades away its whole reply subtree. The list is a single indexed
+  query and **batch-loads authors**.
 - **Compare** aggregates the per-file `ChangeSet` you already compute into
   summary counts + impact rows; it caches by the commit pair like any diff.
 - **Activity** is an append-only `activities` table written in the **same
@@ -619,8 +628,10 @@ mis-placing it.
 **What the frontend can do itself — and should, to avoid a round trip:**
 
 - **Nest comment threads** client-side. The API returns a **flat** `[Comment]`
-  ordered by time; group by `parent_id` to build the two-level tree. No
-  "get thread" endpoint exists because you already have everything in one call.
+  ordered by time; group by `parent_id` to build the tree (replies can nest at
+  any depth — render one visual level with a quote-link to the true parent if
+  you prefer). No "get thread" endpoint exists because you already have
+  everything in one call.
 - **`approved` / `can_merge` math** is given to you (`approvals`,
   `required_approvals`), but if you mutate optimistically after an approve you can
   recompute `approved = approvals >= required_approvals` locally without re-fetching.
@@ -754,3 +765,16 @@ carry their routines as children (no ladder-card identity), new Motion Groups
 and Power-Up / Controller Fault Handler folders, and a task's program
 references now carry the program's routine subtree under namespaced keys. The
 flat Programs folder and all existing keys are unchanged.
+
+### 2026-07-10 · Revert to a commit & commit-page discussions
+
+| Method | Path | What it adds |
+|--------|------|--------------|
+| `POST` | `/projects/{id}/revert` | Restore an earlier commit's repo state as ONE new commit on a branch (history preserved; optimistic-concurrency via `expected_tip_sha` → `409` when the branch moved). Preview with the existing diff endpoints (`base=<tip>&head=<target>`) — no separate preview route. |
+| `GET/POST` | `/projects/{id}/commits/{sha}/comments` | The commit page's discussion — same `Comment` shape, anchors, threading, and pagination as PR comments. |
+| `PATCH/DELETE` | `/projects/{id}/commits/{sha}/comments/{cid}` | Author-only body edits; author-or-manager delete with reply-subtree cascade. |
+
+*Changed behavior:* comment replies are no longer capped at one level — the
+true `parent_id` chain is stored at any depth (render one visual level and
+quote-link a reply-to-a-reply). Deleting a comment still cascades to its whole
+reply subtree.

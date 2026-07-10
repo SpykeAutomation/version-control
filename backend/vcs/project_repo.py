@@ -784,6 +784,54 @@ class ProjectRepo:
         """Number of commits reachable from `head` but not `base` (base..head)."""
         return self._rev_list_count(f"{base}..{head}")
 
+    def is_ancestor(self, ancestor: str, descendant: str) -> bool:
+        """Whether `ancestor` is reachable from `descendant` (first- or any-parent).
+
+        `git merge-base --is-ancestor` answers via exit code; any other failure
+        (unknown ref) also reads as "no"."""
+        self._ensure_repo()
+        result = self._run(
+            "merge-base", "--is-ancestor", ancestor, descendant, check=False
+        )
+        return result.returncode == 0
+
+    def restore_commit(
+        self,
+        branch: str,
+        target_sha: str,
+        expected_tip: str,
+        *,
+        title: str,
+        description: str = "",
+        author_name: str | None = None,
+        author_email: str | None = None,
+    ) -> str:
+        """Commit `target_sha`'s exact tree onto `branch` as one new commit (the
+        "revert to commit" primitive). History is never rewritten: the new
+        commit's sole parent is `expected_tip` and its tree is byte-identical to
+        the target's, so no new blobs or trees are written — only one commit
+        object. The branch ref moves with a compare-and-swap: if it no longer
+        points at `expected_tip`, nothing changes and ProjectRepoError is raised.
+        Returns the new commit's SHA.
+        """
+        self._ensure_repo()
+        tree = self._output("rev-parse", f"{target_sha}^{{tree}}")
+        ident: list[str] = []
+        if author_name and author_email:
+            ident = ["-c", f"user.name={author_name}", "-c", f"user.email={author_email}"]
+        args = [*ident, "commit-tree", tree, "-p", expected_tip, "-m", title]
+        if description.strip():
+            args += ["-m", description.strip()]
+        new_sha = self._output(*args)
+        self._run("update-ref", f"refs/heads/{branch}", new_sha, expected_tip)
+        # update-ref moves the ref but not the index/working tree. If `branch`
+        # is the checked-out branch, a later commit_files would `git add -A`
+        # over the stale tree and silently resurrect pre-revert content — so
+        # realign the working tree with the ref it now points at.
+        if self._output("branch", "--show-current") == branch:
+            self._run("reset", "--hard", new_sha)
+        return new_sha
+
     def commit_total(self, ref: str) -> int:
         """Total number of commits reachable from `ref` (0 if it has none yet)."""
         return self._rev_list_count(ref)

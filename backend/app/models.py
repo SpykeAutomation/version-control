@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 from sqlalchemy import (
     BigInteger,
     Boolean,
+    CheckConstraint,
     DateTime,
     ForeignKey,
     Index,
@@ -177,19 +178,39 @@ class PullApproval(Base):
 
 
 class Comment(Base):
-    """A PR discussion comment. A top-level comment has `parent_id` null; a reply
-    points at its parent (one level of threading). A *change-level* comment also
-    carries an anchor — the file/routine/rung in a specific commit it's pinned
-    to on the rendered diff; a plain PR-level comment leaves the anchor null."""
+    """A discussion comment on a pull request OR on a commit — one table, one
+    scope per row: `pull_request_id` set (PR discussion) xor `project_id` +
+    `commit_sha` set (a commit page's discussion; the sha is always stored
+    fully resolved). A top-level comment has `parent_id` null; a reply points
+    at its parent, at any depth — the frontend renders one visual level but
+    uses the true parent for reply-to-a-reply quote-links. Deleting a comment
+    cascades to its whole reply subtree. A *change-level* comment also carries
+    an anchor — the file/routine/rung in a specific commit it's pinned to on
+    the rendered diff; a plain discussion comment leaves the anchor null."""
 
     __tablename__ = "comments"
-    # The hot path fetches one PR's comments in creation order — index for it.
-    __table_args__ = (Index("ix_comments_pr_created", "pull_request_id", "created_at"),)
+    __table_args__ = (
+        # The hot paths fetch one discussion's comments in creation order —
+        # one index per scope.
+        Index("ix_comments_pr_created", "pull_request_id", "created_at"),
+        Index("ix_comments_commit_created", "project_id", "commit_sha", "created_at"),
+        CheckConstraint(
+            "(pull_request_id IS NOT NULL AND project_id IS NULL AND commit_sha IS NULL)"
+            " OR (pull_request_id IS NULL"
+            "     AND project_id IS NOT NULL AND commit_sha IS NOT NULL)",
+            name="ck_comments_one_scope",
+        ),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    pull_request_id: Mapped[int] = mapped_column(
-        ForeignKey("pull_requests.id", ondelete="CASCADE"), index=True
+    pull_request_id: Mapped[int | None] = mapped_column(
+        ForeignKey("pull_requests.id", ondelete="CASCADE"), nullable=True, index=True
     )
+    # Commit-discussion scope (both set together; see the check constraint).
+    project_id: Mapped[int | None] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    commit_sha: Mapped[str | None] = mapped_column(String(64), nullable=True)
     author_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
     parent_id: Mapped[int | None] = mapped_column(
         ForeignKey("comments.id", ondelete="CASCADE"), nullable=True, index=True
