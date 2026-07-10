@@ -6545,3 +6545,129 @@ a.mr-commit-row:hover {
 a.cmr-tl-link:hover .cmr-tl-msg {
   color: var(--accent);
 }
+
+/* --- L5X detail panels (commit page Files tab: entity tables) ---
+   The stage container supplies the card chrome; these lay out the panel's
+   header, section tables and code views inside it. */
+.l5x-panel {
+  padding: 14px 16px 16px;
+}
+.l5x-panel-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+.l5x-panel-title {
+  font: 600 15px/1.3 var(--sans);
+  color: var(--ink);
+}
+.l5x-panel-sub {
+  font: 400 12.5px/1.3 var(--sans);
+  color: var(--ink3);
+}
+.l5x-panel-desc {
+  margin: 0 0 10px;
+  font: 400 13px/1.5 var(--sans);
+  color: var(--ink2);
+  white-space: pre-wrap;
+}
+.l5x-panel-subhead {
+  margin: 18px 0 8px;
+  font: 600 11.5px/1.3 var(--sans);
+  color: var(--ink2);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.l5x-panel-note {
+  margin: 8px 0 0;
+  font: 400 12px/1.4 var(--sans);
+  color: var(--ink3);
+}
+.l5x-panel .dtable-scroll {
+  margin-top: 10px;
+  border: 1px solid var(--line2);
+  border-radius: 8px;
+}
+.l5x-panel .l5x-panel-subhead + .dtable-scroll {
+  margin-top: 0;
+}
+/* Denser rows than the page-level data tables: these are property grids. */
+.dtable.l5x-table {
+  min-width: 520px;
+}
+.dtable.l5x-table th {
+  height: 36px;
+  padding: 0 14px;
+}
+.dtable.l5x-table td {
+  padding: 8px 14px;
+  vertical-align: top;
+}
+.mono-cell {
+  font: 400 12.5px/1.5 var(--mono);
+  color: var(--ink2);
+  /* Identifiers and type names must never break mid-word; the table's
+     scroll wrapper absorbs the width instead. */
+  white-space: nowrap;
+}
+.l5x-row-focus td {
+  background: var(--hover);
+}
+.l5x-rung-num {
+  font: 400 12.5px/1.5 var(--mono);
+}
+.l5x-rung-comment {
+  margin-bottom: 2px;
+  font: 400 12px/1.5 var(--sans);
+  color: var(--ink3);
+  white-space: pre-wrap;
+}
+.l5x-code {
+  font: 400 12.5px/1.6 var(--mono);
+  color: var(--ink);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.l5x-st {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line2);
+  border-radius: 8px;
+  overflow-x: auto;
+}
+
+/* Flattened array values (motion exception actions etc.): tally summary with
+   an expandable, self-scrolling numbered list — the cell scrolls, never the
+   whole table. Overrides .mono-cell's nowrap so the summary can wrap. */
+.l5x-multival {
+  white-space: normal;
+}
+.l5x-multival-sum {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 12px;
+}
+.l5x-multival-count {
+  font: 400 12px/1.5 var(--sans);
+  color: var(--ink3);
+  white-space: nowrap;
+}
+.l5x-multival-group {
+  white-space: nowrap;
+}
+.l5x-multival-list {
+  margin: 8px 0 2px;
+  padding: 8px 12px 8px 40px;
+  max-height: 180px;
+  overflow-y: auto;
+  border: 1px solid var(--line2);
+  border-radius: 8px;
+  font: 400 12.5px/1.7 var(--mono);
+  color: var(--ink2);
+}
+.l5x-multival-list li::marker {
+  color: var(--ink4);
+}

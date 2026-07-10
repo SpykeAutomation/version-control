@@ -44,6 +44,16 @@ import {
   type CommitDetail,
   type RoutineFull,
 } from "./commit";
+import {
+  getL5xAoi,
+  getL5xDataTypes,
+  getL5xModules,
+  getL5xTags,
+  type L5XAoi,
+  type L5XDataType,
+  type L5XModule,
+  type L5XTag,
+} from "./l5x";
 import { mapRepository, type Commit } from "./repository";
 
 // Cache keys. Everything for a project is nested under ["projects", id] so a
@@ -77,6 +87,8 @@ export const queryKeys = {
   repository: (slug: string) => ["repository", slug] as const,
   routineContent: (projectId: number, sha: string, program: string, routine: string) =>
     ["projects", projectId, "commit-routine", sha, program, routine] as const,
+  l5xSection: (projectId: number, ref: string, path: string, section: string, name: string) =>
+    ["projects", projectId, "l5x", ref, path, section, name] as const,
 };
 
 // Turn a query error into a message, falling back when it isn't an ApiError.
@@ -285,6 +297,72 @@ export function useRoutineContent(
     enabled: enabled && projectId != null && !!sha && !!program && !!routine,
     retry: false,
   });
+}
+
+// --- L5X sections: the data behind the organizer's detail panels. A section
+// is a pure function of (ref, file), and the commit page always passes a
+// commit sha, so results never go stale — cache them for the session.
+function useL5x<T>(
+  section: string,
+  fetch: (projectId: number, ref: string, path: string) => Promise<T>,
+  projectId: number | undefined,
+  ref: string | undefined,
+  path: string | null | undefined,
+  name = "",
+) {
+  return useQuery<T>({
+    queryKey: queryKeys.l5xSection(
+      projectId ?? -1,
+      ref ?? "",
+      path ?? "",
+      section,
+      name,
+    ),
+    queryFn: () => fetch(projectId!, ref!, path!),
+    enabled: projectId != null && !!ref && !!path,
+    staleTime: Infinity,
+    retry: false,
+  });
+}
+
+export function useL5xDataTypes(
+  projectId: number | undefined,
+  ref: string | undefined,
+  path: string | null | undefined,
+) {
+  return useL5x<L5XDataType[]>("datatypes", getL5xDataTypes, projectId, ref, path);
+}
+
+export function useL5xTags(
+  projectId: number | undefined,
+  ref: string | undefined,
+  path: string | null | undefined,
+) {
+  return useL5x<L5XTag[]>("tags", getL5xTags, projectId, ref, path);
+}
+
+export function useL5xModules(
+  projectId: number | undefined,
+  ref: string | undefined,
+  path: string | null | undefined,
+) {
+  return useL5x<L5XModule[]>("modules", getL5xModules, projectId, ref, path);
+}
+
+export function useL5xAoi(
+  projectId: number | undefined,
+  ref: string | undefined,
+  path: string | null | undefined,
+  name: string | undefined,
+) {
+  return useL5x<L5XAoi>(
+    "aoi",
+    (id, r, p) => getL5xAoi(id, r, p, name!),
+    projectId,
+    ref,
+    name ? path : undefined,
+    name ?? "",
+  );
 }
 
 // Posting a comment adds to a merge request's thread, so refresh that merge

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
   ArrowRight,
@@ -16,6 +16,7 @@ import {
   RoutineLadderDiffView,
   RoutineLadderFullView,
 } from "../components/LadderDiff";
+import { EntityPanel } from "../components/L5xPanels";
 import { ProjectTree, type RoutineSelection } from "../components/ProjectTree";
 import { ApiError } from "../api/client";
 import type { ProjectTree as ProjectTreeData, TreeNode } from "../api/tree";
@@ -114,18 +115,15 @@ function CommitReviewView({
   ];
 
   // Files-tab selection lives here (not inside FilesBrowser) so it survives
-  // switching to the Changes tab and back. Resets to the first changed routine
-  // when the commit changes.
-  const firstChanged = useMemo(
-    () => firstChangedRoutine(commit.tree.root),
-    [commit.tree],
-  );
-  const [filesSel, setFilesSel] = useState<RoutineSelection | null>(firstChanged);
+  // switching to the Changes tab and back. Nothing is selected by default —
+  // the stage prompts to pick a file — and the selection resets when the
+  // commit changes.
+  const [filesSel, setFilesSel] = useState<RoutineSelection | null>(null);
   const [filesEntity, setFilesEntity] = useState<TreeNode | null>(null);
   useEffect(() => {
-    setFilesSel(firstChanged);
+    setFilesSel(null);
     setFilesEntity(null);
-  }, [firstChanged]);
+  }, [commit.sha]);
 
   // Reverting only makes sense on a branch's tip commit — anything older
   // would silently drop the commits after it. (The backend has no revert
@@ -180,6 +178,7 @@ function CommitReviewView({
               fullContent={commit.fullContent}
               projectId={projectId}
               sha={commit.sha}
+              l5xPath={commit.l5xPath}
               showNumbers={showNumbers}
               onToggleNumbers={() => setShowNumbers((v) => !v)}
               selected={filesSel}
@@ -393,24 +392,6 @@ function Tabs({
 }
 
 // ---- Files tab: project tree + routine viewer ----
-// The first changed routine in the tree, used as the default selection so the
-// viewer opens on something meaningful rather than empty.
-function firstChangedRoutine(node: TreeNode): RoutineSelection | null {
-  if (node.kind === "routine" && node.status !== "unchanged" && node.routine) {
-    return {
-      controller: node.controller ?? "",
-      program: node.program ?? "",
-      routine: node.routine,
-      routineType: node.routine_type,
-    };
-  }
-  for (const child of node.children) {
-    const found = firstChangedRoutine(child);
-    if (found) return found;
-  }
-  return null;
-}
-
 // Find the tree node for a selection, so the viewer can read the routine's real
 // change status (added / removed / modified / unchanged).
 function findRoutineNode(node: TreeNode, sel: RoutineSelection): TreeNode | null {
@@ -457,6 +438,7 @@ function FilesBrowser({
   fullContent,
   projectId,
   sha,
+  l5xPath,
   showNumbers,
   onToggleNumbers,
   selected,
@@ -470,6 +452,7 @@ function FilesBrowser({
   fullContent: Record<string, RoutineFull>;
   projectId?: number;
   sha: string;
+  l5xPath: string | null;
   showNumbers: boolean;
   onToggleNumbers: () => void;
   selected: RoutineSelection | null;
@@ -522,6 +505,7 @@ function FilesBrowser({
           <ProjectTree
             root={tree.root}
             selected={selected}
+            selectedEntityKey={entity?.key ?? null}
             onSelectRoutine={onSelectRoutine}
             onSelectEntity={onSelectEntity}
             onClear={onClear}
@@ -529,16 +513,13 @@ function FilesBrowser({
         </aside>
         <div className="commit-diff-stage">
           {entity && !selected ? (
-            <div className="rcard-empty">
-              <strong>{entity.label}</strong>{" "}
-              {entity.status === "unchanged"
-                ? "is unchanged in this commit."
-                : "changed in this commit."}{" "}
-              Detail for non-routine items isn't shown in this view.
-            </div>
+            <EntityPanel
+              node={entity}
+              ctx={{ projectId, sha, l5xPath }}
+            />
           ) : !selected ? (
             <div className="rcard-empty">
-              Select a routine from the tree to view it.
+              Select a file on the left to view it.
             </div>
           ) : change?.kind === "ladder" && change.ladder ? (
             <div className="mr-ladderwrap">
