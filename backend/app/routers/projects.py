@@ -961,6 +961,12 @@ def _routine_blob_path(l5x: str, program: str, routine: str) -> str:
     )
 
 
+def _aoi_blob_path(l5x: str, aoi: str) -> str:
+    """Snapshot path of one AOI's JSON (the whole definition — parameters,
+    local tags, and routines — lives in one file), escaped like routine paths."""
+    return f"l5x/{l5x}/snapshot/aois/{snapshot_file_name(aoi)}.json"
+
+
 def _aoi_labels_at(repo: ProjectRepo, ref: str, name: str) -> dict[str, list[str]]:
     """Operand-row labels for one L5X file's AOIs at a ref, read lock-free from
     the snapshot's aois/*.json (the same definitions the ladder-diff path loads).
@@ -992,53 +998,12 @@ def _full_rung_elements(
     return order_io(classify_rung(parsed, resolver), resolver)
 
 
-@router.get(
-    "/{project_id}/commits/{sha}/routine",
-    response_model=RoutineFullLadder | RoutineFullCode,
-)
-def commit_routine(
-    project_id: int,
-    sha: str,
-    program: str,
-    routine: str,
-    path: str | None = None,
-    db: Session = Depends(get_db),
-    user: User = Depends(current_user),
+def _render_routine_full(
+    repo: ProjectRepo, head: str, l5x: str, rt: Routine, scope_label: str
 ) -> RoutineFullLadder | RoutineFullCode:
-    """The full content of one routine as it exists at a commit — not a diff.
-
-    Read lock-free from the committed snapshot (one small blob + the AOI
-    definitions for operand labels). A ladder routine returns the ladder-diff
-    IR with every rung "unchanged" and only the `after` side filled, so the
-    frontend renders it single-column with the same LadderDiff renderer; an
-    ST routine returns its numbered lines. `path` (an `l5x/<name>` manifest
-    path) pins the L5X file; without it every L5X file at the commit is
-    probed. Encoded (source-protected) routines and types without parsed
-    content (FBD/SFC) are 404 — the frontend shows its placeholder."""
-    require_member(project_id, db, user)
-    repo = repo_for(project_id)  # immutable-commit reads — no lock needed
-    try:
-        head = repo.resolve_ref(sha)
-    except ProjectRepoError as exc:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc))
-
-    names = [l5x_name(path)] if path else repo.tree_names(head, "l5x")
-    name = raw = None
-    for candidate in names:
-        try:
-            raw = repo.read_blob(head, _routine_blob_path(candidate, program, routine))
-            name = candidate
-            break
-        except ProjectRepoError:
-            continue
-    if raw is None or name is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Routine not found at this commit")
-
-    try:
-        rt = Routine.model_validate(json.loads(raw))
-    except ValueError:  # covers JSONDecodeError and pydantic's ValidationError
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "routine content not available")
-
+    """Render one snapshot Routine as its full committed content — the shared
+    tail of both endpoint scopes. `scope_label` is the program name (or the
+    AOI name for AOI routines) shown in the ladder header breadcrumb."""
     label = head[:7]
     if rt.encoded:
         raise HTTPException(
@@ -1057,7 +1022,7 @@ def commit_routine(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "routine content not available")
 
     parser = _rll_parser()
-    resolver = LabelResolver(aoi_operands=_aoi_labels_at(repo, head, name))
+    resolver = LabelResolver(aoi_operands=_aoi_labels_at(repo, head, l5x))
     rungs = [
         RungDiff(
             status="unchanged",
@@ -1070,14 +1035,93 @@ def commit_routine(
     ]
     return RoutineFullLadder(
         ladder=RoutineLadderDiff(
-            controller=_controller_summary(repo, head, name)[0],
-            program=program,
-            routine=routine,
+            controller=_controller_summary(repo, head, l5x)[0],
+            program=scope_label,
+            routine=rt.name,
             routine_type=rt.type,
             new_label=label,
             rungs=rungs,
         )
     )
+
+
+@router.get(
+    "/{project_id}/commits/{sha}/routine",
+    response_model=RoutineFullLadder | RoutineFullCode,
+)
+def commit_routine(
+    project_id: int,
+    sha: str,
+    routine: str,
+    program: str | None = None,
+    aoi: str | None = None,
+    path: str | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+) -> RoutineFullLadder | RoutineFullCode:
+    """The full content of one routine as it exists at a commit — not a diff.
+
+    Exactly one of `program` / `aoi` scopes the routine: a program routine
+    reads its own snapshot blob, an AOI routine (Logic / Prescan / Postscan /
+    EnableInFalse) is found inside its AOI's blob. Both render identically —
+    read lock-free from the committed snapshot (small blobs + the AOI
+    definitions for operand labels). A ladder routine returns the ladder-diff
+    IR with every rung "unchanged" and only the `after` side filled, so the
+    frontend renders it single-column with the same LadderDiff renderer (for
+    an AOI routine the IR's `program` field carries the AOI name); an ST
+    routine returns its numbered lines. `path` (an `l5x/<name>` manifest
+    path) pins the L5X file; without it every L5X file at the commit is
+    probed. Encoded (source-protected) routines/AOIs and types without parsed
+    content (FBD/SFC) are 404 — the frontend shows its placeholder."""
+    require_member(project_id, db, user)
+    if (program is None) == (aoi is None):
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, "give exactly one of program or aoi"
+        )
+    repo = repo_for(project_id)  # immutable-commit reads — no lock needed
+    try:
+        head = repo.resolve_ref(sha)
+    except ProjectRepoError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc))
+
+    names = [l5x_name(path)] if path else repo.tree_names(head, "l5x")
+    name = raw = None
+    for candidate in names:
+        blob = (
+            _routine_blob_path(candidate, program, routine)
+            if program is not None
+            else _aoi_blob_path(candidate, aoi)
+        )
+        try:
+            raw = repo.read_blob(head, blob)
+            name = candidate
+            break
+        except ProjectRepoError:
+            continue
+    if raw is None or name is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Routine not found at this commit")
+
+    if program is not None:
+        try:
+            rt = Routine.model_validate(json.loads(raw))
+        except ValueError:  # covers JSONDecodeError and pydantic's ValidationError
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "routine content not available")
+        return _render_routine_full(repo, head, name, rt, program)
+
+    try:
+        aoi_def = AOI.model_validate(json.loads(raw))
+    except ValueError:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "routine content not available")
+    if aoi_def.encoded:
+        # The implementation ships encrypted; routines aren't in the snapshot.
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND,
+            "routine content not available (source-protected)",
+        )
+    rt = next((r for r in aoi_def.routines if r.name == routine), None)
+    if rt is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Routine not found at this commit")
+    return _render_routine_full(repo, head, name, rt, aoi)
 
 
 @router.get("/{project_id}/diff", response_model=DiffManifest)
