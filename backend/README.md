@@ -119,6 +119,7 @@ another. The creator is the `owner`; the owner and any `admin` are "managers".
 | Merge a PR (subject to the target branch's required approvals) | ✅ | ✅ | ✅ |
 | Edit/delete **your own** comment; edit any PR; delete your **own** open PR | ✅ | ✅ | ✅ |
 | Manage a PR's reviewers; delete **any** open PR; delete **any** comment | ✅ | ✅ | author only |
+| **Revert a branch** to an earlier commit (any branch, protected included) | ✅ | ✅ | ❌ |
 | Add members, change roles, rename, edit settings, **protect branches**, delete tags, **delete the project** | ✅ | ✅ | ❌ |
 | Remove or demote an **admin** | ✅ | ❌ | ❌ |
 
@@ -208,7 +209,7 @@ separate from the per-project activity feed.
 | `DELETE` | `/projects/{id}/branches/{branch}` | — (any member) | `204`; `400` if it's the default or a protected branch |
 | `PUT` | `/projects/{id}/branches/{branch}/protection` | `{protected, required_approvals?=0}` (owner/admin) | `Branch`; `400` unprotecting the default branch |
 | `POST` | `/projects/{id}/commits` | multipart: `files` (one or more, ≤100 MB each), `branch`, `title`, `description?` | `201` `CommitResult`; `413` if a file is too big; `400` if the branch is **explicitly protected** (commit via a PR — implicit default-branch protection does not block commits) |
-| `POST` | `/projects/{id}/revert` | `{branch, target_sha, expected_tip_sha, message?}` | `201` `CommitResult` — restores `target_sha`'s repo state as ONE new commit on the branch (history preserved). **Preview = the existing diff endpoints** (`/diff`, `/compare`, `/tree`, per-file views) with `base=<current tip>&head=<target>` — there is no separate preview route. `409` (current tip in `detail`) when the branch moved past `expected_tip_sha`; `400` protected branch / target already the tip / non-ancestor target / identical trees; `404` unknown branch or target |
+| `POST` | `/projects/{id}/revert` | `{branch, target_sha, expected_tip_sha, message?}` (**owner/admin**) | `201` `CommitResult` — restores `target_sha`'s repo state as ONE new commit on the branch (history preserved). Works on **every** branch, protected ones included — revert is the manager-only rollback path. **Preview = the existing diff endpoints** (`/diff`, `/compare`, `/tree`, per-file views) with `base=<current tip>&head=<target>` — there is no separate preview route. `403` plain member; `409` (current tip in `detail`) when the branch moved past `expected_tip_sha`; `400` target already the tip / non-ancestor target / identical trees; `404` unknown branch or target |
 | `GET`  | `/projects/{id}/commits` | `?branch=main&limit=50&offset=0` | `[Commit]` + `X-Total-Count` (each tagged with `branch` + `files_changed`) |
 | `GET`  | `/projects/{id}/commits/{sha}` | — | `CommitDetail` (the commit + files it changed vs its parent) |
 | `GET`  | `/projects/{id}/commits/{sha}/diff/changeset` | `?path=l5x/<name>` | `ChangeSet` (parent → commit) |
@@ -489,13 +490,16 @@ no such L5X file / AOI at the ref, or a bad ref → `400`.
 - **New project**: `branches` reports `["main"]`, but `main` has *no commits*
   until the first upload (`GET /files` is empty too). Create branches only after
   that first commit.
-- **Protected branches take no direct commits** (`POST /commits` and
-  `POST /revert` return `400` on a branch with an explicit protection row).
-  The supported flow — which the UI should steer to — is: create a working
-  branch, commit there, open a PR, collect the required approvals, merge.
-  Hiding the upload control on protected branches is UX; the backend check is
-  the enforcement. A default branch with no protection row still accepts
-  direct commits.
+- **Protected branches take no direct commits** (`POST /commits` returns
+  `400` on a branch with an explicit protection row). The supported flow —
+  which the UI should steer to — is: create a working branch, commit there,
+  open a PR, collect the required approvals, merge. Hiding the upload control
+  on protected branches is UX; the backend check is the enforcement. A
+  default branch with no protection row still accepts direct commits. The one
+  sanctioned exception is `POST /revert`: an **owner/admin** may roll any
+  branch — protected included — back to an earlier commit (an emergency
+  rollback can't wait on the PR loop); plain members get `403`, so show the
+  revert control only to managers.
 - **Diff is per file, reached from the manifest**: call `/diff?base=&head=` for
   the list of changed files. For each L5X file, render its two panels from
   `/diff/changeset?path=…` (code/text) and `/diff/ladder?path=…` (ladder); for a
@@ -777,7 +781,7 @@ flat Programs folder and all existing keys are unchanged.
 
 | Method | Path | What it adds |
 |--------|------|--------------|
-| `POST` | `/projects/{id}/revert` | Restore an earlier commit's repo state as ONE new commit on a branch (history preserved; optimistic-concurrency via `expected_tip_sha` → `409` when the branch moved). Preview with the existing diff endpoints (`base=<tip>&head=<target>`) — no separate preview route. |
+| `POST` | `/projects/{id}/revert` | Restore an earlier commit's repo state as ONE new commit on a branch (history preserved; optimistic-concurrency via `expected_tip_sha` → `409` when the branch moved). **Owner/admin only**, and works on every branch — protected included (the manager-only rollback path). Preview with the existing diff endpoints (`base=<tip>&head=<target>`) — no separate preview route. |
 | `GET/POST` | `/projects/{id}/commits/{sha}/comments` | The commit page's discussion — same `Comment` shape, anchors, threading, and pagination as PR comments. |
 | `PATCH/DELETE` | `/projects/{id}/commits/{sha}/comments/{cid}` | Author-only body edits; author-or-manager delete with reply-subtree cascade. |
 
@@ -787,5 +791,7 @@ quote-link a reply-to-a-reply). Deleting a comment still cascades to its whole
 reply subtree. And `POST /commits` now **rejects direct commits to an
 explicitly protected branch** (`400` — commit via a PR), closing the gap where
 protection only gated deletion and merge approvals while direct uploads walked
-straight past the review workflow; `POST /revert` enforces the same rule. A
-default branch with no protection row is unaffected.
+straight past the review workflow. A default branch with no protection row is
+unaffected. Revert deliberately does NOT follow that rule — it bypasses
+protection as the emergency rollback path, gated by role (owner/admin)
+instead.

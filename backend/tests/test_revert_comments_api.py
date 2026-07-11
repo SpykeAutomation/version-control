@@ -141,7 +141,8 @@ def test_revert_validation_errors(client, seed):
     r = seed.revert(seed.sha_a, seed.sha_a)
     assert r.status_code == 409
     assert seed.sha_b in r.json()["detail"]
-    # Non-member -> 403.
+    # Revert is owner/admin only: a plain member is 403, like a non-member.
+    assert seed.revert(seed.sha_a, seed.sha_b, token=seed.member).status_code == 403
     assert seed.revert(seed.sha_a, seed.sha_b, token=seed.outsider).status_code == 403
     # Nothing above moved the branch.
     tip = client.get(
@@ -150,7 +151,7 @@ def test_revert_validation_errors(client, seed):
     assert tip == seed.sha_b
 
 
-def test_protected_branch_rejects_revert_and_direct_commits(client, seed):
+def test_protected_branch_blocks_commits_but_managers_can_revert(client, seed):
     client.post(
         f"/projects/{seed.pid}/branches",
         json={"name": "prot", "start_point": "main"},
@@ -161,11 +162,8 @@ def test_protected_branch_rejects_revert_and_direct_commits(client, seed):
         json={"protected": True},
         headers=_auth(seed.owner),
     )
-    r = seed.revert(seed.sha_a, seed.sha_b, branch="prot")
-    assert r.status_code == 400
-    assert "protected" in r.json()["detail"]
-    # Direct commits are rejected the same way — a revert IS a direct commit,
-    # and both reach a protected branch only through a pull request.
+    # Direct commits to a protected branch are rejected — change reaches it
+    # through a pull request.
     direct = client.post(
         f"/projects/{seed.pid}/commits",
         files=[("files", ("line.L5X", KITCHEN_SINK, "application/octet-stream"))],
@@ -174,6 +172,14 @@ def test_protected_branch_rejects_revert_and_direct_commits(client, seed):
     )
     assert direct.status_code == 400
     assert "protected" in direct.json()["detail"]
+    # Revert is the sanctioned rollback: it works on a protected branch, but
+    # only for a manager — a plain member is 403 regardless of protection.
+    assert seed.revert(
+        seed.sha_a, seed.sha_b, branch="prot", token=seed.member
+    ).status_code == 403
+    r = seed.revert(seed.sha_a, seed.sha_b, branch="prot")
+    assert r.status_code == 201, r.text
+    assert seed.files_at(r.json()["sha"]) == {"l5x/line"}
     # Unprotecting re-opens direct commits (and main, never explicitly
     # protected in this project, has been taking commits all along).
     client.put(

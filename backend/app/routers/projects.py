@@ -843,18 +843,16 @@ def revert_branch(
     `expected_tip_sha` precondition then guarantees the confirmed preview is
     what actually gets reverted — 409 (with the current tip) when the branch
     has moved, and the client refreshes.
+
+    Owner/admin only, and works on EVERY branch — including protected ones.
+    Revert is the sanctioned rollback path: where a protected branch rejects
+    direct commits (change flows through a PR), an emergency roll-back can't
+    wait on that loop, so it trades the member gate for the manager gate.
     """
-    require_member(project_id, db, user)
+    require_manager(project_id, db, user)
     if not repo_for(project_id).branch_exists(payload.branch):
         raise HTTPException(
             status.HTTP_404_NOT_FOUND, f"Unknown branch: {payload.branch}"
-        )
-    # A revert IS a direct commit, so a protected branch rejects it (same
-    # check the protected-branch delete uses); changes to it go through a PR.
-    if payload.branch in _protection_map(db, project_id):
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST,
-            "Branch is protected — revert it via a pull request",
         )
     # Check-then-write under the per-project write lock: the tip comparison
     # and the ref move must see the same repo state. The frontend's disabled
