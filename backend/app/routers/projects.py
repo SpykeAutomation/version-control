@@ -36,6 +36,7 @@ from snapshot.writer import _file_name as snapshot_file_name
 from vcs import CommitLog, ProjectRepo, ProjectRepoError, TagInfo, UploadSpec
 
 from .. import activity, audit, diff_cache, usage
+from .. import comments as discussion
 from ..auth import current_user
 from ..config import settings
 from ..db import get_db
@@ -65,6 +66,9 @@ from ..schemas import (
     BranchIn,
     BranchOut,
     BranchProtectionIn,
+    CommentIn,
+    CommentOut,
+    CommentUpdate,
     CommitDetail,
     CommitOut,
     CommitResult,
@@ -79,6 +83,7 @@ from ..schemas import (
     ProjectOut,
     ProjectUpdate,
     RepositoryOverview,
+    RevertIn,
     RoleUpdate,
     RoutineFullCode,
     RoutineFullLadder,
@@ -95,7 +100,9 @@ from ..storage import delete_repo, locked_repo, repo_for
 router = APIRouter(prefix="/projects", tags=["projects"])
 
 # The repo's default branch. `init` creates it and PRs/overview default to it;
-# branch enrichment measures ahead/behind against it and it is always protected.
+# branch enrichment measures ahead/behind against it, it can never be deleted,
+# and it shows as protected in branch views even without a protection row
+# (write-blocking protection, though, is the explicit row alone).
 DEFAULT_BRANCH = "main"
 
 
@@ -115,8 +122,10 @@ def _commit_out(commit: CommitLog | None, branch: str | None = None) -> CommitOu
 
 def _protection_map(db: Session, project_id: int) -> dict[str, int]:
     """branch -> required_approvals for every protection row in a project. A
-    present key means the branch is explicitly protected; the default branch is
-    also protected even without a row (with 0 required approvals unless one)."""
+    present key means the branch is explicitly protected — that's what blocks
+    direct commits and member reverts. The default branch merely *displays* as
+    protected without a row (and can never be deleted); writes to it stay open
+    until an explicit row exists."""
     return {
         row.branch: row.required_approvals
         for row in db.scalars(
@@ -662,9 +671,13 @@ def set_branch_protection(
     user: User = Depends(current_user),
 ) -> BranchOut:
     """Protect or unprotect a branch and set how many approvals a PR into it
-    needs (owner/admin). A protected branch can't be deleted via the API. The
-    default branch is always protected — you can still set its required
-    approvals, but you can't unprotect it."""
+    needs (owner/admin). Protection (an explicit row) blocks direct commits
+    and member reverts, gates merges by `required_approvals`, and makes the
+    branch undeletable. Unprotecting deletes the row and reopens all of that —
+    for the DEFAULT branch that decision belongs to the project owner alone
+    (an admin gets 403); once unprotected, the default branch keeps only its
+    "default" tag: it still can't be deleted, but commits/reverts/merges flow
+    without review like any other unprotected branch."""
     require_manager(project_id, db, user)
     required = max(0, payload.required_approvals)
     # Protection state lives in the DB; git is only consulted for existence
@@ -673,19 +686,18 @@ def set_branch_protection(
     if not repo.branch_exists(branch):
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"Unknown branch: {branch}")
     if branch == DEFAULT_BRANCH and not payload.protected:
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST,
-            "The default branch is always protected",
-        )
+        # Owner-only: reopening direct writes to the default branch is the
+        # project owner's call, not an admin's. Without this, protecting the
+        # default branch once would lock direct commits out forever (the row
+        # used to be permanent) — protection must stay reversible.
+        require_owner(project_id, db, user)
     existing = db.scalar(
         select(BranchProtection).where(
             BranchProtection.project_id == project_id,
             BranchProtection.branch == branch,
         )
     )
-    # The default branch is protected even with no row, but a row lets it
-    # carry required_approvals; drop the row only for a non-default branch.
-    if not payload.protected and branch != DEFAULT_BRANCH:
+    if not payload.protected:
         if existing is not None:
             db.delete(existing)
     elif existing is not None:
@@ -724,8 +736,19 @@ def upload_files(
     any other file is stored as-is. A single `files` part works too. The upload
     is atomic: if any L5X is malformed, nothing is committed. Each file is capped
     at `PLCVC_MAX_UPLOAD_MB` (the Caddy edge caps the whole request separately).
+
+    An explicitly protected branch takes no direct commits — changes reach it
+    through a pull request (branch + PR is the supported flow; the frontend's
+    UI gating is reinforcement, this check is the enforcement). The default
+    branch's *implicit* protection deliberately does NOT block commits: a
+    project with no protection rows works straight on main.
     """
     require_member(project_id, db, user)
+    if branch in _protection_map(db, project_id):
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "Branch is protected — commit via a pull request",
+        )
 
     limit = settings.max_upload_bytes
     tmp_paths: list[str] = []
@@ -803,6 +826,106 @@ def _spool_capped(upload: UploadFile, dest, limit: int, name: str) -> None:
                 f"{name!r} exceeds the {settings.max_upload_mb} MB per-file limit",
             )
         dest.write(chunk)
+
+
+@router.post(
+    "/{project_id}/revert",
+    response_model=CommitResult,
+    status_code=status.HTTP_201_CREATED,
+)
+def revert_branch(
+    project_id: int,
+    payload: RevertIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+) -> CommitResult:
+    """Restore the repo state of `target_sha` as ONE new commit on `branch`.
+
+    History is never rewritten: every commit between the target and the tip is
+    preserved, and the new commit's tree is byte-identical to the target's —
+    so diffing the new commit against its parent automatically shows the
+    inverse of everything since the target. There is deliberately no preview
+    endpoint: preview with the existing diff endpoints (`/diff`, `/compare`,
+    `/tree`, per-file views) using base=<current tip>, head=<target>; the
+    `expected_tip_sha` precondition then guarantees the confirmed preview is
+    what actually gets reverted — 409 (with the current tip) when the branch
+    has moved, and the client refreshes.
+
+    Permissions mirror committing: an unprotected branch reverts like it
+    commits — any member. A protected branch (which rejects direct commits;
+    change flows through a PR) can still be reverted, but only by an
+    owner/admin: revert is the sanctioned emergency rollback, and it can't
+    wait on the PR loop — so it trades the member gate for the manager gate.
+    """
+    require_member(project_id, db, user)
+    if not repo_for(project_id).branch_exists(payload.branch):
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND, f"Unknown branch: {payload.branch}"
+        )
+    if payload.branch in _protection_map(db, project_id):
+        require_manager(project_id, db, user)  # 403 for a plain member
+    # Check-then-write under the per-project write lock: the tip comparison
+    # and the ref move must see the same repo state. The frontend's disabled
+    # button is reinforcement; this is the enforcement. (restore_commit's
+    # compare-and-swap ref move is belt and braces on top.)
+    try:
+        with locked_repo(project_id) as repo:
+            target_log = repo.log(payload.target_sha, limit=1)
+            if not target_log:
+                raise HTTPException(
+                    status.HTTP_404_NOT_FOUND, "Target commit not found"
+                )
+            target = target_log[0].sha
+            try:
+                expected = repo.resolve_ref(payload.expected_tip_sha)
+            except ProjectRepoError as exc:
+                raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc))
+            tip = repo.resolve_ref(payload.branch)
+            if tip != expected:
+                raise HTTPException(
+                    status.HTTP_409_CONFLICT,
+                    f"Branch has moved: the tip is now {tip}",
+                )
+            if target == tip:
+                raise HTTPException(
+                    status.HTTP_400_BAD_REQUEST, "Target is already the branch tip"
+                )
+            if not repo.is_ancestor(target, tip):
+                raise HTTPException(
+                    status.HTTP_400_BAD_REQUEST,
+                    "Target is not an ancestor of the branch tip",
+                )
+            if repo.resolve_ref(f"{target}^{{tree}}") == repo.resolve_ref(
+                f"{tip}^{{tree}}"
+            ):
+                raise HTTPException(
+                    status.HTTP_400_BAD_REQUEST,
+                    "Nothing to revert — the branch already matches the target",
+                )
+            message = (
+                payload.message
+                or f'Revert to {target[:7]} "{target_log[0].title}"'
+            )
+            new_sha = repo.restore_commit(
+                payload.branch,
+                target,
+                tip,
+                title=message,
+                description=payload.description or "",
+                author_name=f"{user.first_name} {user.last_name}".strip(),
+                author_email=user.email,
+            )
+    except ProjectRepoError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc))
+    activity.record(
+        db, project_id=project_id, actor_id=user.id, verb="commit.reverted",
+        target_type="commit", target_id=new_sha[:12],
+        summary=f"reverted {payload.branch} to {target[:7]}",
+    )
+    db.commit()
+    return CommitResult(
+        sha=new_sha, branch=payload.branch, title=message.splitlines()[0]
+    )
 
 
 @router.get("/{project_id}/commits", response_model=list[CommitOut])
@@ -1078,6 +1201,113 @@ def commit_routine(
             rungs=rungs,
         )
     )
+
+
+# --- commit-page discussions --------------------------------------------------
+# Same table and behavior as PR comments (app/comments.py) — flat list, replies
+# at any depth, anchors, author-only edits, author-or-manager deletes with
+# subtree cascade — scoped to (project, commit) instead of a PR.
+
+
+def _commit_scope(repo: ProjectRepo, project_id: int, sha: str) -> tuple[str, list]:
+    """Resolve `sha` (any commit-ish; 404 when it names no commit here) to the
+    full commit id plus the comment scope for it. Comments are always stored
+    under the full sha, so short-ref and full-sha lookups converge."""
+    full = repo.commit_sha(sha)
+    if full is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Commit not found")
+    return full, [Comment.project_id == project_id, Comment.commit_sha == full]
+
+
+@router.get("/{project_id}/commits/{sha}/comments", response_model=list[CommentOut])
+def list_commit_comments(
+    project_id: int,
+    sha: str,
+    response: Response,
+    limit: int = 100,
+    offset: int = 0,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+) -> list[CommentOut]:
+    """A commit's discussion in creation order, flat (the frontend nests by
+    `parent_id`); paginated via `limit`/`offset` (`X-Total-Count` header)."""
+    require_member(project_id, db, user)
+    _, scope = _commit_scope(repo_for(project_id), project_id, sha)
+    return discussion.list_comments(db, response, scope, limit=limit, offset=offset)
+
+
+@router.post(
+    "/{project_id}/commits/{sha}/comments",
+    response_model=CommentOut,
+    status_code=status.HTTP_201_CREATED,
+)
+def add_commit_comment(
+    project_id: int,
+    sha: str,
+    payload: CommentIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+) -> CommentOut:
+    """Add a comment to a commit's discussion — top-level, a reply
+    (`parent_id`, any depth; the parent must belong to the same commit's
+    discussion), or anchored to a spot on the rendered change (`anchor`)."""
+    require_member(project_id, db, user)
+    full, scope = _commit_scope(repo_for(project_id), project_id, sha)
+    comment = discussion.create_comment(
+        db, user, payload, scope, "commit",
+        project_id=project_id, commit_sha=full,
+    )
+    activity.record(
+        db, project_id=project_id, actor_id=user.id, verb="comment.added",
+        target_type="commit", target_id=full[:12],
+        summary=f"commented on commit {full[:7]}",
+    )
+    db.commit()
+    db.refresh(comment)
+    return discussion.comment_out(db, comment, user_out(db, user))
+
+
+@router.patch(
+    "/{project_id}/commits/{sha}/comments/{comment_id}", response_model=CommentOut
+)
+def update_commit_comment(
+    project_id: int,
+    sha: str,
+    comment_id: int,
+    payload: CommentUpdate,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+) -> CommentOut:
+    """Edit a comment's body (author only) and/or resolve it (any member)."""
+    require_member(project_id, db, user)
+    _, scope = _commit_scope(repo_for(project_id), project_id, sha)
+    comment = discussion.get_comment(db, comment_id, scope)
+    discussion.apply_update(comment, payload, user)
+    db.commit()
+    db.refresh(comment)
+    return discussion.comment_out(db, comment)
+
+
+@router.delete(
+    "/{project_id}/commits/{sha}/comments/{comment_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_commit_comment(
+    project_id: int,
+    sha: str,
+    comment_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+) -> Response:
+    """Delete a comment (its author or a manager). The whole reply subtree
+    cascades away with it."""
+    require_member(project_id, db, user)
+    _, scope = _commit_scope(repo_for(project_id), project_id, sha)
+    comment = discussion.get_comment(db, comment_id, scope)
+    discussion.ensure_can_delete(db, project_id, user, comment)
+    db.delete(comment)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/{project_id}/diff", response_model=DiffManifest)

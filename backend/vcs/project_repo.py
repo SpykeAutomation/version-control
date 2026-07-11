@@ -6,6 +6,7 @@ snapshot files on normal Git branches.
 """
 from __future__ import annotations
 
+import os
 import re
 import shutil
 import subprocess
@@ -324,6 +325,18 @@ class ProjectRepo:
         """Return the commit SHA for a branch, tag, or revision expression."""
         self._ensure_repo()
         return self._output("rev-parse", ref)
+
+    def commit_sha(self, ref: str) -> str | None:
+        """The full commit id `ref` peels to, or None when it names no commit
+        in this repo. Unlike a bare rev-parse — which echoes back any
+        well-formed 40-hex sha whether or not the object exists — the
+        ^{commit} peel verifies existence and commit-ness in one call."""
+        self._ensure_repo()
+        result = self._run(
+            "rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}", check=False
+        )
+        sha = result.stdout.strip()
+        return sha if result.returncode == 0 and sha else None
 
     def commit_parent(self, ref: str) -> str | None:
         """First-parent commit SHA of a commit, or None if it's a root commit."""
@@ -784,6 +797,57 @@ class ProjectRepo:
         """Number of commits reachable from `head` but not `base` (base..head)."""
         return self._rev_list_count(f"{base}..{head}")
 
+    def is_ancestor(self, ancestor: str, descendant: str) -> bool:
+        """Whether `ancestor` is reachable from `descendant` (first- or any-parent).
+
+        `git merge-base --is-ancestor` answers via exit code; any other failure
+        (unknown ref) also reads as "no"."""
+        self._ensure_repo()
+        result = self._run(
+            "merge-base", "--is-ancestor", ancestor, descendant, check=False
+        )
+        return result.returncode == 0
+
+    def restore_commit(
+        self,
+        branch: str,
+        target_sha: str,
+        expected_tip: str,
+        *,
+        title: str,
+        description: str = "",
+        author_name: str | None = None,
+        author_email: str | None = None,
+    ) -> str:
+        """Commit `target_sha`'s exact tree onto `branch` as one new commit (the
+        "revert to commit" primitive). History is never rewritten: the new
+        commit's sole parent is `expected_tip` and its tree is byte-identical to
+        the target's, so no new blobs or trees are written — only one commit
+        object. The branch ref moves with a compare-and-swap: if it no longer
+        points at `expected_tip`, nothing changes and ProjectRepoError is raised.
+        Returns the new commit's SHA.
+        """
+        self._ensure_repo()
+        tree = self._output("rev-parse", f"{target_sha}^{{tree}}")
+        # Attribute the AUTHOR to the acting user while the committer stays the
+        # repository's own identity — the same split commit_files' --author
+        # produces, so reverts and uploads read alike in the history.
+        env: dict[str, str] | None = None
+        if author_name and author_email:
+            env = {"GIT_AUTHOR_NAME": author_name, "GIT_AUTHOR_EMAIL": author_email}
+        args = ["commit-tree", tree, "-p", expected_tip, "-m", title]
+        if description.strip():
+            args += ["-m", description.strip()]
+        new_sha = self._run(*args, env=env).stdout.strip()
+        self._run("update-ref", f"refs/heads/{branch}", new_sha, expected_tip)
+        # update-ref moves the ref but not the index/working tree. If `branch`
+        # is the checked-out branch, a later commit_files would `git add -A`
+        # over the stale tree and silently resurrect pre-revert content — so
+        # realign the working tree with the ref it now points at.
+        if self._output("branch", "--show-current") == branch:
+            self._run("reset", "--hard", new_sha)
+        return new_sha
+
     def commit_total(self, ref: str) -> int:
         """Total number of commits reachable from `ref` (0 if it has none yet)."""
         return self._rev_list_count(ref)
@@ -934,17 +998,22 @@ class ProjectRepo:
             raise ProjectRepoError(detail or f"git {' '.join(args)} failed")
         return result.stdout
 
-    def _run(self, *args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
-        return self._run_raw("-C", str(self.path), *args, check=check)
+    def _run(
+        self, *args: str, check: bool = True, env: dict[str, str] | None = None
+    ) -> subprocess.CompletedProcess[str]:
+        return self._run_raw("-C", str(self.path), *args, check=check, env=env)
 
     def _run_raw(
-        self, *args: str, check: bool = True
+        self, *args: str, check: bool = True, env: dict[str, str] | None = None
     ) -> subprocess.CompletedProcess[str]:
         result = subprocess.run(
             [self.git, *args],
             capture_output=True,
             text=True,
             check=False,
+            # Extra variables overlay the inherited environment (plumbing like
+            # commit-tree takes its identity from GIT_AUTHOR_*, not options).
+            env={**os.environ, **env} if env else None,
         )
         if check and result.returncode != 0:
             detail = result.stderr.strip() or result.stdout.strip()

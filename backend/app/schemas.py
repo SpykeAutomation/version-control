@@ -186,6 +186,20 @@ class CommitResult(BaseModel):
     title: str
 
 
+class RevertIn(BaseModel):
+    """POST /projects/{id}/revert — restore `target_sha`'s repo state as ONE
+    new commit on top of the branch's current tip (history is preserved).
+    `expected_tip_sha` is the tip the client previewed against: if the branch
+    has moved since, the revert is rejected with 409 instead of silently
+    stacking onto commits the user never saw."""
+
+    branch: str
+    target_sha: str
+    expected_tip_sha: str
+    message: Optional[str] = None  # commit title; a default is built if omitted
+    description: Optional[str] = None  # optional longer body (the "why")
+
+
 # --- branches ---
 class BranchOut(BaseModel):
     name: str

@@ -183,3 +183,50 @@ def test_log_offset_paginates(tmp_path):
     page2 = repo.log("main", limit=2, offset=2)
     assert [c.title for c in page1] == ["commit 2", "commit 1"]
     assert [c.title for c in page2] == ["commit 0"]
+
+
+def test_restore_commit_restores_tree_with_upload_identity_split(tmp_path):
+    repo = _seeded(tmp_path)
+    root = repo.resolve_ref("main")
+    tip = repo.resolve_ref("feature/gate")
+    new = repo.restore_commit(
+        "feature/gate", root, tip,
+        title="Revert to base", description="rolling back the gate",
+        author_name="Alice Anderson", author_email="alice@example.com",
+    )
+    # The branch moved to a single new commit whose tree IS the target's tree.
+    assert repo.resolve_ref("feature/gate") == new
+    assert repo.commit_parent(new) == tip
+    assert repo.resolve_ref(f"{new}^{{tree}}") == repo.resolve_ref(f"{root}^{{tree}}")
+    entry = repo.log(new, limit=1)[0]
+    assert entry.title == "Revert to base"
+    assert entry.description == "rolling back the gate"
+    # Same identity split as an upload: author = the acting user, committer =
+    # the repository's own identity.
+    import subprocess
+    fmt = subprocess.run(
+        ["git", "-C", str(repo.path), "log", "-1", "--format=%an|%cn", new],
+        capture_output=True, text=True,
+    ).stdout.strip()
+    assert fmt == "Alice Anderson|PLC Version Control"
+
+
+def test_restore_commit_cas_rejects_a_moved_tip(tmp_path):
+    repo = _seeded(tmp_path)
+    root = repo.resolve_ref("main")
+    tip = repo.resolve_ref("feature/gate")
+    # The caller's view of the tip is stale (it names the parent, not the tip):
+    # the compare-and-swap ref move must refuse and leave the branch alone.
+    with pytest.raises(ProjectRepoError):
+        repo.restore_commit("feature/gate", root, root, title="stale")
+    assert repo.resolve_ref("feature/gate") == tip
+
+
+def test_commit_sha_verifies_existence(tmp_path):
+    repo = _seeded(tmp_path)
+    tip = repo.resolve_ref("main")
+    assert repo.commit_sha(tip) == tip
+    assert repo.commit_sha(tip[:8]) == tip          # short sha expands
+    assert repo.commit_sha("main") == tip           # refs peel to their commit
+    assert repo.commit_sha("0" * 40) is None        # well-formed but absent
+    assert repo.commit_sha("no-such-ref") is None
