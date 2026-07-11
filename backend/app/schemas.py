@@ -196,7 +196,8 @@ class RevertIn(BaseModel):
     branch: str
     target_sha: str
     expected_tip_sha: str
-    message: Optional[str] = None  # commit message; a default is built if omitted
+    message: Optional[str] = None  # commit title; a default is built if omitted
+    description: Optional[str] = None  # optional longer body (the "why")
 
 
 # --- branches ---

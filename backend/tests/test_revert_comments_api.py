@@ -95,10 +95,15 @@ class Seed:
         assert r.status_code == 201, r.text
         return r.json()["sha"]
 
-    def revert(self, target: str, expected: str, *, branch="main", token=None, message=None):
+    def revert(
+        self, target: str, expected: str,
+        *, branch="main", token=None, message=None, description=None,
+    ):
         payload = {"branch": branch, "target_sha": target, "expected_tip_sha": expected}
         if message is not None:
             payload["message"] = message
+        if description is not None:
+            payload["description"] = description
         return self.client.post(
             f"/projects/{self.pid}/revert",
             json=payload,
@@ -228,13 +233,20 @@ def test_revert_of_a_revert_restores_original_state(client, seed):
     # Performed by a plain member: main carries no protection row, so revert
     # needs only membership — same as committing to it.
     r = seed.revert(
-        seed.sha_b, seed.sha_c, message="Bring back the BOM", token=seed.member
+        seed.sha_b, seed.sha_c, message="Bring back the BOM",
+        description="Batch 7 passed QA on the old program after all.",
+        token=seed.member,
     )
     assert r.status_code == 201, r.text
     seed.sha_d = r.json()["sha"]
     assert r.json()["title"] == "Bring back the BOM"
     assert seed.files_at(seed.sha_d) == {"l5x/line", "files/bom.csv"}
     assert seed.raw_l5x(seed.sha_d) == CHANGE_X.encode()
+    # The optional description travels into the commit body.
+    detail = client.get(
+        f"/projects/{seed.pid}/commits/{seed.sha_d}", headers=_auth(seed.owner)
+    ).json()
+    assert detail["description"] == "Batch 7 passed QA on the old program after all."
 
 
 def test_upload_after_revert_does_not_resurrect_removed_files(client, seed):
@@ -249,6 +261,52 @@ def test_upload_after_revert_does_not_resurrect_removed_files(client, seed):
     files = seed.files_at(sha_f)
     assert "files/bom.csv" not in files
     assert seed.raw_l5x(sha_f) == CHANGE_Y.encode()
+
+
+def test_owner_alone_reopens_the_default_branch(client, seed):
+    """Protecting the default branch must be reversible — but only by the
+    project owner, not an admin. Once unprotected (row deleted), the default
+    branch takes direct commits and member reverts again."""
+    put = f"/projects/{seed.pid}/branches/main/protection"
+    r = client.put(
+        put, json={"protected": True, "required_approvals": 1}, headers=_auth(seed.owner)
+    )
+    assert r.status_code == 200 and r.json()["required_approvals"] == 1
+    # Protected main now rejects direct commits and member reverts.
+    blocked = client.post(
+        f"/projects/{seed.pid}/commits",
+        files=[("files", ("line.L5X", KITCHEN_SINK, "application/octet-stream"))],
+        data={"branch": "main", "title": "Direct"},
+        headers=_auth(seed.owner),
+    )
+    assert blocked.status_code == 400
+    assert seed.revert(seed.sha_a, seed.sha_b, token=seed.member).status_code == 403
+    # An admin cannot reopen the default branch — the owner alone can.
+    members = client.get(
+        f"/projects/{seed.pid}/members", headers=_auth(seed.owner)
+    ).json()
+    member_id = next(
+        m["id"] for m in members if m["email"] == "revert-member@example.com"
+    )
+    client.patch(
+        f"/projects/{seed.pid}/members/{member_id}", json={"role": "admin"},
+        headers=_auth(seed.owner),
+    )
+    denied = client.put(put, json={"protected": False}, headers=_auth(seed.member))
+    assert denied.status_code == 403
+    assert "owner" in denied.json()["detail"].lower()
+    client.patch(  # restore the seed's role assumptions for later tests
+        f"/projects/{seed.pid}/members/{member_id}", json={"role": "member"},
+        headers=_auth(seed.owner),
+    )
+    reopened = client.put(put, json={"protected": False}, headers=_auth(seed.owner))
+    assert reopened.status_code == 200
+    assert reopened.json()["required_approvals"] == 0
+    # Direct commits flow again, and a member sails past the revert gate
+    # (failing on validation, not 403).
+    sha = seed.commit("main", "Reopened", [("line.L5X", KITCHEN_SINK)])
+    r = seed.revert(sha, sha, token=seed.member)
+    assert r.status_code == 400 and "already the branch tip" in r.json()["detail"]
 
 
 # --- comments: PR replies at any depth ----------------------------------------

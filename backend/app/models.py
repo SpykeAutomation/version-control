@@ -106,10 +106,12 @@ class ProjectMember(Base):
 
 class BranchProtection(Base):
     """A protected branch. Git itself has no notion of protection, so the policy
-    lives here: a row means "this branch is protected" (can't be deleted via the
-    API) and carries how many approvals a PR into it needs before it can merge.
-    The default branch is protected even without a row; a row may still exist for
-    it to set `required_approvals`."""
+    lives here: a row means "this branch is protected" — no direct commits, no
+    member reverts, no deletion via the API — and carries how many approvals a
+    PR into it needs before it can merge. The default branch shows as protected
+    in branch views even without a row (and can never be deleted), but only an
+    explicit row blocks writes; unprotecting the default branch (deleting its
+    row) is the project owner's call alone."""
 
     __tablename__ = "branch_protections"
     __table_args__ = (UniqueConstraint("project_id", "branch"),)

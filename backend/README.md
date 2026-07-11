@@ -121,7 +121,7 @@ another. The creator is the `owner`; the owner and any `admin` are "managers".
 | Manage a PR's reviewers; delete **any** open PR; delete **any** comment | ✅ | ✅ | author only |
 | Revert a **protected** branch to an earlier commit (the emergency rollback that bypasses the PR loop) | ✅ | ✅ | ❌ |
 | Add members, change roles, rename, edit settings, **protect branches**, delete tags, **delete the project** | ✅ | ✅ | ❌ |
-| Remove or demote an **admin** | ✅ | ❌ | ❌ |
+| Remove or demote an **admin**; **unprotect the default branch** | ✅ | ❌ | ❌ |
 
 Members can merge — the gate is the **target branch's `required_approvals`**, not
 the role. The owner can't be removed or demoted. A manager-only call by a plain
@@ -207,7 +207,7 @@ separate from the per-project activity feed.
 | `GET`  | `/projects/{id}/branches` | — | `[Branch]` (enriched: tip commit, default/protected, ahead/behind, merged) |
 | `POST` | `/projects/{id}/branches` | `{name, start_point?="main"}` | `201` `[Branch]` |
 | `DELETE` | `/projects/{id}/branches/{branch}` | — (any member) | `204`; `400` if it's the default or a protected branch |
-| `PUT` | `/projects/{id}/branches/{branch}/protection` | `{protected, required_approvals?=0}` (owner/admin) | `Branch`; `400` unprotecting the default branch |
+| `PUT` | `/projects/{id}/branches/{branch}/protection` | `{protected, required_approvals?=0}` (owner/admin; unprotecting the **default** branch is **owner-only**) | `Branch` — unprotecting deletes the row and reopens direct commits/member reverts/review-free merges |
 | `POST` | `/projects/{id}/commits` | multipart: `files` (one or more, ≤100 MB each), `branch`, `title`, `description?` | `201` `CommitResult`; `413` if a file is too big; `400` if the branch is **explicitly protected** (commit via a PR — implicit default-branch protection does not block commits) |
 | `POST` | `/projects/{id}/revert` | `{branch, target_sha, expected_tip_sha, message?}` (any member; a **protected** branch: owner/admin only) | `201` `CommitResult` — restores `target_sha`'s repo state as ONE new commit on the branch (history preserved). Works on **every** branch: an unprotected branch reverts like it commits, and on a protected branch revert is the manager-only rollback path. **Preview = the existing diff endpoints** (`/diff`, `/compare`, `/tree`, per-file views) with `base=<current tip>&head=<target>` — there is no separate preview route. `403` member on a protected branch; `409` (current tip in `detail`) when the branch moved past `expected_tip_sha`; `400` target already the tip / non-ancestor target / identical trees; `404` unknown branch or target |
 | `GET`  | `/projects/{id}/commits` | `?branch=main&limit=50&offset=0` | `[Commit]` + `X-Total-Count` (each tagged with `branch` + `files_changed`) |
@@ -563,7 +563,8 @@ parent), per-commit diffs reuse the existing two-commit diff+cache by resolving
 `base = <sha>^` (or the empty tree for a root commit), and releases are real Git
 tags (annotated when you pass notes). The **one** thing Git can't represent is
 **branch protection**, so that — and only that — is persisted in a small
-`branch_protections` table; the default branch is protected implicitly.
+`branch_protections` table; the default branch also *displays* as protected
+(and is never deletable), but only an explicit row blocks writes.
 
 **What the frontend should call the backend for** (server-authoritative — don't
 recompute): `ahead`/`behind`, `files_changed`, the tip commit, `is_protected`,
@@ -796,4 +797,12 @@ straight past the review workflow. A default branch with no protection row is
 unaffected. Revert follows the same bar as committing on an unprotected
 branch (any member); on a protected branch it deliberately bypasses
 protection as the emergency rollback path, gated by role (owner/admin)
-instead.
+instead. `RevertIn` also takes an optional `description` (the commit body —
+the "why" of the rollback).
+
+Protection is fully reversible: unprotecting deletes the row and reopens
+direct commits, member reverts, and review-free merges. For the **default
+branch** that decision is **owner-only** (an admin gets `403`) — previously
+the default branch could never be unprotected, which combined with the new
+commit block would have locked direct commits out of `main` permanently the
+first time anyone protected it.

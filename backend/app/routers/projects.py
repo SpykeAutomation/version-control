@@ -100,7 +100,9 @@ from ..storage import delete_repo, locked_repo, repo_for
 router = APIRouter(prefix="/projects", tags=["projects"])
 
 # The repo's default branch. `init` creates it and PRs/overview default to it;
-# branch enrichment measures ahead/behind against it and it is always protected.
+# branch enrichment measures ahead/behind against it, it can never be deleted,
+# and it shows as protected in branch views even without a protection row
+# (write-blocking protection, though, is the explicit row alone).
 DEFAULT_BRANCH = "main"
 
 
@@ -120,8 +122,10 @@ def _commit_out(commit: CommitLog | None, branch: str | None = None) -> CommitOu
 
 def _protection_map(db: Session, project_id: int) -> dict[str, int]:
     """branch -> required_approvals for every protection row in a project. A
-    present key means the branch is explicitly protected; the default branch is
-    also protected even without a row (with 0 required approvals unless one)."""
+    present key means the branch is explicitly protected — that's what blocks
+    direct commits and member reverts. The default branch merely *displays* as
+    protected without a row (and can never be deleted); writes to it stay open
+    until an explicit row exists."""
     return {
         row.branch: row.required_approvals
         for row in db.scalars(
@@ -667,9 +671,13 @@ def set_branch_protection(
     user: User = Depends(current_user),
 ) -> BranchOut:
     """Protect or unprotect a branch and set how many approvals a PR into it
-    needs (owner/admin). A protected branch can't be deleted via the API. The
-    default branch is always protected — you can still set its required
-    approvals, but you can't unprotect it."""
+    needs (owner/admin). Protection (an explicit row) blocks direct commits
+    and member reverts, gates merges by `required_approvals`, and makes the
+    branch undeletable. Unprotecting deletes the row and reopens all of that —
+    for the DEFAULT branch that decision belongs to the project owner alone
+    (an admin gets 403); once unprotected, the default branch keeps only its
+    "default" tag: it still can't be deleted, but commits/reverts/merges flow
+    without review like any other unprotected branch."""
     require_manager(project_id, db, user)
     required = max(0, payload.required_approvals)
     # Protection state lives in the DB; git is only consulted for existence
@@ -678,19 +686,18 @@ def set_branch_protection(
     if not repo.branch_exists(branch):
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"Unknown branch: {branch}")
     if branch == DEFAULT_BRANCH and not payload.protected:
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST,
-            "The default branch is always protected",
-        )
+        # Owner-only: reopening direct writes to the default branch is the
+        # project owner's call, not an admin's. Without this, protecting the
+        # default branch once would lock direct commits out forever (the row
+        # used to be permanent) — protection must stay reversible.
+        require_owner(project_id, db, user)
     existing = db.scalar(
         select(BranchProtection).where(
             BranchProtection.project_id == project_id,
             BranchProtection.branch == branch,
         )
     )
-    # The default branch is protected even with no row, but a row lets it
-    # carry required_approvals; drop the row only for a non-default branch.
-    if not payload.protected and branch != DEFAULT_BRANCH:
+    if not payload.protected:
         if existing is not None:
             db.delete(existing)
     elif existing is not None:
@@ -904,6 +911,7 @@ def revert_branch(
                 target,
                 tip,
                 title=message,
+                description=payload.description or "",
                 author_name=f"{user.first_name} {user.last_name}".strip(),
                 author_email=user.email,
             )
@@ -1205,10 +1213,9 @@ def _commit_scope(repo: ProjectRepo, project_id: int, sha: str) -> tuple[str, li
     """Resolve `sha` (any commit-ish; 404 when it names no commit here) to the
     full commit id plus the comment scope for it. Comments are always stored
     under the full sha, so short-ref and full-sha lookups converge."""
-    commits = repo.log(sha, limit=1)
-    if not commits:
+    full = repo.commit_sha(sha)
+    if full is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Commit not found")
-    full = commits[0].sha
     return full, [Comment.project_id == project_id, Comment.commit_sha == full]
 
 
