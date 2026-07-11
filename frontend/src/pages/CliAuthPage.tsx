@@ -183,7 +183,7 @@ export function CliAuthPage() {
           <button
             className="btn btn-ghost btn-block"
             type="button"
-            onClick={() => navigate("/projects")}
+            onClick={() => navigate("/organization")}
             disabled={submitting}
           >
             Cancel

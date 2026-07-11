@@ -252,7 +252,7 @@ function CreateMergeRequestView({
       }
       qc.invalidateQueries({ queryKey: ["projects", projectId] });
       qc.invalidateQueries({ queryKey: queryKeys.projects });
-      navigate(`/projects/${slug}/merge/${pr.number}`);
+      navigate(`/organization/${slug}/merge/${pr.number}`);
     } catch (e) {
       setSubmitError(
         e instanceof ApiError
@@ -266,10 +266,10 @@ function CreateMergeRequestView({
   return (
     <div className="mr-page">
       <nav className="crumb">
-        <Link to="/projects">Repositories</Link>
+        <Link to="/organization">Repositories</Link>
         <span className="crumb-sep">/</span>
         {projectName ? (
-          <Link to={`/projects/${slug}`}>{projectName}</Link>
+          <Link to={`/organization/${slug}`}>{projectName}</Link>
         ) : (
           <span>Repository</span>
         )}
@@ -277,8 +277,8 @@ function CreateMergeRequestView({
         <Link
           to={
             slug
-              ? `/projects/${slug}?tab=${encodeURIComponent("Merge requests")}`
-              : "/projects"
+              ? `/organization/${slug}?tab=${encodeURIComponent("Merge requests")}`
+              : "/organization"
           }
         >
           Merge requests
@@ -313,7 +313,7 @@ function CreateMergeRequestView({
         <div className="panel-msg error cmr-duplicate">
           A merge request from <strong>{sourceBranch}</strong> into{" "}
           <strong>{targetBranch}</strong> already exists:{" "}
-          <Link to={`/projects/${slug}/merge/${duplicate.number}`}>
+          <Link to={`/organization/${slug}/merge/${duplicate.number}`}>
             #{duplicate.number} — {duplicate.title}
           </Link>
         </div>
@@ -867,7 +867,7 @@ function CommitsTab({
               {slug ? (
                 <Link
                   className="mr-commit-row"
-                  to={`/projects/${slug}/commit/${c.sha}`}
+                  to={`/organization/${slug}/commit/${c.sha}`}
                 >
                   {inner}
                 </Link>
@@ -1038,7 +1038,7 @@ function CommitsCard({
             return (
               <li className="cmr-tl-item" key={c.sha}>
                 {slug ? (
-                  <Link className="cmr-tl-link" to={`/projects/${slug}/commit/${c.sha}`}>
+                  <Link className="cmr-tl-link" to={`/organization/${slug}/commit/${c.sha}`}>
                     {row}
                   </Link>
                 ) : (

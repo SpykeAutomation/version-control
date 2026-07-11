@@ -143,7 +143,7 @@ export function RepositoryPage() {
               </span>
               <h3>Repository not found</h3>
               <p>We couldn't find a repository with that name.</p>
-              <Link to="/projects" className="btn btn-primary btn-sm">
+              <Link to="/organization" className="btn btn-primary btn-sm">
                 Back to repositories
               </Link>
             </div>
@@ -206,7 +206,7 @@ function RepositoryView({
     <div className="mr-page">
       {/* breadcrumb */}
       <nav className="crumb">
-        <Link to="/projects">{user?.organization ?? "Repositories"}</Link>
+        <Link to="/organization">{user?.organization ?? "Repositories"}</Link>
         <span className="crumb-sep">/</span>
         <span>{project.name}</span>
       </nav>
@@ -233,7 +233,7 @@ function RepositoryView({
             Create new branch
           </button>
           <Link
-            to={`/projects/${project.slug}/merge-requests/new`}
+            to={`/organization/${project.slug}/merge-requests/new`}
             className="btn btn-primary btn-sm"
           >
             Create merge request
@@ -417,7 +417,7 @@ function UploadFilesDialog({
         // the user doesn't retype them (they stay editable there).
         const qs = new URLSearchParams({ source: target, title: commitMessage });
         if (description.trim()) qs.set("description", description.trim());
-        navigate(`/projects/${slug}/merge-requests/new?${qs}`);
+        navigate(`/organization/${slug}/merge-requests/new?${qs}`);
       } else {
         onClose();
       }
@@ -574,7 +574,7 @@ function UploadFilesDialog({
   );
 }
 
-// Creates a branch off an existing start point via POST /projects/{id}/branches,
+// Creates a branch off an existing start point via POST /organization/{id}/branches,
 // then refreshes the project's branch data so the new branch shows up everywhere.
 function NewBranchDialog({
   project,
@@ -768,7 +768,7 @@ function CommitsCard({
       <CardHead
         title="Recent commits"
         action={
-          <Link to={`/projects/${slug}/commits`} className="link-btn">
+          <Link to={`/organization/${slug}/commits`} className="link-btn">
             View all commits
           </Link>
         }
@@ -791,12 +791,12 @@ function CommitsCard({
             {commits.slice(0, 8).map((c) => (
               <tr key={c.hash}>
                 <td>
-                  <Link to={`/projects/${slug}/commit/${c.sha}`} className="hash crlink">
+                  <Link to={`/organization/${slug}/commit/${c.sha}`} className="hash crlink">
                     {c.hash}
                   </Link>
                 </td>
                 <td className="cell-strong">
-                  <Link to={`/projects/${slug}/commit/${c.sha}`} className="crtitle">
+                  <Link to={`/organization/${slug}/commit/${c.sha}`} className="crtitle">
                     {c.message}
                   </Link>
                 </td>
@@ -841,7 +841,7 @@ function BranchesCard({
       <CardHead
         title="Branches"
         action={
-          <Link to={`/projects/${slug}/branches`} className="link-btn">
+          <Link to={`/organization/${slug}/branches`} className="link-btn">
             View all branches
           </Link>
         }
@@ -869,7 +869,7 @@ function BranchesCard({
               <tr key={b.name}>
                 <td>
                   <Link
-                    to={`/projects/${slug}?tab=Files&branch=${encodeURIComponent(b.name)}`}
+                    to={`/organization/${slug}?tab=Files&branch=${encodeURIComponent(b.name)}`}
                     className="branch-name crlink"
                   >
                     <GitBranch size={13} strokeWidth={2} />
@@ -882,7 +882,7 @@ function BranchesCard({
                     <>
                       {"lastCommitSha" in b && b.lastCommitSha ? (
                         <Link
-                          to={`/projects/${slug}/commit/${b.lastCommitSha}`}
+                          to={`/organization/${slug}/commit/${b.lastCommitSha}`}
                           className="hash crlink"
                         >
                           {b.lastCommitHash}
@@ -947,7 +947,7 @@ function ChangeRequestsCard({
 }) {
   const action = (
     <Link
-      to={`/projects/${slug}?tab=${encodeURIComponent("Merge requests")}`}
+      to={`/organization/${slug}?tab=${encodeURIComponent("Merge requests")}`}
       className="link-btn"
     >
       View all merge requests
@@ -972,7 +972,7 @@ function ChangeRequestsCard({
           <tbody>
             {detailCrs.map((cr) => {
               const m = CR_META[cr.status];
-              const href = `/projects/${slug}/merge/${cr.id}`;
+              const href = `/organization/${slug}/merge/${cr.id}`;
               return (
                 <tr key={cr.id}>
                   <td>
@@ -1016,7 +1016,7 @@ function ChangeRequestsCard({
         <div className="rcard-empty">
           No merge requests yet.{" "}
           <Link
-            to={`/projects/${slug}/merge-requests/new`}
+            to={`/organization/${slug}/merge-requests/new`}
             className="link-btn"
           >
             Create a merge request
@@ -1037,7 +1037,7 @@ function ChangeRequestsCard({
           <tbody>
             {crs.map((cr) => {
               const m = MR_STATUS_META[cr.status];
-              const href = `/projects/${slug}/merge/${cr.number}`;
+              const href = `/organization/${slug}/merge/${cr.number}`;
               return (
                 <tr key={cr.number}>
                   <td>
@@ -1393,7 +1393,7 @@ function CodeView({
           title={`Recent commits on ${info.name}`}
           action={
             <Link
-              to={`/projects/${slug}/commits?branch=${encodeURIComponent(info.name)}`}
+              to={`/organization/${slug}/commits?branch=${encodeURIComponent(info.name)}`}
               className="link-btn"
             >
               View all on {info.name}
@@ -1419,7 +1419,7 @@ function CodeView({
                 <tr key={c.hash}>
                   <td>
                     <Link
-                      to={`/projects/${slug}/commit/${c.sha}`}
+                      to={`/organization/${slug}/commit/${c.sha}`}
                       className="hash crlink"
                     >
                       {c.hash}
@@ -1433,7 +1433,7 @@ function CodeView({
                   </td>
                   <td className="cell-strong">
                     <Link
-                      to={`/projects/${slug}/commit/${c.sha}`}
+                      to={`/organization/${slug}/commit/${c.sha}`}
                       className="crtitle"
                     >
                       {c.message}

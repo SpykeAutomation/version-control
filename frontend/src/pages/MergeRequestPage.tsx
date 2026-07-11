@@ -123,10 +123,10 @@ function MergeRequestView({
   return (
     <div className="mr-page">
       <nav className="crumb">
-        <Link to="/projects">Repositories</Link>
+        <Link to="/organization">Repositories</Link>
         <span className="crumb-sep">/</span>
         {projectName ? (
-          <Link to={`/projects/${slug}`}>{projectName}</Link>
+          <Link to={`/organization/${slug}`}>{projectName}</Link>
         ) : (
           <span>Repository</span>
         )}
@@ -486,7 +486,7 @@ function CommitRow({ commit, slug }: { commit: MRCommitRow; slug?: string }) {
   return (
     <li>
       {slug ? (
-        <Link className="mr-commit-row" to={`/projects/${slug}/commit/${commit.sha}`}>
+        <Link className="mr-commit-row" to={`/organization/${slug}/commit/${commit.sha}`}>
           {inner}
         </Link>
       ) : (
@@ -1052,7 +1052,7 @@ function EmptyMerge({ slug }: { slug?: string }) {
       </span>
       <h3>Merge request not found</h3>
       <p>We couldn't find that merge request. It may have been merged or closed.</p>
-      <Link to={slug ? `/projects/${slug}` : "/projects"} className="btn btn-primary btn-sm">
+      <Link to={slug ? `/organization/${slug}` : "/organization"} className="btn btn-primary btn-sm">
         Back to repository
       </Link>
     </div>

@@ -363,7 +363,7 @@ function ProjectsTable({
             <tr key={p.id}>
               {/* Repository */}
               <td>
-                <Link to={`/projects/${p.slug}`} className="repo-cell">
+                <Link to={`/organization/${p.slug}`} className="repo-cell">
                   <RepoIcon slug={p.slug} size={18} className="repo-ico" />
                   <div>
                     <div className="repo-name">{p.name}</div>

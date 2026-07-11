@@ -136,10 +136,10 @@ function CommitReviewView({
   return (
     <div className="mr-page">
       <nav className="crumb">
-        <Link to="/projects">Repositories</Link>
+        <Link to="/organization">Repositories</Link>
         <span className="crumb-sep">/</span>
         {projectName ? (
-          <Link to={`/projects/${slug}`}>{projectName}</Link>
+          <Link to={`/organization/${slug}`}>{projectName}</Link>
         ) : (
           <span>Repository</span>
         )}
@@ -990,7 +990,7 @@ function ActionsCard({
       </div>
       {canCreate ? (
         <Link
-          to={`/projects/${slug}/merge-requests/new?source=${encodeURIComponent(branch!)}`}
+          to={`/organization/${slug}/merge-requests/new?source=${encodeURIComponent(branch!)}`}
           className="btn btn-outline btn-block btn-sm"
         >
           <GitPullRequestArrow size={15} strokeWidth={1.9} />
@@ -1032,7 +1032,7 @@ function EmptyCommit({ slug }: { slug?: string }) {
       <h3>Commit not found</h3>
       <p>We couldn't find that commit. It may have been removed or rebased away.</p>
       <Link
-        to={slug ? `/projects/${slug}` : "/projects"}
+        to={slug ? `/organization/${slug}` : "/organization"}
         className="btn btn-primary btn-sm"
       >
         Back to repository

@@ -21,7 +21,7 @@ function slugify(value: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
-// Only the project name is persisted today (POST /projects {name}); the
+// Only the project name is persisted today (POST /organization {name}); the
 // description, visibility, and documentation controls are UI for now and aren't
 // stored until the backend supports them.
 export function OnboardingPage() {
@@ -187,7 +187,7 @@ export function OnboardingPage() {
           <button
             type="button"
             className="btn-quiet"
-            onClick={() => navigate("/projects", { replace: true })}
+            onClick={() => navigate("/organization", { replace: true })}
             disabled={submitting}
           >
             Skip for now

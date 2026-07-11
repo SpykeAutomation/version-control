@@ -64,7 +64,7 @@ export function ComparePage() {
       <div className="app-scroll">
         <div className="mr-page">
           <nav className="crumb">
-            <Link to="/projects">Repositories</Link>
+            <Link to="/organization">Repositories</Link>
             <span className="crumb-sep">/</span>
             <span>Compare</span>
           </nav>

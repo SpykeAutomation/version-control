@@ -28,9 +28,9 @@ export function BranchesPage() {
       ) : (
         <div className="mr-page">
           <nav className="crumb">
-            <Link to="/projects">{user?.organization ?? "Repositories"}</Link>
+            <Link to="/organization">{user?.organization ?? "Repositories"}</Link>
             <span className="crumb-sep">/</span>
-            <Link to={`/projects/${slug}`}>{project.name}</Link>
+            <Link to={`/organization/${slug}`}>{project.name}</Link>
             <span className="crumb-sep">/</span>
             <span>Branches</span>
           </nav>
@@ -67,7 +67,7 @@ export function BranchesPage() {
                     <tr key={b.name}>
                       <td>
                         <Link
-                          to={`/projects/${slug}?tab=Files&branch=${encodeURIComponent(b.name)}`}
+                          to={`/organization/${slug}?tab=Files&branch=${encodeURIComponent(b.name)}`}
                           className="branch-name crlink"
                         >
                           <GitBranch size={13} strokeWidth={2} />
@@ -96,7 +96,7 @@ export function BranchesPage() {
                         {b.lastCommitHash ? (
                           <>
                             <Link
-                              to={`/projects/${slug}/commit/${b.lastCommitSha}`}
+                              to={`/organization/${slug}/commit/${b.lastCommitSha}`}
                               className="hash crlink"
                             >
                               {b.lastCommitHash}

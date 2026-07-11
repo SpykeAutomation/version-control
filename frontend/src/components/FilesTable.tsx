@@ -50,7 +50,7 @@ export function FilesTable({ files, slug }: { files: FileEntry[]; slug: string }
             <tr key={file.name}>
               <td>
                 <Link
-                  to={`/projects/${slug}/files/${encodeURIComponent(file.name)}`}
+                  to={`/organization/${slug}/files/${encodeURIComponent(file.name)}`}
                   className="file-cell"
                 >
                   <span className="file-kind">

@@ -11,7 +11,7 @@ export function LoginPage() {
   // Preserve the search string too, so flows like /cli-auth?code=… that bounce
   // through login land back on the original URL with their query intact.
   const fromLoc = (location.state as { from?: Location })?.from;
-  const from = fromLoc ? `${fromLoc.pathname}${fromLoc.search}` : "/projects";
+  const from = fromLoc ? `${fromLoc.pathname}${fromLoc.search}` : "/organization";
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
