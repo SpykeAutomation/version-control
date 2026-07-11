@@ -150,7 +150,7 @@ def test_revert_validation_errors(client, seed):
     assert tip == seed.sha_b
 
 
-def test_protected_branch_rejected(client, seed):
+def test_protected_branch_rejects_revert_and_direct_commits(client, seed):
     client.post(
         f"/projects/{seed.pid}/branches",
         json={"name": "prot", "start_point": "main"},
@@ -164,6 +164,24 @@ def test_protected_branch_rejected(client, seed):
     r = seed.revert(seed.sha_a, seed.sha_b, branch="prot")
     assert r.status_code == 400
     assert "protected" in r.json()["detail"]
+    # Direct commits are rejected the same way — a revert IS a direct commit,
+    # and both reach a protected branch only through a pull request.
+    direct = client.post(
+        f"/projects/{seed.pid}/commits",
+        files=[("files", ("line.L5X", KITCHEN_SINK, "application/octet-stream"))],
+        data={"branch": "prot", "title": "Direct commit"},
+        headers=_auth(seed.owner),
+    )
+    assert direct.status_code == 400
+    assert "protected" in direct.json()["detail"]
+    # Unprotecting re-opens direct commits (and main, never explicitly
+    # protected in this project, has been taking commits all along).
+    client.put(
+        f"/projects/{seed.pid}/branches/prot/protection",
+        json={"protected": False},
+        headers=_auth(seed.owner),
+    )
+    assert seed.commit("prot", "Now allowed", [("line.L5X", CHANGE_Y)])
 
 
 # --- revert: happy path and follow-ons (each builds on the previous tip) -----
@@ -243,6 +261,15 @@ def test_pr_reply_chain_any_depth(client, seed):
     assert r3.status_code == 201, r3.text
     assert r3.json()["parent_id"] == c2["id"]
     seed.pr_comment_id = c1["id"]  # reused by the cross-scope parent test
+    # Regression guard: inviting a reviewer exercises membership_role directly
+    # (the comments refactor once dropped that import; only the smoke run
+    # caught it — keep it covered here).
+    rv = client.post(
+        f"/projects/{seed.pid}/pulls/{n}/reviewers",
+        json={"email": "revert-member@example.com"},
+        headers=_auth(seed.owner),
+    )
+    assert rv.status_code == 201, rv.text
 
 
 # --- comments: commit-page discussions ----------------------------------------

@@ -729,8 +729,19 @@ def upload_files(
     any other file is stored as-is. A single `files` part works too. The upload
     is atomic: if any L5X is malformed, nothing is committed. Each file is capped
     at `PLCVC_MAX_UPLOAD_MB` (the Caddy edge caps the whole request separately).
+
+    An explicitly protected branch takes no direct commits — changes reach it
+    through a pull request (branch + PR is the supported flow; the frontend's
+    UI gating is reinforcement, this check is the enforcement). The default
+    branch's *implicit* protection deliberately does NOT block commits: a
+    project with no protection rows works straight on main.
     """
     require_member(project_id, db, user)
+    if branch in _protection_map(db, project_id):
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "Branch is protected — commit via a pull request",
+        )
 
     limit = settings.max_upload_bytes
     tmp_paths: list[str] = []

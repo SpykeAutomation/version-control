@@ -207,7 +207,7 @@ separate from the per-project activity feed.
 | `POST` | `/projects/{id}/branches` | `{name, start_point?="main"}` | `201` `[Branch]` |
 | `DELETE` | `/projects/{id}/branches/{branch}` | — (any member) | `204`; `400` if it's the default or a protected branch |
 | `PUT` | `/projects/{id}/branches/{branch}/protection` | `{protected, required_approvals?=0}` (owner/admin) | `Branch`; `400` unprotecting the default branch |
-| `POST` | `/projects/{id}/commits` | multipart: `files` (one or more, ≤100 MB each), `branch`, `title`, `description?` | `201` `CommitResult` (or `413` if a file is too big) |
+| `POST` | `/projects/{id}/commits` | multipart: `files` (one or more, ≤100 MB each), `branch`, `title`, `description?` | `201` `CommitResult`; `413` if a file is too big; `400` if the branch is **explicitly protected** (commit via a PR — implicit default-branch protection does not block commits) |
 | `POST` | `/projects/{id}/revert` | `{branch, target_sha, expected_tip_sha, message?}` | `201` `CommitResult` — restores `target_sha`'s repo state as ONE new commit on the branch (history preserved). **Preview = the existing diff endpoints** (`/diff`, `/compare`, `/tree`, per-file views) with `base=<current tip>&head=<target>` — there is no separate preview route. `409` (current tip in `detail`) when the branch moved past `expected_tip_sha`; `400` protected branch / target already the tip / non-ancestor target / identical trees; `404` unknown branch or target |
 | `GET`  | `/projects/{id}/commits` | `?branch=main&limit=50&offset=0` | `[Commit]` + `X-Total-Count` (each tagged with `branch` + `files_changed`) |
 | `GET`  | `/projects/{id}/commits/{sha}` | — | `CommitDetail` (the commit + files it changed vs its parent) |
@@ -489,6 +489,13 @@ no such L5X file / AOI at the ref, or a bad ref → `400`.
 - **New project**: `branches` reports `["main"]`, but `main` has *no commits*
   until the first upload (`GET /files` is empty too). Create branches only after
   that first commit.
+- **Protected branches take no direct commits** (`POST /commits` and
+  `POST /revert` return `400` on a branch with an explicit protection row).
+  The supported flow — which the UI should steer to — is: create a working
+  branch, commit there, open a PR, collect the required approvals, merge.
+  Hiding the upload control on protected branches is UX; the backend check is
+  the enforcement. A default branch with no protection row still accepts
+  direct commits.
 - **Diff is per file, reached from the manifest**: call `/diff?base=&head=` for
   the list of changed files. For each L5X file, render its two panels from
   `/diff/changeset?path=…` (code/text) and `/diff/ladder?path=…` (ladder); for a
@@ -777,4 +784,8 @@ flat Programs folder and all existing keys are unchanged.
 *Changed behavior:* comment replies are no longer capped at one level — the
 true `parent_id` chain is stored at any depth (render one visual level and
 quote-link a reply-to-a-reply). Deleting a comment still cascades to its whole
-reply subtree.
+reply subtree. And `POST /commits` now **rejects direct commits to an
+explicitly protected branch** (`400` — commit via a PR), closing the gap where
+protection only gated deletion and merge approvals while direct uploads walked
+straight past the review workflow; `POST /revert` enforces the same rule. A
+default branch with no protection row is unaffected.

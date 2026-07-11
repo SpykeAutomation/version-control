@@ -19,7 +19,7 @@ from .. import activity
 from .. import comments as discussion
 from ..auth import current_user
 from ..db import get_db
-from ..deps import require_member
+from ..deps import membership_role, require_member
 from ..diffing import (
     build_manifest,
     build_text_diff,
