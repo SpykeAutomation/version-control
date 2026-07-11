@@ -172,3 +172,19 @@ export function getL5xAoi(
 ): Promise<L5XAoi> {
   return getSection(projectId, ref, path, "aoi", name);
 }
+
+export interface L5XController {
+  name: string; // the controller ("PLC") name — the L5X TargetName
+  processor_type: string | null; // e.g. "5069-L350ERMS2"
+  major_rev: number | null;
+  minor_rev: number | null;
+  description: string | null;
+}
+
+export function getL5xController(
+  projectId: number,
+  ref: string,
+  path: string,
+): Promise<L5XController> {
+  return getSection(projectId, ref, path, "controller");
+}

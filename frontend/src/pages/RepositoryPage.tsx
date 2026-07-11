@@ -54,9 +54,9 @@ import {
   useBranches,
   useChangeRequests,
   useCommits,
-  useCommitTree,
   useMembers,
   useProject,
+  useProjectFiles,
   useRepository,
 } from "../api/queries";
 import { formatDate, timeAgo } from "../lib/time";
@@ -1238,9 +1238,12 @@ function CodeView({
   const uploadRef = useRef<HTMLInputElement>(null);
 
   const liveCommits = useCommits(project.id, branchName || "main").data ?? null;
-  // The controller name (the L5X file's name) comes from the organizer tree at
-  // the branch's latest commit.
-  const tree = useCommitTree(project.id, liveCommits?.[0]?.sha).data ?? null;
+  // The branch whose contents are shown (falls back like `info` below does).
+  const effectiveBranch =
+    branchList.find((b) => b.name === branchName)?.name ?? branchList[0]?.name;
+  // The real file listing at this branch — names, sizes and modified info come
+  // from the repo, not from anything synthesized client-side.
+  const liveFiles = useProjectFiles(project.id, effectiveBranch).data ?? null;
 
   if (branchList.length === 0) {
     return (
@@ -1262,24 +1265,7 @@ function CodeView({
       ? detail.commits.filter((c) => c.branch === info.name)
       : (liveCommits ?? [])
   ).map((c) => ({ ...c, filesChanged: c.filesChanged ?? 1 }));
-  // A repo holds one or more L5X/ACD files; today each repo stores a single
-  // controller, so list that one file. Rendered as a list so it scales when a
-  // repo holds more. Name comes from the controller; "modified" from the latest
-  // commit on this branch.
-  const controllerName = tree?.root.label;
-  const latestCommit = commits[0];
-  const files: FileEntry[] =
-    controllerName && latestCommit
-      ? [
-          {
-            name: `${controllerName}.L5X`,
-            kind: "controller",
-            size: "—",
-            modifiedAt: latestCommit.at,
-            modifiedBy: latestCommit.author,
-          },
-        ]
-      : [];
+  const files: FileEntry[] = liveFiles ?? [];
   // Ahead/behind only exists on the rich branch detail; the live branch list
   // doesn't expose it, so the divergence badges are hidden for live data.
   const divergence = "ahead" in info ? info : null;
@@ -1378,7 +1364,12 @@ function CodeView({
           <div className="rcard-empty">No files on this branch yet.</div>
         ) : (
           <>
-            <FilesTable files={files} slug={slug} />
+            <FilesTable
+              files={files}
+              slug={slug}
+              projectId={project.id}
+              refName={info.name}
+            />
             <div className="table-foot">
               <span>
                 {files.length} {files.length === 1 ? "file" : "files"}

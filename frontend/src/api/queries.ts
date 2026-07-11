@@ -46,10 +46,12 @@ import {
 } from "./commit";
 import {
   getL5xAoi,
+  getL5xController,
   getL5xDataTypes,
   getL5xModules,
   getL5xTags,
   type L5XAoi,
+  type L5XController,
   type L5XDataType,
   type L5XModule,
   type L5XTag,
@@ -347,6 +349,29 @@ export function useL5xModules(
   path: string | null | undefined,
 ) {
   return useL5x<L5XModule[]>("modules", getL5xModules, projectId, ref, path);
+}
+
+// The controller identity of one L5X file (name, processor, revision) —
+// shown beside the file in listings. Callers pass a BRANCH as the ref, so
+// unlike the sha-keyed hooks above this one uses the default staleness and
+// refetches when the branch moves.
+export function useL5xController(
+  projectId: number | undefined,
+  ref: string | undefined,
+  path: string | null | undefined,
+) {
+  return useQuery<L5XController>({
+    queryKey: queryKeys.l5xSection(
+      projectId ?? -1,
+      ref ?? "",
+      path ?? "",
+      "controller",
+      "",
+    ),
+    queryFn: () => getL5xController(projectId!, ref!, path!),
+    enabled: projectId != null && !!ref && !!path,
+    retry: false,
+  });
 }
 
 export function useL5xAoi(

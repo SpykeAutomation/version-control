@@ -92,6 +92,10 @@ export type FileContent =
 
 export interface FileEntry {
   name: string;
+  // Raw repo path ("l5x/<name>" or "files/<nested/path>") — keys the per-file
+  // backend lookups (e.g. the controller identity of an L5X). Absent only in
+  // mock detail payloads.
+  path?: string;
   kind: FileKind;
   description?: string;
   size: string;

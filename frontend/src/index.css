@@ -6671,3 +6671,19 @@ a.cmr-tl-link:hover .cmr-tl-msg {
 .l5x-multival-list li::marker {
   color: var(--ink4);
 }
+
+/* Files table: the controller identity read from inside an L5X. */
+.ctrl-cell {
+  display: block;
+  min-width: 0;
+}
+.ctrl-cell-name {
+  display: block;
+  font: 500 13px/1.4 var(--sans);
+  color: var(--ink);
+}
+.ctrl-cell-sub {
+  display: block;
+  font: 400 11.5px/1.4 var(--sans);
+  color: var(--ink3);
+}
