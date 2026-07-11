@@ -844,16 +844,19 @@ def revert_branch(
     what actually gets reverted — 409 (with the current tip) when the branch
     has moved, and the client refreshes.
 
-    Owner/admin only, and works on EVERY branch — including protected ones.
-    Revert is the sanctioned rollback path: where a protected branch rejects
-    direct commits (change flows through a PR), an emergency roll-back can't
-    wait on that loop, so it trades the member gate for the manager gate.
+    Permissions mirror committing: an unprotected branch reverts like it
+    commits — any member. A protected branch (which rejects direct commits;
+    change flows through a PR) can still be reverted, but only by an
+    owner/admin: revert is the sanctioned emergency rollback, and it can't
+    wait on the PR loop — so it trades the member gate for the manager gate.
     """
-    require_manager(project_id, db, user)
+    require_member(project_id, db, user)
     if not repo_for(project_id).branch_exists(payload.branch):
         raise HTTPException(
             status.HTTP_404_NOT_FOUND, f"Unknown branch: {payload.branch}"
         )
+    if payload.branch in _protection_map(db, project_id):
+        require_manager(project_id, db, user)  # 403 for a plain member
     # Check-then-write under the per-project write lock: the tip comparison
     # and the ref move must see the same repo state. The frontend's disabled
     # button is reinforcement; this is the enforcement. (restore_commit's

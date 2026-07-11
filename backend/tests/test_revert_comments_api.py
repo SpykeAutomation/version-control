@@ -141,8 +141,12 @@ def test_revert_validation_errors(client, seed):
     r = seed.revert(seed.sha_a, seed.sha_a)
     assert r.status_code == 409
     assert seed.sha_b in r.json()["detail"]
-    # Revert is owner/admin only: a plain member is 403, like a non-member.
-    assert seed.revert(seed.sha_a, seed.sha_b, token=seed.member).status_code == 403
+    # An unprotected branch reverts like it commits — any member. Proven
+    # without moving the branch: the member sails past the permission gate
+    # and fails on validation (target == tip), not on 403.
+    r = seed.revert(seed.sha_b, seed.sha_b, token=seed.member)
+    assert r.status_code == 400 and "already the branch tip" in r.json()["detail"]
+    # A non-member stays 403.
     assert seed.revert(seed.sha_a, seed.sha_b, token=seed.outsider).status_code == 403
     # Nothing above moved the branch.
     tip = client.get(
@@ -221,7 +225,11 @@ def test_identical_trees_rejected(client, seed):
 
 
 def test_revert_of_a_revert_restores_original_state(client, seed):
-    r = seed.revert(seed.sha_b, seed.sha_c, message="Bring back the BOM")
+    # Performed by a plain member: main carries no protection row, so revert
+    # needs only membership — same as committing to it.
+    r = seed.revert(
+        seed.sha_b, seed.sha_c, message="Bring back the BOM", token=seed.member
+    )
     assert r.status_code == 201, r.text
     seed.sha_d = r.json()["sha"]
     assert r.json()["title"] == "Bring back the BOM"
