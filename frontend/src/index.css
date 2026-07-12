@@ -6672,6 +6672,50 @@ a.cmr-tl-link:hover .cmr-tl-msg {
   color: var(--ink4);
 }
 
+/* --- Discussion: quote-link on a reply-to-a-reply + jump flash --- */
+.disc-quote {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  max-width: 100%;
+  margin: 2px 0 6px;
+  padding: 5px 9px;
+  border: 1px solid var(--line2);
+  border-left: 3px solid var(--line);
+  background: var(--panel2);
+  border-radius: 7px;
+  cursor: pointer;
+  text-align: left;
+  font: 400 12px/1.4 var(--sans);
+  color: var(--ink3);
+}
+.disc-quote:hover {
+  background: var(--hover);
+  color: var(--ink2);
+}
+.disc-quote > svg {
+  flex: none;
+  align-self: center;
+}
+.disc-quote-who {
+  flex: none;
+  font-weight: 600;
+  color: var(--ink2);
+}
+.disc-quote-snip {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.disc-flash > .disc-main > .disc-content {
+  animation: disc-flash-bg 1.6s ease-out;
+  border-radius: 8px;
+}
+@keyframes disc-flash-bg {
+  0%, 45% { background: #fdf1cf; box-shadow: 0 0 0 4px #fdf1cf; }
+  100% { background: transparent; box-shadow: none; }
+}
+
 /* Files table: the controller identity read from inside an L5X. */
 .ctrl-cell {
   display: block;

@@ -56,6 +56,11 @@ import {
   type L5XModule,
   type L5XTag,
 } from "./l5x";
+import {
+  addCommitComment,
+  listCommitComments,
+  type CommitComment,
+} from "./comments";
 import { mapRepository, type Commit } from "./repository";
 
 // Cache keys. Everything for a project is nested under ["projects", id] so a
@@ -91,6 +96,8 @@ export const queryKeys = {
     ["projects", projectId, "commit-routine", sha, program, routine] as const,
   l5xSection: (projectId: number, ref: string, path: string, section: string, name: string) =>
     ["projects", projectId, "l5x", ref, path, section, name] as const,
+  commitComments: (projectId: number, sha: string) =>
+    ["projects", projectId, "commit-comments", sha] as const,
 };
 
 // Turn a query error into a message, falling back when it isn't an ApiError.
@@ -388,6 +395,35 @@ export function useL5xAoi(
     name ? path : undefined,
     name ?? "",
   );
+}
+
+// The commit page's persistent discussion (flat list; the page nests by
+// parentId). Comments are mutable (people keep posting), so no staleTime.
+export function useCommitComments(
+  projectId: number | undefined,
+  sha: string | undefined,
+) {
+  return useQuery<CommitComment[]>({
+    queryKey: queryKeys.commitComments(projectId ?? -1, sha ?? ""),
+    queryFn: () => listCommitComments(projectId!, sha!),
+    enabled: projectId != null && !!sha,
+  });
+}
+
+// Posting refreshes the commit's comment list.
+export function useAddCommitComment(
+  projectId: number | undefined,
+  sha: string | undefined,
+) {
+  const qc = useQueryClient();
+  return useMutation<CommitComment, Error, { body: string; parentId?: number | null }>({
+    mutationFn: (input) => addCommitComment(projectId!, sha!, input),
+    onSuccess: () => {
+      qc.invalidateQueries({
+        queryKey: queryKeys.commitComments(projectId ?? -1, sha ?? ""),
+      });
+    },
+  });
 }
 
 // Posting a comment adds to a merge request's thread, so refresh that merge
