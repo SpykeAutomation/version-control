@@ -178,6 +178,9 @@ class CommitOut(BaseModel):
     date: str = ""
     branch: Optional[str] = None  # the branch this was listed under (when known)
     files_changed: int = 0  # logical files changed vs the first parent
+    # Parent shas, first parent first (git's order); [] for a root commit. A
+    # merge commit's second parent is the tip of the branch that was merged in.
+    parents: list[str] = []
 
 
 class CommitResult(BaseModel):

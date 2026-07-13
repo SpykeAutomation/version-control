@@ -117,6 +117,7 @@ def _commit_out(commit: CommitLog | None, branch: str | None = None) -> CommitOu
         date=commit.date,
         branch=branch,
         files_changed=commit.files_changed,
+        parents=list(commit.parents),
     )
 
 

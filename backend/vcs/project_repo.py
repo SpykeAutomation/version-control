@@ -58,6 +58,9 @@ class CommitLog:
     author: str
     date: str
     files_changed: int = 0  # logical files this commit changed vs its first parent
+    # Parent shas in git's order (first parent first); empty for a root commit.
+    # A tuple, not a list: the dataclass is frozen and a mutable default won't do.
+    parents: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -624,7 +627,7 @@ class ProjectRepo:
         self._ensure_repo()
         us, rs = "\x1f", "\x1e"
         fmt = (
-            f"%(refname:short){us}%(objectname){us}%(authorname){us}"
+            f"%(refname:short){us}%(objectname){us}%(parent){us}%(authorname){us}"
             f"%(authordate:iso-strict){us}%(contents:subject){us}%(contents:body){rs}"
         )
         out = self._output("for-each-ref", f"--format={fmt}", "refs/heads")
@@ -633,10 +636,12 @@ class ProjectRepo:
             record = record.strip("\n")
             if not record.strip():
                 continue
-            name, sha, author, date, subject, body = (record.split(us) + [""] * 6)[:6]
+            name, sha, parents, author, date, subject, body = (
+                record.split(us) + [""] * 7
+            )[:7]
             tips[name] = CommitLog(
                 sha=sha, title=subject, description=body.strip(),
-                author=author, date=date,
+                author=author, date=date, parents=tuple(parents.split()),
             )
         return tips
 
@@ -668,7 +673,7 @@ class ProjectRepo:
         history pass.
         """
         self._ensure_repo()
-        fmt = "%H%x1f%an%x1f%aI%x1f%s%x1f%b%x1e"
+        fmt = "%H%x1f%P%x1f%an%x1f%aI%x1f%s%x1f%b%x1e"
         result = self._run(
             "log", f"-n{limit}", f"--skip={offset}", f"--format={fmt}", ref,
             check=False,
@@ -681,7 +686,9 @@ class ProjectRepo:
             record = record.strip("\n")
             if not record.strip():
                 continue
-            sha, author, date, title, body = (record.split("\x1f") + [""] * 5)[:5]
+            sha, parents, author, date, title, body = (
+                record.split("\x1f") + [""] * 6
+            )[:6]
             commits.append(
                 CommitLog(
                     sha=sha,
@@ -690,6 +697,7 @@ class ProjectRepo:
                     author=author,
                     date=date,
                     files_changed=counts.get(sha, 0),
+                    parents=tuple(parents.split()),
                 )
             )
         return commits
