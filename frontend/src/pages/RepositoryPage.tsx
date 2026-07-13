@@ -55,6 +55,7 @@ import {
   useChangeRequests,
   useCommits,
   useMembers,
+  useMergedPulls,
   useProject,
   useProjectFiles,
   useRepository,
@@ -874,8 +875,17 @@ function BranchesCard({
                   >
                     <GitBranch size={13} strokeWidth={2} />
                     {b.name}
-                    {b.isDefault && <span className="mini-badge">Default</span>}
                   </Link>
+                  {b.isDefault && (
+                    <span className="mini-badge" style={{ marginLeft: 8 }}>
+                      Default
+                    </span>
+                  )}
+                  {!b.isDefault && "merged" in b && b.merged && (
+                    <span className="mini-badge merged" style={{ marginLeft: 8 }}>
+                      Merged
+                    </span>
+                  )}
                 </td>
                 <td>
                   {b.lastCommitHash ? (
@@ -1149,7 +1159,7 @@ function BranchPicker({
   selected,
   onSelect,
 }: {
-  branches: { name: string; isDefault?: boolean }[];
+  branches: { name: string; isDefault?: boolean; merged?: boolean }[];
   selected: string;
   onSelect: (name: string) => void;
 }) {
@@ -1192,6 +1202,9 @@ function BranchPicker({
                 <GitBranch size={14} strokeWidth={1.8} />
                 <span className="bmi-name">{b.name}</span>
                 {b.isDefault && <span className="mini-badge accent">default</span>}
+                {!b.isDefault && b.merged && (
+                  <span className="mini-badge merged">merged</span>
+                )}
                 {b.name === selected && (
                   <Check className="bmi-check" size={14} strokeWidth={2.2} />
                 )}
@@ -1244,6 +1257,8 @@ function CodeView({
   // The real file listing at this branch — names, sizes and modified info come
   // from the repo, not from anything synthesized client-side.
   const liveFiles = useProjectFiles(project.id, effectiveBranch).data ?? null;
+  // Merged pulls, to point a merged branch at the merge request that took it in.
+  const mergedPulls = useMergedPulls(project.id).data ?? null;
 
   if (branchList.length === 0) {
     return (
@@ -1266,6 +1281,18 @@ function CodeView({
       : (liveCommits ?? [])
   ).map((c) => ({ ...c, filesChanged: c.filesChanged ?? 1 }));
   const files: FileEntry[] = liveFiles ?? [];
+  // A merged branch is read-only in spirit: its work already landed, so new
+  // uploads here are almost always a mistake — grey them out and say why.
+  // (The `merged` flag exists only on the live branch summaries.)
+  const isMerged =
+    !info.isDefault && "merged" in info && Boolean(info.merged);
+  const mergedPull = isMerged
+    ? (mergedPulls?.find((p) => p.sourceBranch === info.name) ?? null)
+    : null;
+  const mergeTarget =
+    mergedPull?.targetBranch ??
+    branchList.find((b) => b.isDefault)?.name ??
+    "main";
   // Ahead/behind only exists on the rich branch detail; the live branch list
   // doesn't expose it, so the divergence badges are hidden for live data.
   const divergence = "ahead" in info ? info : null;
@@ -1316,6 +1343,12 @@ function CodeView({
           <button
             type="button"
             className="btn btn-primary btn-sm"
+            disabled={isMerged}
+            title={
+              isMerged
+                ? `${info.name} has already been merged into ${mergeTarget} — create a new branch to add files.`
+                : undefined
+            }
             onClick={() => uploadRef.current?.click()}
           >
             <UploadCloud size={15} strokeWidth={1.8} />
@@ -1348,6 +1381,30 @@ function CodeView({
           initialFiles={uploadFiles}
           onClose={() => setUploadFiles(null)}
         />
+      )}
+
+      {isMerged && (
+        <div className="rail-callout merged-callout">
+          <GitPullRequestArrow size={15} strokeWidth={1.9} />
+          <span>
+            <span className="mini-badge merged">Merged</span> This branch has
+            been merged into <strong>{mergeTarget}</strong>
+            {mergedPull ? (
+              <>
+                {" "}
+                via{" "}
+                <Link
+                  to={`/organization/${slug}/merge/${mergedPull.number}`}
+                  className="merged-callout-link"
+                >
+                  merge request #{mergedPull.number}
+                </Link>
+              </>
+            ) : null}
+            . Adding new files here is disabled — branch off {mergeTarget} for
+            new work.
+          </span>
+        </div>
       )}
 
       <div className="rail-callout">

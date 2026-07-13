@@ -6870,3 +6870,26 @@ a.cmr-tl-link:hover .cmr-tl-msg {
   font: 400 11.5px/1.4 var(--sans);
   color: var(--ink3);
 }
+
+/* Merged-branch marker: the blue tag next to a merged branch, and the banner
+   on that branch's Files view. */
+.mini-badge.merged {
+  color: #1c5cab;
+  background: #e4eefb;
+  border-color: #b7d3f6;
+}
+.rail-callout.merged-callout {
+  background: #e4eefb;
+  border-color: #9ec5f4;
+  color: #164a8a;
+}
+.rail-callout.merged-callout .mini-badge.merged {
+  margin-right: 4px;
+  vertical-align: 1px;
+  background: #fbfaf7;
+}
+.merged-callout-link {
+  color: #1c5cab;
+  font-weight: 600;
+  text-decoration: underline;
+}

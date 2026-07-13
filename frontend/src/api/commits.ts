@@ -43,6 +43,7 @@ export interface BranchSummary {
   name: string;
   isDefault: boolean;
   isProtected: boolean;
+  merged: boolean; // fully merged into the default branch (ahead == 0)
   ahead: number;
   behind: number;
   lastCommitHash?: string;
@@ -76,6 +77,7 @@ export async function listBranches(
     name: b.name,
     isDefault: b.is_default,
     isProtected: b.is_protected,
+    merged: b.merged,
     ahead: b.ahead,
     behind: b.behind,
     lastCommitHash: b.latest_commit?.sha.slice(0, 7),

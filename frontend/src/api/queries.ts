@@ -246,6 +246,16 @@ export function useChangeRequests(projectId: number | undefined) {
   });
 }
 
+// Merged pulls, used by the commit graph to attribute "Merge pull request #N"
+// trunk commits to the branch they brought in.
+export function useMergedPulls(projectId: number | undefined) {
+  return useQuery<ChangeRequestSummary[]>({
+    queryKey: [...queryKeys.changeRequests(projectId ?? -1), "merged"],
+    queryFn: () => listChangeRequests(projectId!, "merged"),
+    enabled: projectId != null,
+  });
+}
+
 // The project is read from the shared project-list cache (via useProject), so
 // these detail hooks pass its id straight through instead of re-listing every
 // project on each detail load. React Query dedupes the underlying list query, so

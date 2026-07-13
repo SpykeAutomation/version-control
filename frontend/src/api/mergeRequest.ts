@@ -230,11 +230,15 @@ export interface ChangeRequestSummary {
   open: boolean;
 }
 
-// List a project's change requests, newest first.
+// List a project's change requests, newest first. `status` filters server-side
+// ("open" | "merged"); omitted keeps the backend default (open) — the commit
+// graph asks for merged ones to attribute merge commits to their branch.
 export async function listChangeRequests(
   projectId: number,
+  status?: string,
 ): Promise<ChangeRequestSummary[]> {
-  const pulls = await apiFetch<PullOut[]>(`/projects/${projectId}/pulls`);
+  const q = status ? `?status_filter=${encodeURIComponent(status)}` : "";
+  const pulls = await apiFetch<PullOut[]>(`/projects/${projectId}/pulls${q}`);
   return pulls.map((p) => ({
     number: p.number,
     title: p.title,
