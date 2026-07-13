@@ -305,7 +305,10 @@ CommitResult = { "sha": string, "branch": string, "title": string }
 Commit  = { "sha": string, "title": string, "description": string,
             "author": string, "date": string /* ISO-8601 */,  // author = the uploading user
             "branch": string|null,        // the branch it was listed under (when known)
-            "files_changed": int }        // logical files changed vs its first parent
+            "files_changed": int,         // logical files changed vs its first parent
+            "parents": [string] }         // parent shas, first parent first ([] for the
+                                          // root commit; a merge commit has two — target
+                                          // tip then source tip)
 Branch  = { "name": string, "is_default": bool, "is_protected": bool,
             "required_approvals": int,     // approvals a PR into this branch needs to merge
             "latest_commit": Commit|null,  // null on an unborn branch (no commits yet)
@@ -799,6 +802,17 @@ branch (any member); on a protected branch it deliberately bypasses
 protection as the emergency rollback path, gated by role (owner/admin)
 instead. `RevertIn` also takes an optional `description` (the commit body —
 the "why" of the rollback).
+
+### 2026-07-13 · Commit parents
+
+*Changed shapes:* `Commit` gains `parents` — the parent shas in git's order
+(first parent first; `[]` for the root commit, two on a merge commit: the
+pre-merge target tip then the source tip). Everywhere a `Commit` is returned
+(`GET /commits`, `/branches` tips, `/tags`, the overview's `latest_commit`);
+no new endpoints. This is what
+lets the commit-graph view reconstruct branch topology: the trunk is the
+default branch's first-parent chain and a merge's second parent opens the
+merged branch's side chain.
 
 Protection is fully reversible: unprotecting deletes the row and reopens
 direct commits, member reverts, and review-free merges. For the **default
