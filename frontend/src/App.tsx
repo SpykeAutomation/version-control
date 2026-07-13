@@ -12,6 +12,7 @@ import { BranchesPage } from "./pages/BranchesPage";
 import { CommitsPage } from "./pages/CommitsPage";
 import { CommitPage } from "./pages/CommitPage";
 import { CommitReviewPage } from "./pages/CommitReviewPage";
+import { RevertPage } from "./pages/RevertPage";
 import { FileViewPage } from "./pages/FileViewPage";
 import { ComparePage } from "./pages/ComparePage";
 import { MergeRequestPage } from "./pages/MergeRequestPage";
@@ -68,6 +69,7 @@ export function App() {
         <Route path="organization/:slug/commits" element={<CommitsPage />} />
         <Route path="organization/:slug/commit" element={<CommitPage />} />
         <Route path="organization/:slug/commit/:sha" element={<CommitReviewPage />} />
+        <Route path="organization/:slug/revert" element={<RevertPage />} />
         <Route path="organization/:slug/files/:fileName" element={<FileViewPage />} />
         <Route
           path="organization/:slug/merge-requests/new"

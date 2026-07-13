@@ -8,6 +8,9 @@ export interface Project {
   owner_id: number;
   created_at: string;
   branches: string[];
+  // The caller's role on this project ("owner" | "admin" | "member"), echoed
+  // by the backend so the UI can hide controls the user can't use.
+  your_role?: string;
 }
 
 export type RepoStatus = "production" | "commissioning" | "review" | "draft";
@@ -47,6 +50,7 @@ interface ProjectApi {
   owner: UserBrief;
   created_at: string;
   branches: string[];
+  your_role?: string;
 }
 
 export function createProject(name: string): Promise<Project> {

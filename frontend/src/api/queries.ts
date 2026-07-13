@@ -56,6 +56,7 @@ import {
   type L5XModule,
   type L5XTag,
 } from "./l5x";
+import { getCompareView, type CompareView } from "./compare";
 import {
   addCommitComment,
   listCommitComments,
@@ -96,6 +97,8 @@ export const queryKeys = {
     ["projects", projectId, "commit-routine", sha, program, routine] as const,
   l5xSection: (projectId: number, ref: string, path: string, section: string, name: string) =>
     ["projects", projectId, "l5x", ref, path, section, name] as const,
+  compareView: (projectId: number, base: string, head: string) =>
+    ["projects", projectId, "compare", base, head] as const,
   commitComments: (projectId: number, sha: string) =>
     ["projects", projectId, "commit-comments", sha] as const,
 };
@@ -395,6 +398,20 @@ export function useL5xAoi(
     name ? path : undefined,
     name ?? "",
   );
+}
+
+// Rolled-up compare summary + per-file impact rows for a ref pair. Used by
+// the revert preview (base = current tip, head = revert target).
+export function useCompareView(
+  projectId: number | undefined,
+  base: string | undefined,
+  head: string | undefined,
+) {
+  return useQuery<CompareView>({
+    queryKey: queryKeys.compareView(projectId ?? -1, base ?? "", head ?? ""),
+    queryFn: () => getCompareView(projectId!, base!, head!),
+    enabled: projectId != null && !!base && !!head,
+  });
 }
 
 // The commit page's persistent discussion (flat list; the page nests by

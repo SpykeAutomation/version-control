@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   ArrowRight,
   Clock,
@@ -12,6 +12,7 @@ import {
   Hash,
   MoreVertical,
   RotateCcw,
+  TriangleAlert,
 } from "lucide-react";
 import {
   RoutineLadderDiffView,
@@ -29,9 +30,11 @@ import {
 } from "../api/commit";
 import type { MRCodeDiff, PRFile } from "../api/mergeRequest";
 import type { CommitComment } from "../api/comments";
+import type { Commit } from "../api/repository";
 import {
   errorText,
   useAddCommitComment,
+  useBranches,
   useCommit,
   useCommitComments,
   useCommits,
@@ -83,6 +86,7 @@ export function CommitReviewPage() {
             projectName={project?.name}
             slug={slug}
             projectId={project?.id}
+            role={project?.your_role}
           />
         )}
       </div>
@@ -95,11 +99,13 @@ function CommitReviewView({
   projectName,
   slug,
   projectId,
+  role,
 }: {
   commit: CommitDetail;
   projectName?: string;
   slug?: string;
   projectId?: number;
+  role?: string;
 }) {
   const [showNumbers, setShowNumbers] = useState(true);
   // The tab strip switches the main view: "discussion" (default) holds the
@@ -125,13 +131,27 @@ function CommitReviewView({
     setFilesEntity(null);
   }, [commit.sha]);
 
-  // Reverting only makes sense on a branch's tip commit — anything older
-  // would silently drop the commits after it. (The backend has no revert
-  // endpoint yet; when it lands it must enforce this same rule server-side.)
+  // Revert starts from the branch tip (the backend re-checks this inside its
+  // write lock — the gating here is reinforcement). On a protected branch it
+  // is the manager-only rollback path, so hide it from plain members there.
   const branchCommits = useCommits(projectId, commit.branch).data ?? null;
   const isLatest = branchCommits
     ? branchCommits[0]?.sha.slice(0, 7) === commit.sha
     : false;
+  const branches = useBranches(projectId).data ?? null;
+  const isProtected =
+    branches?.find((b) => b.name === commit.branch)?.isProtected ?? false;
+  const isManager = role === "owner" || role === "admin";
+  const hasHistory = (branchCommits?.length ?? 0) > 1;
+  const canRevert = isLatest && hasHistory && (!isProtected || isManager);
+  const revertNote = !isLatest
+    ? "Revert is only available on the branch's latest commit."
+    : !hasHistory
+      ? "There is no earlier commit to revert to."
+      : isProtected && !isManager
+        ? "Only owners and admins can revert a protected branch."
+        : null;
+  const [revertOpen, setRevertOpen] = useState(false);
 
   return (
     <div className="mr-page">
@@ -209,10 +229,21 @@ function CommitReviewView({
           <ActionsCard
             slug={slug}
             branch={commit.branch}
-            isLatest={isLatest}
+            canRevert={canRevert}
+            revertNote={revertNote}
+            onRevert={() => setRevertOpen(true)}
           />
         </aside>
       </div>
+
+      {revertOpen && branchCommits && slug && (
+        <RevertModal
+          slug={slug}
+          branch={commit.branch}
+          commits={branchCommits}
+          onClose={() => setRevertOpen(false)}
+        />
+      )}
     </div>
   );
 }
@@ -1074,17 +1105,20 @@ function FilesChangedCard({ files }: { files: CommitFileStat[] }) {
 function ActionsCard({
   slug,
   branch,
-  isLatest,
+  canRevert,
+  revertNote,
+  onRevert,
 }: {
   slug?: string;
   branch?: string;
-  isLatest: boolean;
+  canRevert: boolean;
+  revertNote: string | null;
+  onRevert: () => void;
 }) {
   // Opening a merge request from this commit's branch is a real flow (the
   // create-merge-request page), so this links straight to it with the branch
-  // pre-selected as the source. Revert only applies to the branch's latest
-  // commit — reverting anything older would drop the commits after it — and
-  // has no backend yet, so it stays disabled either way.
+  // pre-selected as the source. Revert opens the target-picking dialog; when
+  // it isn't available here, the note under the button says why.
   const canCreate = Boolean(slug && branch);
   return (
     <section className="rail-section cm-actions">
@@ -1107,22 +1141,103 @@ function ActionsCard({
       )}
       <button
         className="btn btn-block btn-sm cm-revert"
-        disabled
-        title={
-          isLatest
-            ? "Coming soon"
-            : `Only the latest commit on ${branch ?? "a branch"} can be reverted`
-        }
+        disabled={!canRevert}
+        title={revertNote ?? undefined}
+        onClick={onRevert}
       >
         <RotateCcw size={15} strokeWidth={1.9} />
         Revert commit
       </button>
-      {!isLatest && (
-        <p className="cm-revert-note">
-          Revert is only available on the branch's latest commit.
-        </p>
-      )}
+      {revertNote && <p className="cm-revert-note">{revertNote}</p>}
     </section>
+  );
+}
+
+// The revert dialog: explains what a revert does, and picks WHICH earlier
+// commit to restore. Preview navigates to the revert page, which shows the
+// exact changes (diff tip → target) and holds the Confirm button.
+function RevertModal({
+  slug,
+  branch,
+  commits,
+  onClose,
+}: {
+  slug: string;
+  branch: string;
+  commits: Commit[];
+  onClose: () => void;
+}) {
+  const navigate = useNavigate();
+  const [target, setTarget] = useState<string | null>(null);
+  const tip = commits[0];
+  const options = commits.slice(1);
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div
+        className="modal modal-wide revert-modal"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+      >
+        <h3 className="modal-title">
+          <TriangleAlert size={17} strokeWidth={2} className="revert-modal-ico" />
+          Revert {branch}
+        </h3>
+        <p className="revert-modal-intro">
+          Reverting restores an earlier state of{" "}
+          <span className="branch-tag">
+            <GitBranch size={12} strokeWidth={2} />
+            {branch}
+          </span>{" "}
+          as <strong>one new commit</strong> on top of{" "}
+          <span className="cm-commit-sha">{tip?.sha.slice(0, 7)}</span>. Nothing
+          is deleted — the commits in between stay in the history. Pick the
+          commit whose state you want back, then preview exactly what will
+          change before anything happens.
+        </p>
+        <div className="revert-commit-list" role="radiogroup">
+          {options.map((c) => (
+            <label
+              key={c.sha}
+              className={`revert-commit${target === c.sha ? " selected" : ""}`}
+            >
+              <input
+                type="radio"
+                name="revert-target"
+                checked={target === c.sha}
+                onChange={() => setTarget(c.sha)}
+              />
+              <span className="revert-commit-main">
+                <span className="revert-commit-msg">{c.message}</span>
+                <span className="revert-commit-meta">
+                  <span className="mr-meta-mono">{c.sha.slice(0, 7)}</span> ·{" "}
+                  {c.author} · {timeAgo(c.at)}
+                </span>
+              </span>
+            </label>
+          ))}
+        </div>
+        <div className="modal-actions">
+          <button type="button" className="btn btn-quiet" onClick={onClose}>
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="btn btn-primary"
+            disabled={!target || !tip}
+            onClick={() =>
+              navigate(
+                `/organization/${slug}/revert?branch=${encodeURIComponent(branch)}` +
+                  `&target=${target}&tip=${tip!.sha}`,
+              )
+            }
+          >
+            Preview changes
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

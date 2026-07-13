@@ -124,3 +124,29 @@ export async function commitFiles(
     formData: body,
   });
 }
+
+// Restore an earlier commit's repo state as ONE new commit on the branch
+// (history preserved — nothing is rewritten). The backend re-checks that
+// `expectedTipSha` is still the branch tip inside its write lock and answers
+// 409 (current tip in `detail`) when the branch has moved; 403 for a plain
+// member on a protected branch; 400 for a target that is already the tip,
+// isn't an ancestor, or whose tree matches the tip's.
+export function revertBranch(
+  projectId: number,
+  input: {
+    branch: string;
+    targetSha: string;
+    expectedTipSha: string;
+    message?: string;
+  },
+): Promise<CommitResult> {
+  return apiFetch<CommitResult>(`/projects/${projectId}/revert`, {
+    method: "POST",
+    json: {
+      branch: input.branch,
+      target_sha: input.targetSha,
+      expected_tip_sha: input.expectedTipSha,
+      ...(input.message ? { message: input.message } : {}),
+    },
+  });
+}
