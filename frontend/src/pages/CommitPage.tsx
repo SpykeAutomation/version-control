@@ -268,7 +268,7 @@ export function CommitPage() {
                   {files.length === 0 ? (
                     <div className="rcard-empty">No files selected yet.</div>
                   ) : (
-                    <table className="dtable filelist">
+                    <div className="dtable-scroll"><table className="dtable filelist">
                       <thead>
                         <tr>
                           <th>File name</th>
@@ -310,7 +310,7 @@ export function CommitPage() {
                           );
                         })}
                       </tbody>
-                    </table>
+                    </table></div>
                   )}
                 </section>
               </div>

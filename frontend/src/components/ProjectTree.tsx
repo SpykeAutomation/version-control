@@ -30,24 +30,41 @@ export interface RoutineSelection {
 interface ProjectTreeProps {
   root: TreeNode;
   selected: RoutineSelection | null;
+  // Key of the entity node whose detail panel is open, for row highlighting.
+  selectedEntityKey?: string | null;
   onSelectRoutine: (sel: RoutineSelection) => void;
   onSelectEntity?: (node: TreeNode) => void;
   onClear: () => void;
 }
 
-// Default-open the root, its top-level folders, and every node on a path to a
-// change (descendant_changed marks exactly those ancestors), so changed logic
-// is visible on load and the rest stays collapsed.
+// Folders that open a detail panel when clicked (grids over the whole
+// category); every other folder is a pure container and just toggles.
+const PANEL_FOLDERS = new Set(["folder:tags", "folder:io"]);
+
+// Whether clicking this node opens a detail panel (AOI parameters, UDT member
+// table, tag grid, module table, AOI routine content) rather than only
+// expanding it. Routine nodes without ladder identity are AOI routines — their
+// content comes from the AOI section, so they select as entities too.
+function hasDetailPanel(node: TreeNode): boolean {
+  switch (node.kind) {
+    case "aoi":
+    case "datatype":
+    case "tag":
+    case "module":
+      return true;
+    case "routine":
+      return !node.routine;
+    case "folder":
+      return PANEL_FOLDERS.has(node.key);
+    default:
+      return false;
+  }
+}
+
+// Default-open only the root, so the project's first level is visible but
+// collapsed — the reader expands the paths they care about.
 function defaultExpanded(root: TreeNode): Set<string> {
-  const open = new Set<string>();
-  const walk = (node: TreeNode, depth: number) => {
-    if (depth === 0 || (node.kind === "folder" && depth === 1) || node.descendant_changed) {
-      open.add(node.key);
-    }
-    for (const child of node.children) walk(child, depth + 1);
-  };
-  walk(root, 0);
-  return open;
+  return new Set([root.key]);
 }
 
 const KIND_ICON: Record<TreeNodeKind, typeof Folder> = {
@@ -65,6 +82,7 @@ const KIND_ICON: Record<TreeNodeKind, typeof Folder> = {
 export function ProjectTree({
   root,
   selected,
+  selectedEntityKey,
   onSelectRoutine,
   onSelectEntity,
   onClear,
@@ -81,12 +99,17 @@ export function ProjectTree({
       else next.add(key);
       return next;
     });
+  // Expand only — selecting a panel node opens it without ever collapsing it
+  // (the chevron handles collapse).
+  const expand = (key: string) =>
+    setExpanded((prev) => (prev.has(key) ? prev : new Set(prev).add(key)));
 
   const isSelected = (node: TreeNode) =>
-    selected != null &&
-    node.routine === selected.routine &&
-    node.program === selected.program &&
-    node.controller === selected.controller;
+    selected != null
+      ? node.routine === selected.routine &&
+        node.program === selected.program &&
+        node.controller === selected.controller
+      : selectedEntityKey != null && node.key === selectedEntityKey;
 
   const renderNode = (node: TreeNode, depth: number): React.ReactNode => {
     const hasChildren = node.children.length > 0;
@@ -104,6 +127,9 @@ export function ProjectTree({
           routine: node.routine!,
           routineType: node.routine_type,
         });
+      } else if (hasDetailPanel(node)) {
+        onSelectEntity?.(node);
+        if (hasChildren) expand(node.key);
       } else if (hasChildren) {
         toggle(node.key);
       } else {
@@ -125,7 +151,20 @@ export function ProjectTree({
           onClick={onClick}
           title={node.label}
         >
-          <span className="tree-toggle" aria-hidden>
+          <span
+            className="tree-toggle"
+            aria-hidden
+            // The chevron is its own click target so panel nodes (which select
+            // on row click) can still be collapsed.
+            onClick={
+              hasChildren
+                ? (e) => {
+                    e.stopPropagation();
+                    toggle(node.key);
+                  }
+                : undefined
+            }
+          >
             {hasChildren ? (
               open ? (
                 <ChevronDown size={14} strokeWidth={1.9} />

@@ -49,14 +49,36 @@ async function firstChangedL5x(manifestUrl: string): Promise<string> {
   return file.path;
 }
 
+// The L5X file the commit page organizes: the first changed L5X, or — when the
+// commit touched no L5X (e.g. images or documents only) — the project's first
+// L5X present at the commit, so the Files tab still shows the full hierarchy.
+// The same path keys the /l5x section fetches for the detail panels.
+export async function resolveCommitL5xPath(
+  projectId: number,
+  sha: string,
+): Promise<string> {
+  try {
+    return await firstChangedL5x(`/projects/${projectId}/commits/${sha}`);
+  } catch {
+    const listing = await apiFetch<{ files: { path: string; kind: string }[] }>(
+      `/projects/${projectId}/files?ref=${encodeURIComponent(sha)}`,
+    );
+    const l5x = listing.files.find((f) => f.kind === "l5x");
+    if (!l5x) throw new Error("No L5X file at this commit");
+    return l5x.path;
+  }
+}
+
 // The organizer tree for one commit, tagged by the diff against its parent.
+// Pass `path` when the caller already resolved it (saves the manifest fetch).
 export async function getCommitTree(
   projectId: number,
   sha: string,
+  path?: string,
 ): Promise<ProjectTree> {
   const base = `/projects/${projectId}/commits/${sha}`;
-  const path = await firstChangedL5x(base);
-  return apiFetch<ProjectTree>(`${base}/tree?path=${encodeURIComponent(path)}`);
+  const p = path ?? (await resolveCommitL5xPath(projectId, sha));
+  return apiFetch<ProjectTree>(`${base}/tree?path=${encodeURIComponent(p)}`);
 }
 
 // The organizer tree at `head`, tagged by the diff against `base`. Used when

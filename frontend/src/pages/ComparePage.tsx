@@ -350,7 +350,7 @@ function ChangeTable({ rows }: { rows: ChangeRow[] }) {
           Download report
         </button>
       </div>
-      <table className="dtable">
+      <div className="dtable-scroll"><table className="dtable">
         <thead>
           <tr>
             <th>Type</th>
@@ -398,7 +398,7 @@ function ChangeTable({ rows }: { rows: ChangeRow[] }) {
             );
           })}
         </tbody>
-      </table>
+      </table></div>
     </div>
   );
 }

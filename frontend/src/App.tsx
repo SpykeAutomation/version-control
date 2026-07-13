@@ -8,10 +8,11 @@ import { DonePage } from "./pages/DonePage";
 import { CliAuthPage } from "./pages/CliAuthPage";
 import { ProjectsPage } from "./pages/ProjectsPage";
 import { RepositoryPage } from "./pages/RepositoryPage";
+import { BranchesPage } from "./pages/BranchesPage";
+import { CommitsPage } from "./pages/CommitsPage";
 import { CommitPage } from "./pages/CommitPage";
 import { CommitReviewPage } from "./pages/CommitReviewPage";
 import { FileViewPage } from "./pages/FileViewPage";
-import { BranchViewPage } from "./pages/BranchViewPage";
 import { ComparePage } from "./pages/ComparePage";
 import { MergeRequestPage } from "./pages/MergeRequestPage";
 import { CreateMergeRequestPage } from "./pages/CreateMergeRequestPage";
@@ -63,10 +64,11 @@ export function App() {
         <Route path="dashboard" element={<ComingSoon title="Dashboard" />} />
         <Route path="projects" element={<ProjectsPage />} />
         <Route path="projects/:slug" element={<RepositoryPage />} />
+        <Route path="projects/:slug/branches" element={<BranchesPage />} />
+        <Route path="projects/:slug/commits" element={<CommitsPage />} />
         <Route path="projects/:slug/commit" element={<CommitPage />} />
         <Route path="projects/:slug/commit/:sha" element={<CommitReviewPage />} />
         <Route path="projects/:slug/files/:fileName" element={<FileViewPage />} />
-        <Route path="projects/:slug/tree/:branch" element={<BranchViewPage />} />
         <Route
           path="projects/:slug/merge-requests/new"
           element={<CreateMergeRequestPage />}

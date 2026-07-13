@@ -223,6 +223,11 @@ export interface ChangeRequestSummary {
   author: string;
   status: MRStatus;
   createdAt: string;
+  sourceBranch: string;
+  targetBranch: string;
+  // Still open for review — i.e. a new request for the same branches would be
+  // a duplicate of this one.
+  open: boolean;
 }
 
 // List a project's change requests, newest first.
@@ -236,6 +241,9 @@ export async function listChangeRequests(
     author: p.author ? displayName(p.author) : "Unknown",
     status: PULL_STATUS[p.status] ?? "open",
     createdAt: p.created_at,
+    sourceBranch: p.source_branch,
+    targetBranch: p.target_branch,
+    open: p.status !== "merged" && p.status !== "closed",
   }));
 }
 

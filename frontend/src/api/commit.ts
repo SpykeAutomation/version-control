@@ -11,7 +11,7 @@ import type {
   IRElement,
   IRRoutineLadderDiff,
 } from "./diff";
-import { getCommitTree } from "./tree";
+import { getCommitTree, resolveCommitL5xPath } from "./tree";
 import type { ProjectTree } from "./tree";
 import type { MRComment, PRFile, PRRoutineChange } from "./mergeRequest";
 import { deriveChangeView, summarizeChangeSet } from "../lib/changeset";
@@ -66,6 +66,10 @@ export interface CommitDetail {
   // The full project-organizer tree at this commit, with each node tagged by
   // what changed. Drives the Files tab's navigation.
   tree: ProjectTree;
+  // Manifest path (l5x/<name>) of the L5X file the tree organizes; keys the
+  // /l5x section fetches behind the detail panels. Null when the commit has
+  // no L5X to organize.
+  l5xPath: string | null;
   // Pre-loaded full routine content, keyed by routineKey(program, routine).
   // Empty for real commits, which fetch on demand via getRoutineContent.
   fullContent: Record<string, RoutineFull>;
@@ -77,6 +81,7 @@ interface CommitOut {
   message: string;
   author: string;
   at: string;
+  filesChanged?: number;
 }
 
 function shortSha(sha: string): string {
@@ -145,6 +150,7 @@ function mapCommit(
   ladder: IRRoutineLadderDiff[],
   changeSet: ChangeSet,
   tree: ProjectTree,
+  l5xPath: string | null,
 ): CommitDetail {
   const idx = commits.findIndex((c) => c.sha === sha || shortSha(c.sha) === sha);
   const meta = idx >= 0 ? commits[idx] : null;
@@ -200,11 +206,15 @@ function mapCommit(
     authorRole: "",
     authoredAt: meta?.at ?? new Date(0).toISOString(),
     parentSha: parent ? shortSha(parent.sha) : "—",
-    filesChanged: view.files.length || files.length,
+    // Real files touched by the commit (the backend's per-commit tally), not
+    // the count of changed components inside them — a single L5X edit is one
+    // file, however many routines moved.
+    filesChanged: meta?.filesChanged ?? files.length,
     additions,
     deletions,
     message,
-    summary: summarizeChangeSet(changeSet),
+    // Full bullet list — the view truncates and offers a "+N more" expander.
+    summary: summarizeChangeSet(changeSet, Infinity),
     rungsChanged: view.summary.rungsChanged,
     routinesModified: view.summary.routinesChanged,
     commentCount: 0,
@@ -213,6 +223,7 @@ function mapCommit(
     impactedTags: view.symbols,
     fileStats,
     tree,
+    l5xPath,
     // Real commits fetch full routine content on demand via getRoutineContent.
     fullContent: {},
   };
@@ -244,7 +255,7 @@ export async function getCommit(
   // The commit's metadata and parent live in its branch history, which may not be
   // the first branch — so fetch every branch's log and use the one that contains
   // the commit. Otherwise author/date fall back to placeholders ("Unknown" / 1970).
-  const [perBranch, ladder, changeSet, tree] = await Promise.all([
+  const [perBranch, ladder, changeSet, l5xPath] = await Promise.all([
     Promise.all(
       branches.map((b) =>
         listCommits(projectId, b).catch(() => [] as CommitOut[]),
@@ -254,8 +265,13 @@ export async function getCommit(
       .then((d) => d.routines)
       .catch(() => [] as IRRoutineLadderDiff[]),
     getCommitDiff(projectId, sha).catch(() => EMPTY_CHANGESET),
-    getCommitTree(projectId, sha).catch(() => emptyTree("Controller")),
+    resolveCommitL5xPath(projectId, sha).catch(() => null),
   ]);
+  const tree = l5xPath
+    ? await getCommitTree(projectId, sha, l5xPath).catch(() =>
+        emptyTree("Controller"),
+      )
+    : emptyTree("Controller");
 
   let branch = branches[0];
   let commits = perBranch[0] ?? [];
@@ -267,5 +283,13 @@ export async function getCommit(
       break;
     }
   }
-  return mapCommit(sha, branch, commits as CommitOut[], ladder, changeSet, tree);
+  return mapCommit(
+    sha,
+    branch,
+    commits as CommitOut[],
+    ladder,
+    changeSet,
+    tree,
+    l5xPath,
+  );
 }

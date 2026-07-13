@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useParams, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Box,
   Boxes,
@@ -20,10 +21,20 @@ import {
   Plus,
   Search,
   Settings,
+  ShieldAlert,
+  UploadCloud,
   Workflow,
+  X,
 } from "lucide-react";
 import { FilesTable } from "../components/FilesTable";
-import { StatusBadge } from "../components/StatusBadge";
+import { useAuth } from "../auth/AuthContext";
+import {
+  commitFiles,
+  createBranch,
+  type BranchSummary,
+} from "../api/commits";
+import { ApiError } from "../api/client";
+import { errorText as apiErrorText } from "../api/queries";
 import {
   type Member,
   type ProjectRow,
@@ -36,10 +47,10 @@ import {
   type FileEntry,
   type RepositoryDetail,
 } from "../api/repository";
-import { type BranchSummary } from "../api/commits";
 import { MR_STATUS_META, type ChangeRequestSummary } from "../api/mergeRequest";
 import {
   errorText,
+  queryKeys,
   useBranches,
   useChangeRequests,
   useCommits,
@@ -52,7 +63,7 @@ import { formatDate, timeAgo } from "../lib/time";
 
 const TABS = [
   { label: "Overview", icon: LayoutGrid },
-  { label: "Explore", icon: FileText },
+  { label: "Files", icon: FileText },
   { label: "Merge requests", icon: GitPullRequestArrow },
   { label: "Settings", icon: Settings },
 ] as const;
@@ -171,14 +182,20 @@ function RepositoryView({
   members: Member[] | null;
   slug: string;
 }) {
-  // The initial tab can be deep-linked via ?tab= (e.g. a breadcrumb pointing at
-  // "Merge requests"); it falls back to Overview for an unknown or missing value.
-  const [searchParams] = useSearchParams();
+  // The URL is the single source of truth for the active tab: switching tabs
+  // writes ?tab= and the tab is derived from it, so deep links ("View all
+  // merge requests") always work and back/forward moves between tabs. An
+  // unknown or missing value falls back to Overview (which carries no param).
+  const [searchParams, setSearchParams] = useSearchParams();
   const requestedTab = searchParams.get("tab");
-  const initialTab: Tab = TABS.some((t) => t.label === requestedTab)
+  const tab: Tab = TABS.some((t) => t.label === requestedTab)
     ? (requestedTab as Tab)
     : "Overview";
-  const [tab, setTab] = useState<Tab>(initialTab);
+  const setTab = (next: Tab) =>
+    setSearchParams(next === "Overview" ? {} : { tab: next });
+  const [newBranchOpen, setNewBranchOpen] = useState(false);
+
+  const { user } = useAuth();
 
   const description = detail?.description || project.description || "";
   const branchCount = detail?.branches?.length
@@ -189,26 +206,32 @@ function RepositoryView({
     <div className="mr-page">
       {/* breadcrumb */}
       <nav className="crumb">
-        <Link to="/projects">Repositories</Link>
+        <Link to="/projects">{user?.organization ?? "Repositories"}</Link>
         <span className="crumb-sep">/</span>
         <span>{project.name}</span>
       </nav>
 
       {/* header */}
-      <header className="mr-head">
+      <header className="mr-head repo-head">
         <RepoIcon slug={project.slug} size={24} className="repo-ico repo-head-tile" />
         <div className="mr-head-main">
           <div className="mr-title-row">
             <h1 className="mr-title">{project.name}</h1>
+            {/* Every repository is visible to its members only; there are no
+                public repositories yet, so the label is static. */}
+            <span className="badge gray vis-pill">Private</span>
           </div>
           {description && <p className="mr-sub">{description}</p>}
-          {detail?.status && (
-            <div className="repo-head-chips">
-              <StatusBadge status={detail.status} />
-            </div>
-          )}
         </div>
         <div className="mr-actions">
+          <button
+            type="button"
+            className="btn btn-outline btn-sm"
+            onClick={() => setNewBranchOpen(true)}
+          >
+            <GitBranch size={15} strokeWidth={1.8} />
+            Create new branch
+          </button>
           <Link
             to={`/projects/${project.slug}/merge-requests/new`}
             className="btn btn-primary btn-sm"
@@ -217,6 +240,14 @@ function RepositoryView({
           </Link>
         </div>
       </header>
+
+      {newBranchOpen && (
+        <NewBranchDialog
+          project={project}
+          branches={branches}
+          onClose={() => setNewBranchOpen(false)}
+        />
+      )}
 
       {/* meta strip — overview only */}
       {tab === "Overview" && (
@@ -243,7 +274,10 @@ function RepositoryView({
         ))}
       </nav>
 
-      {tab === "Explore" ? (
+      {/* Keyed on the tab so switching re-mounts the body and replays the
+          fade-in, instead of snapping between contents. */}
+      <div className="tab-fade" key={tab}>
+      {tab === "Files" ? (
         <CodeView detail={detail} project={project} slug={slug} />
       ) : tab === "Merge requests" ? (
         <ChangeRequestsCard
@@ -277,6 +311,365 @@ function RepositoryView({
           </aside>
         </div>
       )}
+      </div>
+    </div>
+  );
+}
+
+function formatSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+// GitHub-style upload flow: files picked via "Add file" become one commit with
+// a title and description, landing either directly on the current branch or on
+// a fresh branch (then straight into the new-merge-request page). A protected
+// current branch forces the new-branch path.
+function UploadFilesDialog({
+  project,
+  slug,
+  branch,
+  branchProtected,
+  existingBranches,
+  initialFiles,
+  onClose,
+}: {
+  project: ProjectRow;
+  slug: string;
+  branch: string;
+  branchProtected: boolean;
+  existingBranches: string[];
+  initialFiles: File[];
+  onClose: () => void;
+}) {
+  const qc = useQueryClient();
+  const navigate = useNavigate();
+  const { user } = useAuth();
+
+  const [files, setFiles] = useState<File[]>(initialFiles);
+  // The default message is a placeholder, not a value, so typing replaces it
+  // without the user having to clear the field; it's still what an untouched
+  // commit gets on submit.
+  const DEFAULT_MESSAGE = "Add files via upload";
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [mode, setMode] = useState<"direct" | "branch">(
+    branchProtected ? "branch" : "direct",
+  );
+  // Default new-branch name the way GitHub does: <username>-patch-N, taking
+  // the first N that doesn't collide with an existing branch.
+  const stem = (user?.username ?? user?.email.split("@")[0] ?? "patch").replace(
+    /[^a-zA-Z0-9._-]+/g,
+    "-",
+  );
+  const firstFree = (() => {
+    for (let n = 1; ; n += 1) {
+      const name = `${stem}-patch-${n}`;
+      if (!existingBranches.includes(name)) return name;
+    }
+  })();
+  const [newBranch, setNewBranch] = useState(firstFree);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const moreRef = useRef<HTMLInputElement>(null);
+
+  function addFiles(incoming: FileList) {
+    const next = [...files];
+    for (const f of Array.from(incoming)) {
+      if (!next.some((e) => e.name === f.name && e.size === f.size)) next.push(f);
+    }
+    setFiles(next);
+  }
+
+  const target = mode === "branch" ? newBranch.trim() : branch;
+  const commitMessage = title.trim() || DEFAULT_MESSAGE;
+  const canCommit = files.length > 0 && target.length > 0 && !submitting;
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!canCommit) return;
+    setError(null);
+    setSubmitting(true);
+    try {
+      if (mode === "branch") {
+        try {
+          await createBranch(project.id, target, branch);
+        } catch (err) {
+          // An existing branch is fine — commit to it; surface anything else.
+          const exists = err instanceof ApiError && /exist/i.test(err.message);
+          if (!exists) throw err;
+        }
+      }
+      await commitFiles(project.id, {
+        branch: target,
+        message: commitMessage,
+        description: description.trim(),
+        files,
+      });
+      // The commit changed this project's branches, commits and files; drop
+      // the cached queries so the page reflects the new state.
+      qc.invalidateQueries({ queryKey: ["projects", project.id] });
+      qc.invalidateQueries({ queryKey: queryKeys.projects });
+      qc.invalidateQueries({ queryKey: queryKeys.repository(slug) });
+      if (mode === "branch") {
+        // Carry the commit title/description into the merge-request form so
+        // the user doesn't retype them (they stay editable there).
+        const qs = new URLSearchParams({ source: target, title: commitMessage });
+        if (description.trim()) qs.set("description", description.trim());
+        navigate(`/projects/${slug}/merge-requests/new?${qs}`);
+      } else {
+        onClose();
+      }
+    } catch (err) {
+      setError(apiErrorText(err, "Couldn't upload the files. Try again."));
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="modal-overlay" onMouseDown={onClose}>
+      <form
+        className="modal modal-wide"
+        onMouseDown={(e) => e.stopPropagation()}
+        onSubmit={submit}
+      >
+        <h3 className="modal-title">Commit changes</h3>
+        {error && <div className="form-error">{error}</div>}
+
+        <div className="upload-list">
+          {files.map((f, i) => (
+            <div className="upload-row" key={`${f.name}-${f.size}`}>
+              <span className="file-name">
+                <FileText size={15} strokeWidth={1.7} className="file-ico" />
+                {f.name}
+              </span>
+              <span className="upload-size">{formatSize(f.size)}</span>
+              <button
+                type="button"
+                className="file-remove"
+                aria-label={`Remove ${f.name}`}
+                onClick={() => setFiles(files.filter((_, idx) => idx !== i))}
+              >
+                <X size={15} strokeWidth={2} />
+              </button>
+            </div>
+          ))}
+          <button
+            type="button"
+            className="link-btn"
+            onClick={() => moreRef.current?.click()}
+          >
+            + Add more files
+          </button>
+          <input
+            ref={moreRef}
+            type="file"
+            multiple
+            hidden
+            onChange={(e) => {
+              if (e.target.files) addFiles(e.target.files);
+              e.target.value = "";
+            }}
+          />
+        </div>
+
+        <div className="field">
+          <label className="label" htmlFor="upload-title">
+            Commit message <span className="req">*</span>
+          </label>
+          <input
+            id="upload-title"
+            className="input"
+            placeholder={DEFAULT_MESSAGE}
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+          />
+        </div>
+        <div className="field">
+          <label className="label" htmlFor="upload-desc">
+            Extended description <span className="label-weak">(optional)</span>
+          </label>
+          <textarea
+            id="upload-desc"
+            className="textarea upload-desc"
+            placeholder="Add an optional extended description…"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+          />
+        </div>
+
+        {branchProtected && (
+          <div className="rail-callout warn">
+            <ShieldAlert size={15} strokeWidth={1.9} />
+            <span>
+              You can't commit to <strong>{branch}</strong> because it is a{" "}
+              protected branch. A new branch will be created for this commit
+              and you'll open a merge request. You can also switch to a
+              non-protected branch in the Files view and add files there
+              directly.
+            </span>
+          </div>
+        )}
+
+        <label
+          className={`commit-choice${branchProtected ? " disabled" : ""}`}
+        >
+          <input
+            type="radio"
+            name="upload-dest"
+            checked={mode === "direct"}
+            disabled={branchProtected}
+            onChange={() => setMode("direct")}
+          />
+          <span className="commit-choice-main">
+            <GitCommitHorizontal size={15} strokeWidth={1.8} />
+            Commit directly to the <strong>{branch}</strong> branch
+          </span>
+        </label>
+        <label className="commit-choice">
+          <input
+            type="radio"
+            name="upload-dest"
+            checked={mode === "branch"}
+            onChange={() => setMode("branch")}
+          />
+          <span className="commit-choice-main">
+            <GitPullRequestArrow size={15} strokeWidth={1.8} />
+            Create a <strong>new branch</strong> for this commit and start a
+            merge request
+          </span>
+        </label>
+        {mode === "branch" && (
+          <div className="commit-choice-branch">
+            <GitBranch size={14} strokeWidth={1.9} />
+            <input
+              className="input"
+              value={newBranch}
+              onChange={(e) => setNewBranch(e.target.value)}
+              aria-label="New branch name"
+              required
+            />
+          </div>
+        )}
+
+        <div className="modal-actions">
+          <button type="button" className="btn btn-outline btn-sm" onClick={onClose}>
+            Cancel
+          </button>
+          <button
+            type="submit"
+            className="btn btn-primary btn-sm"
+            disabled={!canCommit}
+          >
+            {submitting
+              ? "Committing…"
+              : mode === "branch"
+                ? "Propose changes"
+                : "Commit changes"}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+// Creates a branch off an existing start point via POST /projects/{id}/branches,
+// then refreshes the project's branch data so the new branch shows up everywhere.
+function NewBranchDialog({
+  project,
+  branches,
+  onClose,
+}: {
+  project: ProjectRow;
+  branches: BranchSummary[] | BranchInfo[] | null;
+  onClose: () => void;
+}) {
+  const qc = useQueryClient();
+  const branchNames = branches?.length
+    ? branches.map((b) => b.name)
+    : (project.branches ?? []);
+  const defaultBranch =
+    branches?.find((b) => b.isDefault)?.name ?? branchNames[0] ?? "main";
+
+  const [name, setName] = useState("");
+  const [startPoint, setStartPoint] = useState(defaultBranch);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!name.trim() || submitting) return;
+    setError(null);
+    setSubmitting(true);
+    try {
+      await createBranch(project.id, name.trim(), startPoint);
+      qc.invalidateQueries({ queryKey: queryKeys.branches(project.id) });
+      qc.invalidateQueries({ queryKey: queryKeys.projects });
+      onClose();
+    } catch (err) {
+      setError(apiErrorText(err, "Failed to create the branch."));
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="modal-overlay" onMouseDown={onClose}>
+      <form
+        className="modal"
+        onMouseDown={(e) => e.stopPropagation()}
+        onSubmit={submit}
+      >
+        <h3 className="modal-title">Create new branch</h3>
+        {error && <div className="form-error">{error}</div>}
+        <div className="field">
+          <label className="label" htmlFor="new-branch-name">
+            Branch name
+          </label>
+          <input
+            id="new-branch-name"
+            className="input"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="feature/valve-sequencing"
+            autoFocus
+            required
+          />
+        </div>
+        <div className="field">
+          <label className="label" htmlFor="new-branch-source">
+            Create from
+          </label>
+          <select
+            id="new-branch-source"
+            className="input"
+            value={startPoint}
+            onChange={(e) => setStartPoint(e.target.value)}
+          >
+            {branchNames.map((b) => (
+              <option key={b} value={b}>
+                {b}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="modal-actions">
+          <button
+            type="button"
+            className="btn btn-outline btn-sm"
+            onClick={onClose}
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            className="btn btn-primary btn-sm"
+            disabled={!name.trim() || submitting}
+          >
+            {submitting ? "Creating…" : "Create branch"}
+          </button>
+        </div>
+      </form>
     </div>
   );
 }
@@ -375,7 +768,7 @@ function CommitsCard({
       <CardHead
         title="Recent commits"
         action={
-          <Link to={`/projects/${slug}/commit`} className="link-btn">
+          <Link to={`/projects/${slug}/commits`} className="link-btn">
             View all commits
           </Link>
         }
@@ -383,7 +776,7 @@ function CommitsCard({
       {!commits || commits.length === 0 ? (
         <div className="rcard-empty">No commits yet.</div>
       ) : (
-        <table className="dtable">
+        <div className="dtable-scroll"><table className="dtable">
           <thead>
             <tr>
               <th>Commit</th>
@@ -428,7 +821,7 @@ function CommitsCard({
               </tr>
             ))}
           </tbody>
-        </table>
+        </table></div>
       )}
     </div>
   );
@@ -448,10 +841,7 @@ function BranchesCard({
       <CardHead
         title="Branches"
         action={
-          <Link
-            to={`/projects/${slug}/tree/${project.branches?.[0] ?? "main"}`}
-            className="link-btn"
-          >
+          <Link to={`/projects/${slug}/branches`} className="link-btn">
             View all branches
           </Link>
         }
@@ -465,7 +855,7 @@ function BranchesCard({
             : "No branches yet."}
         </div>
       ) : (
-        <table className="dtable">
+        <div className="dtable-scroll"><table className="dtable">
           <thead>
             <tr>
               <th>Branch</th>
@@ -479,7 +869,7 @@ function BranchesCard({
               <tr key={b.name}>
                 <td>
                   <Link
-                    to={`/projects/${slug}/tree/${encodeURIComponent(b.name)}`}
+                    to={`/projects/${slug}?tab=Files&branch=${encodeURIComponent(b.name)}`}
                     className="branch-name crlink"
                   >
                     <GitBranch size={13} strokeWidth={2} />
@@ -540,7 +930,7 @@ function BranchesCard({
               </tr>
             ))}
           </tbody>
-        </table>
+        </table></div>
       )}
     </div>
   );
@@ -556,7 +946,10 @@ function ChangeRequestsCard({
   slug: string;
 }) {
   const action = (
-    <Link to="/changes" className="link-btn">
+    <Link
+      to={`/projects/${slug}?tab=${encodeURIComponent("Merge requests")}`}
+      className="link-btn"
+    >
       View all merge requests
     </Link>
   );
@@ -565,7 +958,7 @@ function ChangeRequestsCard({
     return (
       <div className="rcard">
         <CardHead title="Merge requests" action={action} />
-        <table className="dtable">
+        <div className="dtable-scroll"><table className="dtable">
           <thead>
             <tr>
               <th>ID</th>
@@ -611,7 +1004,7 @@ function ChangeRequestsCard({
               );
             })}
           </tbody>
-        </table>
+        </table></div>
       </div>
     );
   }
@@ -620,9 +1013,17 @@ function ChangeRequestsCard({
     <div className="rcard">
       <CardHead title="Merge requests" action={action} />
       {!crs || crs.length === 0 ? (
-        <div className="rcard-empty">No merge requests yet.</div>
+        <div className="rcard-empty">
+          No merge requests yet.{" "}
+          <Link
+            to={`/projects/${slug}/merge-requests/new`}
+            className="link-btn"
+          >
+            Create a merge request
+          </Link>
+        </div>
       ) : (
-        <table className="dtable">
+        <div className="dtable-scroll"><table className="dtable">
           <thead>
             <tr>
               <th>ID</th>
@@ -668,7 +1069,7 @@ function ChangeRequestsCard({
               );
             })}
           </tbody>
-        </table>
+        </table></div>
       )}
     </div>
   );
@@ -684,13 +1085,21 @@ function DetailsCard({
   members: Member[] | null;
 }) {
   const owner = members?.find((m) => m.role === "owner");
-  const rows = detail?.details?.length
-    ? detail.details
-    : [
-        { label: "Repository", value: project.slug },
-        { label: "Owner", value: owner?.name ?? "—" },
-        { label: "Created", value: formatDate(project.created_at) },
-      ];
+  const rows = [
+    ...(detail?.details?.length
+      ? detail.details
+      : [
+          { label: "Repository", value: project.slug },
+          { label: "Owner", value: owner?.name ?? "—" },
+          { label: "Created", value: formatDate(project.created_at) },
+        ]),
+  ];
+  if (!rows.some((r) => r.label === "Last modified")) {
+    rows.push({
+      label: "Last modified",
+      value: timeAgo(project.updated_at ?? project.created_at),
+    });
+  }
   return (
     <section className="rail-section">
       <div className="rail-head">
@@ -813,12 +1222,20 @@ function CodeView({
 
   const defaultBranch =
     branchList.find((b) => b.isDefault)?.name ?? branchList[0]?.name ?? "";
-  const [selected, setSelected] = useState(defaultBranch);
-  // Branches load after the first render, so adopt the default once it arrives.
-  useEffect(() => {
-    if (!selected && defaultBranch) setSelected(defaultBranch);
-  }, [selected, defaultBranch]);
-  const branchName = selected || defaultBranch;
+  // The viewed branch is URL state (?branch=), so branch names elsewhere can
+  // deep-link into this tab and back/forward moves between branches. Unknown
+  // or missing values fall back to the default branch.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedBranch = searchParams.get("branch");
+  const branchName =
+    requestedBranch && branchList.some((b) => b.name === requestedBranch)
+      ? requestedBranch
+      : defaultBranch;
+  const setBranch = (name: string) =>
+    setSearchParams({ tab: "Files", branch: name });
+  // Files picked through "Add file"; non-null opens the commit dialog.
+  const [uploadFiles, setUploadFiles] = useState<File[] | null>(null);
+  const uploadRef = useRef<HTMLInputElement>(null);
 
   const liveCommits = useCommits(project.id, branchName || "main").data ?? null;
   // The controller name (the L5X file's name) comes from the organizer tree at
@@ -874,7 +1291,7 @@ function CodeView({
         <BranchPicker
           branches={branchList}
           selected={info.name}
-          onSelect={setSelected}
+          onSelect={setBranch}
         />
         {divergence && (
           <>
@@ -910,12 +1327,42 @@ function CodeView({
           <kbd className="search-kbd">⌘K</kbd>
         </div>
         <div className="code-bar-right">
+          <button
+            type="button"
+            className="btn btn-primary btn-sm"
+            onClick={() => uploadRef.current?.click()}
+          >
+            <UploadCloud size={15} strokeWidth={1.8} />
+            Add file
+          </button>
+          <input
+            ref={uploadRef}
+            type="file"
+            multiple
+            hidden
+            onChange={(e) => {
+              if (e.target.files?.length) setUploadFiles(Array.from(e.target.files));
+              e.target.value = "";
+            }}
+          />
           <button type="button" className="btn btn-outline btn-sm">
             <History size={15} strokeWidth={1.8} />
             History
           </button>
         </div>
       </div>
+
+      {uploadFiles && (
+        <UploadFilesDialog
+          project={project}
+          slug={slug}
+          branch={info.name}
+          branchProtected={"isProtected" in info && Boolean(info.isProtected)}
+          existingBranches={branchList.map((b) => b.name)}
+          initialFiles={uploadFiles}
+          onClose={() => setUploadFiles(null)}
+        />
+      )}
 
       <div className="rail-callout">
         <Info size={15} strokeWidth={1.9} />
@@ -945,7 +1392,10 @@ function CodeView({
         <CardHead
           title={`Recent commits on ${info.name}`}
           action={
-            <Link to={`/projects/${slug}/commit`} className="link-btn">
+            <Link
+              to={`/projects/${slug}/commits?branch=${encodeURIComponent(info.name)}`}
+              className="link-btn"
+            >
               View all on {info.name}
             </Link>
           }
@@ -953,7 +1403,7 @@ function CodeView({
         {commits.length === 0 ? (
           <div className="rcard-empty">No commits on this branch yet.</div>
         ) : (
-          <table className="dtable">
+          <div className="dtable-scroll"><table className="dtable">
             <thead>
               <tr>
                 <th>Commit</th>
@@ -999,7 +1449,7 @@ function CodeView({
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         )}
       </div>
     </div>
