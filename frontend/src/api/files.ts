@@ -50,6 +50,7 @@ export async function listProjectFiles(
   );
   return data.files.map((f) => ({
     name: displayName(f.path),
+    path: f.path,
     kind: fileKind(f.kind),
     size: formatBytes(f.size),
     modifiedAt: f.modified_at,

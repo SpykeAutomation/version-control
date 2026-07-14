@@ -16,8 +16,10 @@ import {
   History,
   Info,
   LayoutGrid,
+  List,
   type LucideIcon,
   MoreHorizontal,
+  Network,
   Plus,
   Search,
   Settings,
@@ -26,6 +28,7 @@ import {
   Workflow,
   X,
 } from "lucide-react";
+import { CommitTree } from "../components/CommitTree";
 import { FilesTable } from "../components/FilesTable";
 import { useAuth } from "../auth/AuthContext";
 import {
@@ -54,9 +57,10 @@ import {
   useBranches,
   useChangeRequests,
   useCommits,
-  useCommitTree,
   useMembers,
+  useMergedPulls,
   useProject,
+  useProjectFiles,
   useRepository,
 } from "../api/queries";
 import { formatDate, timeAgo } from "../lib/time";
@@ -116,9 +120,12 @@ export function RepositoryPage() {
   const detail = repoQuery.data ?? null;
 
   const crs = useChangeRequests(project?.id).data ?? null;
-  const commits =
-    useCommits(project?.id, project?.branches[0] ?? "main").data ?? null;
   const branches = useBranches(project?.id).data ?? null;
+  // The repo's headline commits (Last commit strip, Overview commits card) are
+  // the DEFAULT branch's — resolved by flag, not list position: branches[0]
+  // sorts alphabetically and can be any feature branch.
+  const defaultBranch = branches?.find((b) => b.isDefault)?.name ?? "main";
+  const commits = useCommits(project?.id, defaultBranch).data ?? null;
   const members = useMembers(project?.id).data ?? null;
 
   const projectFatal = Boolean(projectError);
@@ -143,7 +150,7 @@ export function RepositoryPage() {
               </span>
               <h3>Repository not found</h3>
               <p>We couldn't find a repository with that name.</p>
-              <Link to="/projects" className="btn btn-primary btn-sm">
+              <Link to="/organization" className="btn btn-primary btn-sm">
                 Back to repositories
               </Link>
             </div>
@@ -193,6 +200,15 @@ function RepositoryView({
     : "Overview";
   const setTab = (next: Tab) =>
     setSearchParams(next === "Overview" ? {} : { tab: next });
+  // Overview's List/Tree toggle is URL state too (?view=tree), like the tab.
+  const view = searchParams.get("view") === "tree" ? "tree" : "list";
+  const setView = (v: "list" | "tree") =>
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (v === "tree") next.set("view", "tree");
+      else next.delete("view");
+      return next;
+    });
   const [newBranchOpen, setNewBranchOpen] = useState(false);
 
   const { user } = useAuth();
@@ -206,7 +222,7 @@ function RepositoryView({
     <div className="mr-page">
       {/* breadcrumb */}
       <nav className="crumb">
-        <Link to="/projects">{user?.organization ?? "Repositories"}</Link>
+        <Link to="/organization">{user?.organization ?? "Repositories"}</Link>
         <span className="crumb-sep">/</span>
         <span>{project.name}</span>
       </nav>
@@ -233,7 +249,7 @@ function RepositoryView({
             Create new branch
           </button>
           <Link
-            to={`/projects/${project.slug}/merge-requests/new`}
+            to={`/organization/${project.slug}/merge-requests/new`}
             className="btn btn-primary btn-sm"
           >
             Create merge request
@@ -290,20 +306,53 @@ function RepositoryView({
       ) : (
         <div className="repo-grid">
           <div className="repo-col">
-            <CommitsCard
-              commits={detail?.commits?.length ? detail.commits : commits}
-              slug={slug}
-            />
-            <BranchesCard
-              branches={detail?.branches?.length ? detail.branches : branches}
-              project={project}
-              slug={slug}
-            />
-            <ChangeRequestsCard
-              crs={crs}
-              detailCrs={detail?.changeRequests ?? null}
-              slug={slug}
-            />
+            <div className="seg overview-view-seg" role="tablist" aria-label="Overview view">
+              <button
+                type="button"
+                className={`seg-btn${view === "list" ? " active" : ""}`}
+                onClick={() => setView("list")}
+              >
+                <List size={14} strokeWidth={2} />
+                List view
+              </button>
+              <button
+                type="button"
+                className={`seg-btn${view === "tree" ? " active" : ""}`}
+                onClick={() => setView("tree")}
+              >
+                <Network size={14} strokeWidth={2} />
+                Tree view
+              </button>
+            </div>
+            {view === "tree" ? (
+              <CommitTree
+                slug={slug}
+                projectId={project.id}
+                defaultBranch={
+                  (branches ?? []).find(
+                    (b) => "isDefault" in b && b.isDefault,
+                  )?.name ?? "main"
+                }
+                branches={branches ?? []}
+              />
+            ) : (
+              <>
+                <CommitsCard
+                  commits={detail?.commits?.length ? detail.commits : commits}
+                  slug={slug}
+                />
+                <BranchesCard
+                  branches={detail?.branches?.length ? detail.branches : branches}
+                  project={project}
+                  slug={slug}
+                />
+                <ChangeRequestsCard
+                  crs={crs}
+                  detailCrs={detail?.changeRequests ?? null}
+                  slug={slug}
+                />
+              </>
+            )}
           </div>
           <aside className="repo-rail">
             <DetailsCard detail={detail} project={project} members={members} />
@@ -417,7 +466,7 @@ function UploadFilesDialog({
         // the user doesn't retype them (they stay editable there).
         const qs = new URLSearchParams({ source: target, title: commitMessage });
         if (description.trim()) qs.set("description", description.trim());
-        navigate(`/projects/${slug}/merge-requests/new?${qs}`);
+        navigate(`/organization/${slug}/merge-requests/new?${qs}`);
       } else {
         onClose();
       }
@@ -768,7 +817,7 @@ function CommitsCard({
       <CardHead
         title="Recent commits"
         action={
-          <Link to={`/projects/${slug}/commits`} className="link-btn">
+          <Link to={`/organization/${slug}/commits`} className="link-btn">
             View all commits
           </Link>
         }
@@ -791,12 +840,12 @@ function CommitsCard({
             {commits.slice(0, 8).map((c) => (
               <tr key={c.hash}>
                 <td>
-                  <Link to={`/projects/${slug}/commit/${c.sha}`} className="hash crlink">
+                  <Link to={`/organization/${slug}/commit/${c.sha}`} className="hash crlink">
                     {c.hash}
                   </Link>
                 </td>
                 <td className="cell-strong">
-                  <Link to={`/projects/${slug}/commit/${c.sha}`} className="crtitle">
+                  <Link to={`/organization/${slug}/commit/${c.sha}`} className="crtitle">
                     {c.message}
                   </Link>
                 </td>
@@ -841,7 +890,7 @@ function BranchesCard({
       <CardHead
         title="Branches"
         action={
-          <Link to={`/projects/${slug}/branches`} className="link-btn">
+          <Link to={`/organization/${slug}/branches`} className="link-btn">
             View all branches
           </Link>
         }
@@ -869,20 +918,29 @@ function BranchesCard({
               <tr key={b.name}>
                 <td>
                   <Link
-                    to={`/projects/${slug}?tab=Files&branch=${encodeURIComponent(b.name)}`}
+                    to={`/organization/${slug}?tab=Files&branch=${encodeURIComponent(b.name)}`}
                     className="branch-name crlink"
                   >
                     <GitBranch size={13} strokeWidth={2} />
                     {b.name}
-                    {b.isDefault && <span className="mini-badge">Default</span>}
                   </Link>
+                  {b.isDefault && (
+                    <span className="mini-badge" style={{ marginLeft: 8 }}>
+                      Default
+                    </span>
+                  )}
+                  {!b.isDefault && "merged" in b && b.merged && (
+                    <span className="mini-badge merged" style={{ marginLeft: 8 }}>
+                      Merged
+                    </span>
+                  )}
                 </td>
                 <td>
                   {b.lastCommitHash ? (
                     <>
                       {"lastCommitSha" in b && b.lastCommitSha ? (
                         <Link
-                          to={`/projects/${slug}/commit/${b.lastCommitSha}`}
+                          to={`/organization/${slug}/commit/${b.lastCommitSha}`}
                           className="hash crlink"
                         >
                           {b.lastCommitHash}
@@ -947,7 +1005,7 @@ function ChangeRequestsCard({
 }) {
   const action = (
     <Link
-      to={`/projects/${slug}?tab=${encodeURIComponent("Merge requests")}`}
+      to={`/organization/${slug}?tab=${encodeURIComponent("Merge requests")}`}
       className="link-btn"
     >
       View all merge requests
@@ -972,7 +1030,7 @@ function ChangeRequestsCard({
           <tbody>
             {detailCrs.map((cr) => {
               const m = CR_META[cr.status];
-              const href = `/projects/${slug}/merge/${cr.id}`;
+              const href = `/organization/${slug}/merge/${cr.id}`;
               return (
                 <tr key={cr.id}>
                   <td>
@@ -1016,7 +1074,7 @@ function ChangeRequestsCard({
         <div className="rcard-empty">
           No merge requests yet.{" "}
           <Link
-            to={`/projects/${slug}/merge-requests/new`}
+            to={`/organization/${slug}/merge-requests/new`}
             className="link-btn"
           >
             Create a merge request
@@ -1037,7 +1095,7 @@ function ChangeRequestsCard({
           <tbody>
             {crs.map((cr) => {
               const m = MR_STATUS_META[cr.status];
-              const href = `/projects/${slug}/merge/${cr.number}`;
+              const href = `/organization/${slug}/merge/${cr.number}`;
               return (
                 <tr key={cr.number}>
                   <td>
@@ -1149,7 +1207,7 @@ function BranchPicker({
   selected,
   onSelect,
 }: {
-  branches: { name: string; isDefault?: boolean }[];
+  branches: { name: string; isDefault?: boolean; merged?: boolean }[];
   selected: string;
   onSelect: (name: string) => void;
 }) {
@@ -1192,6 +1250,9 @@ function BranchPicker({
                 <GitBranch size={14} strokeWidth={1.8} />
                 <span className="bmi-name">{b.name}</span>
                 {b.isDefault && <span className="mini-badge accent">default</span>}
+                {!b.isDefault && b.merged && (
+                  <span className="mini-badge merged">merged</span>
+                )}
                 {b.name === selected && (
                   <Check className="bmi-check" size={14} strokeWidth={2.2} />
                 )}
@@ -1238,9 +1299,14 @@ function CodeView({
   const uploadRef = useRef<HTMLInputElement>(null);
 
   const liveCommits = useCommits(project.id, branchName || "main").data ?? null;
-  // The controller name (the L5X file's name) comes from the organizer tree at
-  // the branch's latest commit.
-  const tree = useCommitTree(project.id, liveCommits?.[0]?.sha).data ?? null;
+  // The branch whose contents are shown (falls back like `info` below does).
+  const effectiveBranch =
+    branchList.find((b) => b.name === branchName)?.name ?? branchList[0]?.name;
+  // The real file listing at this branch — names, sizes and modified info come
+  // from the repo, not from anything synthesized client-side.
+  const liveFiles = useProjectFiles(project.id, effectiveBranch).data ?? null;
+  // Merged pulls, to point a merged branch at the merge request that took it in.
+  const mergedPulls = useMergedPulls(project.id).data ?? null;
 
   if (branchList.length === 0) {
     return (
@@ -1262,24 +1328,19 @@ function CodeView({
       ? detail.commits.filter((c) => c.branch === info.name)
       : (liveCommits ?? [])
   ).map((c) => ({ ...c, filesChanged: c.filesChanged ?? 1 }));
-  // A repo holds one or more L5X/ACD files; today each repo stores a single
-  // controller, so list that one file. Rendered as a list so it scales when a
-  // repo holds more. Name comes from the controller; "modified" from the latest
-  // commit on this branch.
-  const controllerName = tree?.root.label;
-  const latestCommit = commits[0];
-  const files: FileEntry[] =
-    controllerName && latestCommit
-      ? [
-          {
-            name: `${controllerName}.L5X`,
-            kind: "controller",
-            size: "—",
-            modifiedAt: latestCommit.at,
-            modifiedBy: latestCommit.author,
-          },
-        ]
-      : [];
+  const files: FileEntry[] = liveFiles ?? [];
+  // A merged branch is read-only in spirit: its work already landed, so new
+  // uploads here are almost always a mistake — grey them out and say why.
+  // (The `merged` flag exists only on the live branch summaries.)
+  const isMerged =
+    !info.isDefault && "merged" in info && Boolean(info.merged);
+  const mergedPull = isMerged
+    ? (mergedPulls?.find((p) => p.sourceBranch === info.name) ?? null)
+    : null;
+  const mergeTarget =
+    mergedPull?.targetBranch ??
+    branchList.find((b) => b.isDefault)?.name ??
+    "main";
   // Ahead/behind only exists on the rich branch detail; the live branch list
   // doesn't expose it, so the divergence badges are hidden for live data.
   const divergence = "ahead" in info ? info : null;
@@ -1330,6 +1391,12 @@ function CodeView({
           <button
             type="button"
             className="btn btn-primary btn-sm"
+            disabled={isMerged}
+            title={
+              isMerged
+                ? `${info.name} has already been merged into ${mergeTarget} — create a new branch to add files.`
+                : undefined
+            }
             onClick={() => uploadRef.current?.click()}
           >
             <UploadCloud size={15} strokeWidth={1.8} />
@@ -1364,6 +1431,30 @@ function CodeView({
         />
       )}
 
+      {isMerged && (
+        <div className="rail-callout merged-callout">
+          <GitPullRequestArrow size={15} strokeWidth={1.9} />
+          <span>
+            <span className="mini-badge merged">Merged</span> This branch has
+            been merged into <strong>{mergeTarget}</strong>
+            {mergedPull ? (
+              <>
+                {" "}
+                via{" "}
+                <Link
+                  to={`/organization/${slug}/merge/${mergedPull.number}`}
+                  className="merged-callout-link"
+                >
+                  merge request #{mergedPull.number}
+                </Link>
+              </>
+            ) : null}
+            . Adding new files here is disabled — branch off {mergeTarget} for
+            new work.
+          </span>
+        </div>
+      )}
+
       <div className="rail-callout">
         <Info size={15} strokeWidth={1.9} />
         <span>
@@ -1378,7 +1469,12 @@ function CodeView({
           <div className="rcard-empty">No files on this branch yet.</div>
         ) : (
           <>
-            <FilesTable files={files} slug={slug} />
+            <FilesTable
+              files={files}
+              slug={slug}
+              projectId={project.id}
+              refName={info.name}
+            />
             <div className="table-foot">
               <span>
                 {files.length} {files.length === 1 ? "file" : "files"}
@@ -1393,7 +1489,7 @@ function CodeView({
           title={`Recent commits on ${info.name}`}
           action={
             <Link
-              to={`/projects/${slug}/commits?branch=${encodeURIComponent(info.name)}`}
+              to={`/organization/${slug}/commits?branch=${encodeURIComponent(info.name)}`}
               className="link-btn"
             >
               View all on {info.name}
@@ -1419,7 +1515,7 @@ function CodeView({
                 <tr key={c.hash}>
                   <td>
                     <Link
-                      to={`/projects/${slug}/commit/${c.sha}`}
+                      to={`/organization/${slug}/commit/${c.sha}`}
                       className="hash crlink"
                     >
                       {c.hash}
@@ -1433,7 +1529,7 @@ function CodeView({
                   </td>
                   <td className="cell-strong">
                     <Link
-                      to={`/projects/${slug}/commit/${c.sha}`}
+                      to={`/organization/${slug}/commit/${c.sha}`}
                       className="crtitle"
                     >
                       {c.message}

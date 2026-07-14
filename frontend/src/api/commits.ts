@@ -15,6 +15,7 @@ interface CommitOut {
   author: string;
   date: string;
   files_changed?: number;
+  parents?: string[]; // first parent first; empty for a root commit
 }
 
 // List a project's commits, newest first. The backend doesn't tag each commit
@@ -34,6 +35,7 @@ export async function listCommits(
     branch,
     at: c.date,
     filesChanged: c.files_changed,
+    parents: c.parents ?? [],
   }));
 }
 
@@ -43,6 +45,7 @@ export interface BranchSummary {
   name: string;
   isDefault: boolean;
   isProtected: boolean;
+  merged: boolean; // fully merged into the default branch (ahead == 0)
   ahead: number;
   behind: number;
   lastCommitHash?: string;
@@ -76,6 +79,7 @@ export async function listBranches(
     name: b.name,
     isDefault: b.is_default,
     isProtected: b.is_protected,
+    merged: b.merged,
     ahead: b.ahead,
     behind: b.behind,
     lastCommitHash: b.latest_commit?.sha.slice(0, 7),
@@ -122,5 +126,31 @@ export async function commitFiles(
   return apiFetch<CommitResult>(`/projects/${projectId}/commits`, {
     method: "POST",
     formData: body,
+  });
+}
+
+// Restore an earlier commit's repo state as ONE new commit on the branch
+// (history preserved — nothing is rewritten). The backend re-checks that
+// `expectedTipSha` is still the branch tip inside its write lock and answers
+// 409 (current tip in `detail`) when the branch has moved; 403 for a plain
+// member on a protected branch; 400 for a target that is already the tip,
+// isn't an ancestor, or whose tree matches the tip's.
+export function revertBranch(
+  projectId: number,
+  input: {
+    branch: string;
+    targetSha: string;
+    expectedTipSha: string;
+    message?: string;
+  },
+): Promise<CommitResult> {
+  return apiFetch<CommitResult>(`/projects/${projectId}/revert`, {
+    method: "POST",
+    json: {
+      branch: input.branch,
+      target_sha: input.targetSha,
+      expected_tip_sha: input.expectedTipSha,
+      ...(input.message ? { message: input.message } : {}),
+    },
   });
 }

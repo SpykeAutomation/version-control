@@ -119,9 +119,9 @@ export function CommitPage() {
           sourceBranch: targetBranch,
           targetBranch: "main",
         });
-        navigate(`/projects/${slug}/merge/${pr.number}`);
+        navigate(`/organization/${slug}/merge/${pr.number}`);
       } else {
-        navigate(`/projects/${slug}`);
+        navigate(`/organization/${slug}`);
       }
     } catch (e) {
       setError(
@@ -149,7 +149,7 @@ export function CommitPage() {
               </span>
               <h3>Repository not found</h3>
               <p>We couldn't find a project with that name.</p>
-              <Link to="/projects" className="btn btn-primary btn-sm">
+              <Link to="/organization" className="btn btn-primary btn-sm">
                 Back to projects
               </Link>
             </div>
@@ -157,9 +157,9 @@ export function CommitPage() {
         ) : (
           <div className="mr-page">
             <nav className="crumb">
-              <Link to="/projects">Repositories</Link>
+              <Link to="/organization">Repositories</Link>
               <span className="crumb-sep">/</span>
-              <Link to={`/projects/${project.slug}`}>{project.name}</Link>
+              <Link to={`/organization/${project.slug}`}>{project.name}</Link>
               <span className="crumb-sep">/</span>
               <span>Commit</span>
             </nav>
@@ -386,7 +386,7 @@ export function CommitPage() {
                       : `Commits to ${targetBranch || "the new branch"}, then opens a change request to merge into main.`}
                   </p>
                   <Link
-                    to={`/projects/${project.slug}`}
+                    to={`/organization/${project.slug}`}
                     className="btn btn-quiet btn-block"
                   >
                     Cancel

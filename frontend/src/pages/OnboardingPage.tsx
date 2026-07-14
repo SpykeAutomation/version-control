@@ -187,7 +187,7 @@ export function OnboardingPage() {
           <button
             type="button"
             className="btn-quiet"
-            onClick={() => navigate("/projects", { replace: true })}
+            onClick={() => navigate("/organization", { replace: true })}
             disabled={submitting}
           >
             Skip for now

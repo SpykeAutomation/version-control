@@ -4,7 +4,12 @@
 // cache instead of reloading.
 
 import { useMemo } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useMutation,
+  useQueries,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { ApiError } from "./client";
 import {
   createProject,
@@ -46,14 +51,22 @@ import {
 } from "./commit";
 import {
   getL5xAoi,
+  getL5xController,
   getL5xDataTypes,
   getL5xModules,
   getL5xTags,
   type L5XAoi,
+  type L5XController,
   type L5XDataType,
   type L5XModule,
   type L5XTag,
 } from "./l5x";
+import { getCompareView, type CompareView } from "./compare";
+import {
+  addCommitComment,
+  listCommitComments,
+  type CommitComment,
+} from "./comments";
 import { mapRepository, type Commit } from "./repository";
 
 // Cache keys. Everything for a project is nested under ["projects", id] so a
@@ -89,6 +102,10 @@ export const queryKeys = {
     ["projects", projectId, "commit-routine", sha, program, routine] as const,
   l5xSection: (projectId: number, ref: string, path: string, section: string, name: string) =>
     ["projects", projectId, "l5x", ref, path, section, name] as const,
+  compareView: (projectId: number, base: string, head: string) =>
+    ["projects", projectId, "compare", base, head] as const,
+  commitComments: (projectId: number, sha: string) =>
+    ["projects", projectId, "commit-comments", sha] as const,
 };
 
 // Turn a query error into a message, falling back when it isn't an ApiError.
@@ -234,6 +251,38 @@ export function useChangeRequests(projectId: number | undefined) {
   });
 }
 
+// Merged pulls, used by the commit graph to attribute "Merge pull request #N"
+// trunk commits to the branch they brought in.
+export function useMergedPulls(projectId: number | undefined) {
+  return useQuery<ChangeRequestSummary[]>({
+    queryKey: [...queryKeys.changeRequests(projectId ?? -1), "merged"],
+    queryFn: () => listChangeRequests(projectId!, "merged"),
+    enabled: projectId != null,
+  });
+}
+
+// Every branch's commit list at once (one request per branch, cached under
+// the same keys the per-branch views use). Drives the commit graph.
+export function useAllBranchCommits(
+  projectId: number | undefined,
+  branchNames: string[],
+) {
+  return useQueries({
+    queries: branchNames.map((b) => ({
+      queryKey: queryKeys.commits(projectId ?? -1, b),
+      queryFn: () => listCommits(projectId!, b),
+      enabled: projectId != null,
+    })),
+    combine: (results) => ({
+      isPending: results.some((r) => r.isPending),
+      error: results.find((r) => r.error)?.error ?? null,
+      byBranch: Object.fromEntries(
+        branchNames.map((b, i) => [b, results[i]?.data ?? null]),
+      ) as Record<string, Commit[] | null>,
+    }),
+  });
+}
+
 // The project is read from the shared project-list cache (via useProject), so
 // these detail hooks pass its id straight through instead of re-listing every
 // project on each detail load. React Query dedupes the underlying list query, so
@@ -349,6 +398,29 @@ export function useL5xModules(
   return useL5x<L5XModule[]>("modules", getL5xModules, projectId, ref, path);
 }
 
+// The controller identity of one L5X file (name, processor, revision) —
+// shown beside the file in listings. Callers pass a BRANCH as the ref, so
+// unlike the sha-keyed hooks above this one uses the default staleness and
+// refetches when the branch moves.
+export function useL5xController(
+  projectId: number | undefined,
+  ref: string | undefined,
+  path: string | null | undefined,
+) {
+  return useQuery<L5XController>({
+    queryKey: queryKeys.l5xSection(
+      projectId ?? -1,
+      ref ?? "",
+      path ?? "",
+      "controller",
+      "",
+    ),
+    queryFn: () => getL5xController(projectId!, ref!, path!),
+    enabled: projectId != null && !!ref && !!path,
+    retry: false,
+  });
+}
+
 export function useL5xAoi(
   projectId: number | undefined,
   ref: string | undefined,
@@ -363,6 +435,49 @@ export function useL5xAoi(
     name ? path : undefined,
     name ?? "",
   );
+}
+
+// Rolled-up compare summary + per-file impact rows for a ref pair. Used by
+// the revert preview (base = current tip, head = revert target).
+export function useCompareView(
+  projectId: number | undefined,
+  base: string | undefined,
+  head: string | undefined,
+) {
+  return useQuery<CompareView>({
+    queryKey: queryKeys.compareView(projectId ?? -1, base ?? "", head ?? ""),
+    queryFn: () => getCompareView(projectId!, base!, head!),
+    enabled: projectId != null && !!base && !!head,
+  });
+}
+
+// The commit page's persistent discussion (flat list; the page nests by
+// parentId). Comments are mutable (people keep posting), so no staleTime.
+export function useCommitComments(
+  projectId: number | undefined,
+  sha: string | undefined,
+) {
+  return useQuery<CommitComment[]>({
+    queryKey: queryKeys.commitComments(projectId ?? -1, sha ?? ""),
+    queryFn: () => listCommitComments(projectId!, sha!),
+    enabled: projectId != null && !!sha,
+  });
+}
+
+// Posting refreshes the commit's comment list.
+export function useAddCommitComment(
+  projectId: number | undefined,
+  sha: string | undefined,
+) {
+  const qc = useQueryClient();
+  return useMutation<CommitComment, Error, { body: string; parentId?: number | null }>({
+    mutationFn: (input) => addCommitComment(projectId!, sha!, input),
+    onSuccess: () => {
+      qc.invalidateQueries({
+        queryKey: queryKeys.commitComments(projectId ?? -1, sha ?? ""),
+      });
+    },
+  });
 }
 
 // Posting a comment adds to a merge request's thread, so refresh that merge

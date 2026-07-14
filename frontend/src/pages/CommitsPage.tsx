@@ -50,9 +50,9 @@ export function CommitsPage() {
       ) : (
         <div className="mr-page">
           <nav className="crumb">
-            <Link to="/projects">{user?.organization ?? "Repositories"}</Link>
+            <Link to="/organization">{user?.organization ?? "Repositories"}</Link>
             <span className="crumb-sep">/</span>
-            <Link to={`/projects/${slug}`}>{project.name}</Link>
+            <Link to={`/organization/${slug}`}>{project.name}</Link>
             <span className="crumb-sep">/</span>
             <span>Commits</span>
           </nav>
@@ -110,7 +110,7 @@ export function CommitsPage() {
                     <tr key={c.sha}>
                       <td>
                         <Link
-                          to={`/projects/${slug}/commit/${c.sha}`}
+                          to={`/organization/${slug}/commit/${c.sha}`}
                           className="hash crlink"
                         >
                           {c.hash}
@@ -118,7 +118,7 @@ export function CommitsPage() {
                       </td>
                       <td className="cell-strong">
                         <Link
-                          to={`/projects/${slug}/commit/${c.sha}`}
+                          to={`/organization/${slug}/commit/${c.sha}`}
                           className="crtitle"
                         >
                           {c.message}

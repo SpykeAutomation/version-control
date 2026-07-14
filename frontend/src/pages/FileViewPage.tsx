@@ -55,7 +55,7 @@ export function FileViewPage() {
               </span>
               <h3>File not found</h3>
               <p>We couldn't find that file in this project.</p>
-              <Link to={`/projects/${slug}`} className="btn btn-primary btn-sm">
+              <Link to={`/organization/${slug}`} className="btn btn-primary btn-sm">
                 Back to project
               </Link>
             </div>
@@ -63,9 +63,9 @@ export function FileViewPage() {
         ) : (
           <div className="mr-page">
             <nav className="crumb">
-              <Link to="/projects">Repositories</Link>
+              <Link to="/organization">Repositories</Link>
               <span className="crumb-sep">/</span>
-              <Link to={`/projects/${slug}`}>{project.name}</Link>
+              <Link to={`/organization/${slug}`}>{project.name}</Link>
               <span className="crumb-sep">/</span>
               <span>{file.name}</span>
             </nav>

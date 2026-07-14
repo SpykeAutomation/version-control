@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   ArrowRight,
   Clock,
   Copy,
+  CornerUpLeft,
   FileCode2,
   GitBranch,
   GitCommitHorizontal,
@@ -11,6 +12,7 @@ import {
   Hash,
   MoreVertical,
   RotateCcw,
+  TriangleAlert,
 } from "lucide-react";
 import {
   RoutineLadderDiffView,
@@ -26,10 +28,15 @@ import {
   type CommitFileStat,
   type RoutineFull,
 } from "../api/commit";
-import type { MRCodeDiff, MRComment, PRFile } from "../api/mergeRequest";
+import type { MRCodeDiff, PRFile } from "../api/mergeRequest";
+import type { CommitComment } from "../api/comments";
+import type { Commit } from "../api/repository";
 import {
   errorText,
+  useAddCommitComment,
+  useBranches,
   useCommit,
+  useCommitComments,
   useCommits,
   useProject,
   useRoutineContent,
@@ -79,6 +86,7 @@ export function CommitReviewPage() {
             projectName={project?.name}
             slug={slug}
             projectId={project?.id}
+            role={project?.your_role}
           />
         )}
       </div>
@@ -91,11 +99,13 @@ function CommitReviewView({
   projectName,
   slug,
   projectId,
+  role,
 }: {
   commit: CommitDetail;
   projectName?: string;
   slug?: string;
   projectId?: number;
+  role?: string;
 }) {
   const [showNumbers, setShowNumbers] = useState(true);
   // The tab strip switches the main view: "discussion" (default) holds the
@@ -104,15 +114,11 @@ function CommitReviewView({
   const [tab, setTab] = useState<"discussion" | "changes" | "files">(
     "discussion",
   );
-  // Locally-added comments (threaded). There's no commit-comments backend
-  // endpoint yet, so new comments live in component state and reset when the
-  // commit changes.
-  const [added, setAdded] = useState<ThreadComment[]>([]);
-  useEffect(() => setAdded([]), [commit.sha]);
-  const comments: ThreadComment[] = [
-    ...commit.comments.map((c, i) => ({ ...c, id: -(i + 1), parentId: null })),
-    ...added,
-  ];
+  // Persistent discussion: the backend stores commit comments (flat, threaded
+  // by parent_id at any depth); posting refreshes the list.
+  const commentsQ = useCommitComments(projectId, commit.sha);
+  const addComment = useAddCommitComment(projectId, commit.sha);
+  const comments = commentsQ.data ?? [];
 
   // Files-tab selection lives here (not inside FilesBrowser) so it survives
   // switching to the Changes tab and back. Nothing is selected by default —
@@ -125,21 +131,35 @@ function CommitReviewView({
     setFilesEntity(null);
   }, [commit.sha]);
 
-  // Reverting only makes sense on a branch's tip commit — anything older
-  // would silently drop the commits after it. (The backend has no revert
-  // endpoint yet; when it lands it must enforce this same rule server-side.)
+  // Revert starts from the branch tip (the backend re-checks this inside its
+  // write lock — the gating here is reinforcement). On a protected branch it
+  // is the manager-only rollback path, so hide it from plain members there.
   const branchCommits = useCommits(projectId, commit.branch).data ?? null;
   const isLatest = branchCommits
     ? branchCommits[0]?.sha.slice(0, 7) === commit.sha
     : false;
+  const branches = useBranches(projectId).data ?? null;
+  const isProtected =
+    branches?.find((b) => b.name === commit.branch)?.isProtected ?? false;
+  const isManager = role === "owner" || role === "admin";
+  const hasHistory = (branchCommits?.length ?? 0) > 1;
+  const canRevert = isLatest && hasHistory && (!isProtected || isManager);
+  const revertNote = !isLatest
+    ? "Revert is only available on the branch's latest commit."
+    : !hasHistory
+      ? "There is no earlier commit to revert to."
+      : isProtected && !isManager
+        ? "Only owners and admins can revert a protected branch."
+        : null;
+  const [revertOpen, setRevertOpen] = useState(false);
 
   return (
     <div className="mr-page">
       <nav className="crumb">
-        <Link to="/projects">Repositories</Link>
+        <Link to="/organization">Repositories</Link>
         <span className="crumb-sep">/</span>
         {projectName ? (
-          <Link to={`/projects/${slug}`}>{projectName}</Link>
+          <Link to={`/organization/${slug}`}>{projectName}</Link>
         ) : (
           <span>Repository</span>
         )}
@@ -162,7 +182,11 @@ function CommitReviewView({
           {tab === "discussion" ? (
             <Discussion
               comments={comments}
-              onAdd={(c) => setAdded((prev) => [...prev, c])}
+              loading={commentsQ.isPending}
+              loadError={commentsQ.error}
+              posting={addComment.isPending}
+              postError={addComment.error}
+              onAdd={(body, parentId) => addComment.mutate({ body, parentId })}
             />
           ) : tab === "changes" ? (
             <section className="mr-section">
@@ -205,10 +229,21 @@ function CommitReviewView({
           <ActionsCard
             slug={slug}
             branch={commit.branch}
-            isLatest={isLatest}
+            canRevert={canRevert}
+            revertNote={revertNote}
+            onRevert={() => setRevertOpen(true)}
           />
         </aside>
       </div>
+
+      {revertOpen && branchCommits && slug && (
+        <RevertModal
+          slug={slug}
+          branch={commit.branch}
+          commits={branchCommits}
+          onClose={() => setRevertOpen(false)}
+        />
+      )}
     </div>
   );
 }
@@ -710,32 +745,50 @@ function CodeDiffBody({ diff }: { diff: MRCodeDiff }) {
 }
 
 // ---- Discussion ----
-// A comment in the local thread. Replies carry the id of the top-level
-// comment they belong to; replies-to-replies join the same thread (flat, one
-// indent level — deeper nesting can come later).
-type ThreadComment = MRComment & { id: number; parentId: number | null };
-
+// Persistent commit discussion. The backend stores a flat list where each
+// reply carries its TRUE parent id (a reply to a reply points at that reply,
+// not the thread root). Rendering stays one visual level per thread: every
+// reply sits flat under its root comment, and a reply whose parent is itself
+// a reply gets a small quote of that parent — clicking it scrolls the parent
+// into view.
 function Discussion({
   comments,
+  loading,
+  loadError,
+  posting,
+  postError,
   onAdd,
 }: {
-  comments: ThreadComment[];
-  onAdd: (comment: ThreadComment) => void;
+  comments: CommitComment[];
+  loading: boolean;
+  loadError: unknown;
+  posting: boolean;
+  postError: unknown;
+  onAdd: (body: string, parentId: number | null) => void;
 }) {
   const { user } = useAuth();
-  const name = user?.name ?? "You";
+  const [flashId, setFlashId] = useState<number | null>(null);
 
-  const makeComment = (body: string, parentId: number | null): ThreadComment => ({
-    id: Date.now(),
-    parentId,
-    author: name,
-    role: "You",
-    isAuthor: true,
-    at: new Date().toISOString(),
-    body,
-  });
+  const byId = new Map(comments.map((c) => [c.id, c]));
+  // The thread a comment belongs to is its outermost ancestor.
+  const rootOf = (c: CommitComment): number => {
+    let cur = c;
+    while (cur.parentId != null) {
+      const p = byId.get(cur.parentId);
+      if (!p) break;
+      cur = p;
+    }
+    return cur.id;
+  };
+  const roots = comments.filter((c) => c.parentId == null);
 
-  const topLevel = comments.filter((c) => c.parentId === null);
+  const jumpTo = (id: number) => {
+    document
+      .getElementById(`disc-comment-${id}`)
+      ?.scrollIntoView({ behavior: "smooth", block: "center" });
+    setFlashId(id);
+    window.setTimeout(() => setFlashId((f) => (f === id ? null : f)), 1600);
+  };
 
   return (
     <section className="mr-section">
@@ -746,58 +799,113 @@ function Discussion({
         </div>
       </div>
       <div className="disc-list">
-        {comments.length === 0 && (
-          <div className="rail-empty">No comments yet.</div>
+        {loading ? (
+          <div className="rail-empty">Loading comments…</div>
+        ) : loadError ? (
+          <div className="rail-empty">
+            {errorText(loadError, "Couldn't load the discussion.")}
+          </div>
+        ) : (
+          <>
+            {comments.length === 0 && (
+              <div className="rail-empty">No comments yet.</div>
+            )}
+            {roots.map((c) => (
+              <CommentThread
+                key={c.id}
+                comment={c}
+                replies={comments.filter(
+                  (r) => r.parentId != null && rootOf(r) === c.id,
+                )}
+                byId={byId}
+                meId={user?.id}
+                flashId={flashId}
+                posting={posting}
+                onJump={jumpTo}
+                onReply={onAdd}
+              />
+            ))}
+          </>
         )}
-        {topLevel.map((c) => (
-          <CommentThread
-            key={c.id}
-            comment={c}
-            replies={comments.filter((r) => r.parentId === c.id)}
-            onReply={(body) => onAdd(makeComment(body, c.id))}
-          />
-        ))}
+        {postError != null && (
+          <div className="form-error">
+            {errorText(postError, "Couldn't post the comment.")}
+          </div>
+        )}
         <DiscussionComposer
           placeholder="Add a comment…"
           submitLabel="Comment"
-          onSubmit={(body) => onAdd(makeComment(body, null))}
+          busy={posting}
+          onSubmit={(body) => onAdd(body, null)}
         />
       </div>
     </section>
   );
 }
 
-// One top-level comment with its replies indented beneath it, reddit-style.
+// One top-level comment with all of its thread's replies flat beneath it.
+// The reply composer targets whichever comment's Reply button was clicked,
+// so the stored parent id is the comment actually being answered.
 function CommentThread({
   comment,
   replies,
+  byId,
+  meId,
+  flashId,
+  posting,
+  onJump,
   onReply,
 }: {
-  comment: ThreadComment;
-  replies: ThreadComment[];
-  onReply: (body: string) => void;
+  comment: CommitComment;
+  replies: CommitComment[];
+  byId: Map<number, CommitComment>;
+  meId?: number;
+  flashId: number | null;
+  posting: boolean;
+  onJump: (id: number) => void;
+  onReply: (body: string, parentId: number) => void;
 }) {
-  const [replying, setReplying] = useState(false);
+  const [replyTo, setReplyTo] = useState<CommitComment | null>(null);
   return (
     <div className="disc-thread">
-      <CommentItem comment={comment} onReplyClick={() => setReplying((v) => !v)} />
-      {(replies.length > 0 || replying) && (
+      <CommentItem
+        comment={comment}
+        meId={meId}
+        flash={flashId === comment.id}
+        onReplyClick={() =>
+          setReplyTo((prev) => (prev?.id === comment.id ? null : comment))
+        }
+      />
+      {(replies.length > 0 || replyTo) && (
         <div className="disc-replies">
           {replies.map((r) => (
             <CommentItem
               key={r.id}
               comment={r}
-              onReplyClick={() => setReplying(true)}
+              meId={meId}
+              flash={flashId === r.id}
+              // Quote the direct parent only when it isn't the thread root —
+              // a first-level reply already sits right under it.
+              quoted={
+                r.parentId !== comment.id
+                  ? byId.get(r.parentId!)
+                  : undefined
+              }
+              onJump={onJump}
+              onReplyClick={() =>
+                setReplyTo((prev) => (prev?.id === r.id ? null : r))
+              }
             />
           ))}
-          {replying && (
+          {replyTo && (
             <DiscussionComposer
-              placeholder={`Reply to ${comment.author}…`}
+              placeholder={`Reply to ${replyTo.author}…`}
               submitLabel="Reply"
               compact
+              busy={posting}
               onSubmit={(body) => {
-                onReply(body);
-                setReplying(false);
+                onReply(body, replyTo.id);
+                setReplyTo(null);
               }}
             />
           )}
@@ -807,23 +915,48 @@ function CommentThread({
   );
 }
 
+const snippet = (s: string) => (s.length > 90 ? `${s.slice(0, 90)}…` : s);
+
 function CommentItem({
   comment: c,
+  meId,
+  flash,
+  quoted,
+  onJump,
   onReplyClick,
 }: {
-  comment: ThreadComment;
+  comment: CommitComment;
+  meId?: number;
+  flash?: boolean;
+  quoted?: CommitComment;
+  onJump?: (id: number) => void;
   onReplyClick: () => void;
 }) {
+  const isAuthor = meId != null && c.authorId === meId;
   return (
-    <article className="disc-item">
+    <article
+      className={`disc-item${flash ? " disc-flash" : ""}`}
+      id={`disc-comment-${c.id}`}
+    >
       <span className="disc-av">{initials(c.author)}</span>
       <div className="disc-main">
         <div className="disc-content">
           <div className="disc-top">
             <span className="disc-who">{c.author}</span>
-            <span className="disc-role">{c.role}</span>
-            {c.on && <span className="disc-on">Comment on {c.on}</span>}
+            {isAuthor && <span className="disc-role">You</span>}
           </div>
+          {quoted && (
+            <button
+              type="button"
+              className="disc-quote"
+              onClick={() => onJump?.(quoted.id)}
+              title="Go to the reply this answers"
+            >
+              <CornerUpLeft size={12} strokeWidth={2} />
+              <span className="disc-quote-who">{quoted.author}</span>
+              <span className="disc-quote-snip">{snippet(quoted.body)}</span>
+            </button>
+          )}
           <p className="disc-body">{c.body}</p>
           <button type="button" className="link-btn disc-reply" onClick={onReplyClick}>
             Reply
@@ -842,24 +975,25 @@ function CommentItem({
   );
 }
 
-// Comment composer. There's no commit-comments backend endpoint yet, so a
-// posted comment is added to the local thread (it shows immediately but isn't
-// persisted across reloads).
+// Comment composer. Posts through the parent's mutation; `busy` guards
+// against double-submits while a post is in flight.
 function DiscussionComposer({
   placeholder,
   submitLabel,
   compact,
+  busy,
   onSubmit,
 }: {
   placeholder: string;
   submitLabel: string;
   compact?: boolean;
+  busy?: boolean;
   onSubmit: (body: string) => void;
 }) {
   const { user } = useAuth();
   const [body, setBody] = useState("");
   const name = user?.name ?? "You";
-  const canSubmit = body.trim().length > 0;
+  const canSubmit = body.trim().length > 0 && !busy;
 
   const submit = () => {
     if (!canSubmit) return;
@@ -971,17 +1105,20 @@ function FilesChangedCard({ files }: { files: CommitFileStat[] }) {
 function ActionsCard({
   slug,
   branch,
-  isLatest,
+  canRevert,
+  revertNote,
+  onRevert,
 }: {
   slug?: string;
   branch?: string;
-  isLatest: boolean;
+  canRevert: boolean;
+  revertNote: string | null;
+  onRevert: () => void;
 }) {
   // Opening a merge request from this commit's branch is a real flow (the
   // create-merge-request page), so this links straight to it with the branch
-  // pre-selected as the source. Revert only applies to the branch's latest
-  // commit — reverting anything older would drop the commits after it — and
-  // has no backend yet, so it stays disabled either way.
+  // pre-selected as the source. Revert opens the target-picking dialog; when
+  // it isn't available here, the note under the button says why.
   const canCreate = Boolean(slug && branch);
   return (
     <section className="rail-section cm-actions">
@@ -990,7 +1127,7 @@ function ActionsCard({
       </div>
       {canCreate ? (
         <Link
-          to={`/projects/${slug}/merge-requests/new?source=${encodeURIComponent(branch!)}`}
+          to={`/organization/${slug}/merge-requests/new?source=${encodeURIComponent(branch!)}`}
           className="btn btn-outline btn-block btn-sm"
         >
           <GitPullRequestArrow size={15} strokeWidth={1.9} />
@@ -1004,22 +1141,103 @@ function ActionsCard({
       )}
       <button
         className="btn btn-block btn-sm cm-revert"
-        disabled
-        title={
-          isLatest
-            ? "Coming soon"
-            : `Only the latest commit on ${branch ?? "a branch"} can be reverted`
-        }
+        disabled={!canRevert}
+        title={revertNote ?? undefined}
+        onClick={onRevert}
       >
         <RotateCcw size={15} strokeWidth={1.9} />
         Revert commit
       </button>
-      {!isLatest && (
-        <p className="cm-revert-note">
-          Revert is only available on the branch's latest commit.
-        </p>
-      )}
+      {revertNote && <p className="cm-revert-note">{revertNote}</p>}
     </section>
+  );
+}
+
+// The revert dialog: explains what a revert does, and picks WHICH earlier
+// commit to restore. Preview navigates to the revert page, which shows the
+// exact changes (diff tip → target) and holds the Confirm button.
+function RevertModal({
+  slug,
+  branch,
+  commits,
+  onClose,
+}: {
+  slug: string;
+  branch: string;
+  commits: Commit[];
+  onClose: () => void;
+}) {
+  const navigate = useNavigate();
+  const [target, setTarget] = useState<string | null>(null);
+  const tip = commits[0];
+  const options = commits.slice(1);
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div
+        className="modal modal-wide revert-modal"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+      >
+        <h3 className="modal-title">
+          <TriangleAlert size={17} strokeWidth={2} className="revert-modal-ico" />
+          Revert {branch}
+        </h3>
+        <p className="revert-modal-intro">
+          Reverting restores an earlier state of{" "}
+          <span className="branch-tag">
+            <GitBranch size={12} strokeWidth={2} />
+            {branch}
+          </span>{" "}
+          as <strong>one new commit</strong> on top of{" "}
+          <span className="cm-commit-sha">{tip?.sha.slice(0, 7)}</span>. Nothing
+          is deleted — the commits in between stay in the history. Pick the
+          commit whose state you want back, then preview exactly what will
+          change before anything happens.
+        </p>
+        <div className="revert-commit-list" role="radiogroup">
+          {options.map((c) => (
+            <label
+              key={c.sha}
+              className={`revert-commit${target === c.sha ? " selected" : ""}`}
+            >
+              <input
+                type="radio"
+                name="revert-target"
+                checked={target === c.sha}
+                onChange={() => setTarget(c.sha)}
+              />
+              <span className="revert-commit-main">
+                <span className="revert-commit-msg">{c.message}</span>
+                <span className="revert-commit-meta">
+                  <span className="mr-meta-mono">{c.sha.slice(0, 7)}</span> ·{" "}
+                  {c.author} · {timeAgo(c.at)}
+                </span>
+              </span>
+            </label>
+          ))}
+        </div>
+        <div className="modal-actions">
+          <button type="button" className="btn btn-quiet" onClick={onClose}>
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="btn btn-primary"
+            disabled={!target || !tip}
+            onClick={() =>
+              navigate(
+                `/organization/${slug}/revert?branch=${encodeURIComponent(branch)}` +
+                  `&target=${target}&tip=${tip!.sha}`,
+              )
+            }
+          >
+            Preview changes
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -1032,7 +1250,7 @@ function EmptyCommit({ slug }: { slug?: string }) {
       <h3>Commit not found</h3>
       <p>We couldn't find that commit. It may have been removed or rebased away.</p>
       <Link
-        to={slug ? `/projects/${slug}` : "/projects"}
+        to={slug ? `/organization/${slug}` : "/organization"}
         className="btn btn-primary btn-sm"
       >
         Back to repository
