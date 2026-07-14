@@ -24,10 +24,12 @@ import type { FileEntry } from "./repository";
 import {
   getCommitDiff,
   getCommitLadderDiff,
+  getCommitTextDiff,
   getDiff,
   getLadderDiff,
   type ChangeSet,
   type LadderDiffDoc,
+  type TextDiff,
 } from "./diff";
 import {
   getCommitTree,
@@ -84,6 +86,8 @@ export const queryKeys = {
     ["projects", projectId, "commit-diff", sha] as const,
   commitLadderDiff: (projectId: number, sha: string) =>
     ["projects", projectId, "commit-ladder", sha] as const,
+  commitTextDiff: (projectId: number, sha: string, path: string) =>
+    ["projects", projectId, "commit-text-diff", sha, path] as const,
   diff: (projectId: number, base: string, head: string) =>
     ["projects", projectId, "diff", base, head] as const,
   ladderDiff: (projectId: number, base: string, head: string) =>
@@ -187,6 +191,20 @@ export function useCommitLadderDiff(
     queryKey: queryKeys.commitLadderDiff(projectId ?? -1, sha ?? ""),
     queryFn: () => getCommitLadderDiff(projectId!, sha!),
     enabled: projectId != null && !!sha,
+  });
+}
+
+// The text diff for one non-L5X file at a commit, fetched lazily by the
+// Changes tab's per-file sections.
+export function useCommitTextDiff(
+  projectId: number | undefined,
+  sha: string | undefined,
+  path: string,
+) {
+  return useQuery<TextDiff>({
+    queryKey: queryKeys.commitTextDiff(projectId ?? -1, sha ?? "", path),
+    queryFn: () => getCommitTextDiff(projectId!, sha!, path),
+    enabled: projectId != null && !!sha && !!path,
   });
 }
 
@@ -488,8 +506,8 @@ export function useCreateComment(
 ) {
   const qc = useQueryClient();
   const { project } = useProject(slug);
-  return useMutation<unknown, Error, string>({
-    mutationFn: (body) => createComment(project!.id, mrId!, body),
+  return useMutation<unknown, Error, { body: string; parentId?: number | null }>({
+    mutationFn: (input) => createComment(project!.id, mrId!, input),
     onSuccess: () => {
       qc.invalidateQueries({
         queryKey: queryKeys.mergeRequest(slug ?? "", mrId ?? ""),

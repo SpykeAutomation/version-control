@@ -121,6 +121,46 @@ export function summarizeChangeSet(cs: ChangeSet, limit = 6): string[] {
   return bullets;
 }
 
+// One non-routine section of the Changes tab: a titled group of entity changes
+// (controller tags, modules, AOIs, …). Controller-level field edits wrap into a
+// pseudo-entity so every group renders through the same table.
+export interface EntityChangeGroup {
+  title: string;
+  entities: EntityChange[];
+}
+
+// The change-set's non-routine changes, grouped for display in the order the
+// organizer presents them: controller first, then tags, programs' own fields
+// and tags, and the remaining entity kinds.
+export function entityChangeGroups(cs: ChangeSet): EntityChangeGroup[] {
+  const groups: EntityChangeGroup[] = [];
+  const push = (title: string, entities: EntityChange[]) => {
+    if (entities.length > 0) groups.push({ title, entities });
+  };
+
+  push(
+    "Controller properties",
+    cs.controller.length > 0
+      ? [{ name: "Controller", kind: "modified", fields: cs.controller }]
+      : [],
+  );
+  push("Controller tags", cs.controller_tags);
+  for (const p of cs.programs) {
+    push(
+      `Program ${p.name} — properties`,
+      p.fields.length > 0
+        ? [{ name: p.name, kind: p.kind, fields: p.fields }]
+        : [],
+    );
+    push(`Program ${p.name} — tags`, p.tags);
+  }
+  push("Modules", cs.modules);
+  push("Data types", cs.data_types);
+  push("Add-on instructions", cs.add_on_instructions);
+  push("Tasks", cs.tasks);
+  return groups;
+}
+
 // Fold "comment_changed" (and any other kind) down to the three we display.
 function rowKind(kind: string): ChangeRowKind {
   if (kind === "added") return "added";

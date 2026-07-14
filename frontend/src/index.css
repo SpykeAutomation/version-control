@@ -4355,6 +4355,42 @@ a.mr-commit-row:hover {
   color: var(--ink-title);
 }
 
+/* Changes tab: entity old → new tables. The value columns wear the diff
+   tints so the direction of a change reads at a glance. */
+.entity-diff .entity-old {
+  color: var(--danger);
+  background: var(--danger-bg);
+}
+.entity-diff .entity-new {
+  color: var(--add);
+  background: var(--add-bg);
+}
+.entity-diff td {
+  vertical-align: top;
+}
+
+/* Changes tab: unified text diff for non-L5X files. */
+.udiff {
+  padding: 10px 16px;
+  overflow-x: auto;
+}
+.ud-line {
+  font: 400 12.5px/1.75 var(--mono);
+  white-space: pre;
+  padding: 0 8px;
+}
+.ud-add {
+  color: var(--add);
+  background: var(--add-bg);
+}
+.ud-rem {
+  color: var(--danger);
+  background: var(--danger-bg);
+}
+.ud-meta {
+  color: var(--ink4);
+}
+
 /* Side-by-side diff: two outlined panels with a transparent centre channel
    carrying per-row change markers. Per-cell borders keep each row's two sides
    and its marker on the same baseline. */

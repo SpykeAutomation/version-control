@@ -5,15 +5,27 @@
 // ./mergeRequest so the two review pages stay structurally aligned.
 import { apiFetch } from "./client";
 import { listCommits } from "./commits";
-import { getCommitDiff, getCommitLadderDiff } from "./diff";
+import {
+  EMPTY_CHANGESET,
+  getCommitDiff,
+  getCommitLadderDiff,
+  getCommitManifest,
+} from "./diff";
 import type {
+  ChangedFile,
   ChangeSet,
   IRElement,
   IRRoutineLadderDiff,
 } from "./diff";
 import { getCommitTree, resolveCommitL5xPath } from "./tree";
 import type { ProjectTree } from "./tree";
-import type { MRComment, PRFile, PRRoutineChange } from "./mergeRequest";
+import { ladderRoutineChanges } from "./mergeRequest";
+import type {
+  CodeLine,
+  MRComment,
+  PRFile,
+  PRRoutineChange,
+} from "./mergeRequest";
 import { deriveChangeView, summarizeChangeSet } from "../lib/changeset";
 
 // One changed file's line tally, shown in the rail's "Files changed" card.
@@ -73,6 +85,12 @@ export interface CommitDetail {
   // Pre-loaded full routine content, keyed by routineKey(program, routine).
   // Empty for real commits, which fetch on demand via getRoutineContent.
   fullContent: Record<string, RoutineFull>;
+  // The raw semantic diff, kept for the Changes tab's non-routine sections
+  // (controller properties, tags, modules, AOIs, tasks).
+  changeSet: ChangeSet;
+  // The commit's changed-files manifest; its kind:"file" entries drive the
+  // Changes tab's text-diff sections for non-L5X files.
+  changedFiles: ChangedFile[];
 }
 
 // --- Backend wiring ---
@@ -87,16 +105,6 @@ interface CommitOut {
 function shortSha(sha: string): string {
   return sha.slice(0, 7);
 }
-
-const EMPTY_CHANGESET: ChangeSet = {
-  controller: [],
-  modules: [],
-  data_types: [],
-  add_on_instructions: [],
-  controller_tags: [],
-  programs: [],
-  tasks: [],
-};
 
 const emptyTree = (label: string): ProjectTree => ({
   schema_version: 1,
@@ -137,6 +145,45 @@ function countByStatus(els: IRElement[], status: string): number {
   return n;
 }
 
+// Structured-text routine diffs come from the change-set — the ladder document
+// only carries RLL routines. Each changed line is one aligned row: a modified
+// line pairs old/new, an added or removed line leaves the other side's slot
+// empty (sparse arrays keep the row indexes aligned; the renderer skips holes).
+function structuredChanges(
+  cs: ChangeSet,
+  oldRef: string,
+  newRef: string,
+): PRRoutineChange[] {
+  const out: PRRoutineChange[] = [];
+  for (const p of cs.programs) {
+    for (const r of p.routines) {
+      if (r.lines.length === 0) continue;
+      const left: CodeLine[] = [];
+      const right: CodeLine[] = [];
+      r.lines.forEach((ln, row) => {
+        if (ln.old_text != null) {
+          left[row] = { ln: ln.old_number ?? 0, kind: "removed", text: ln.old_text };
+        }
+        if (ln.new_text != null) {
+          right[row] = { ln: ln.new_number ?? 0, kind: "added", text: ln.new_text };
+        }
+      });
+      out.push({
+        routine: r.name,
+        kind: "structured",
+        program: p.name,
+        code: {
+          routine: r.name,
+          left: { ref: oldRef, version: "", lines: left },
+          right: { ref: newRef, version: "", lines: right },
+          changes: r.lines.length,
+        },
+      });
+    }
+  }
+  return out;
+}
+
 // Map a real commit (meta + ladder diff + semantic change-set) onto the page's
 // view model. The summary bullets, impacted tags and headline counts are derived
 // from the change-set (the semantic diff), so they reflect the actual commit.
@@ -151,34 +198,42 @@ function mapCommit(
   changeSet: ChangeSet,
   tree: ProjectTree,
   l5xPath: string | null,
+  changedFiles: ChangedFile[],
 ): CommitDetail {
   const idx = commits.findIndex((c) => c.sha === sha || shortSha(c.sha) === sha);
   const meta = idx >= 0 ? commits[idx] : null;
   const parent = idx >= 0 ? commits[idx + 1] : undefined;
 
-  // Group the ladder routines under their controller (the L5X file). A commit is
-  // one controller file, so all routines fall under one file entry.
+  // Group the changed routines under their controller (the L5X file). A commit
+  // is one controller file, so all routines fall under one file entry: ladder
+  // diffs from the ladder document, structured text from the change-set.
+  const routineChanges: PRRoutineChange[] = [
+    ...ladderRoutineChanges(ladder),
+    ...structuredChanges(
+      changeSet,
+      parent ? `Previous (${shortSha(parent.sha)})` : "Previous",
+      `This commit (${shortSha(sha)})`,
+    ),
+  ];
   const files: PRFile[] =
-    ladder.length === 0
+    routineChanges.length === 0
       ? []
       : [
           {
-            name: ladder[0].controller ?? "Controller",
-            changes: ladder.map<PRRoutineChange>((r) => ({
-              routine: r.routine ?? "Routine",
-              kind: "ladder",
-              controller: r.controller ?? undefined,
-              program: r.program ?? undefined,
-              ladder: r,
-            })),
+            name:
+              ladder[0]?.controller ??
+              l5xPath?.replace(/^l5x\//, "") ??
+              "Controller",
+            changes: routineChanges,
           },
         ];
 
   const view = deriveChangeView(changeSet);
   const message = meta?.message ?? `Commit ${shortSha(sha)}`;
-  // Per-file +/- counts from the ladder diff: a wholly added or removed rung
-  // counts all of its elements, a modified rung only those that changed. The
-  // headline totals are the sum, so the tally is never misleadingly zero.
+  // Per-file +/- counts from the diffs: a wholly added or removed rung counts
+  // all of its elements, a modified rung only those that changed; structured
+  // text counts its changed lines per side (forEach skips the alignment holes).
+  // The headline totals are the sum, so the tally is never misleadingly zero.
   const fileStats: CommitFileStat[] = files.map((f) => {
     let add = 0;
     let del = 0;
@@ -193,6 +248,12 @@ function mapCommit(
             ? countElements(rung.before)
             : countByStatus(rung.before, "removed");
       }
+      change.code?.right.lines.forEach(() => {
+        add += 1;
+      });
+      change.code?.left.lines.forEach(() => {
+        del += 1;
+      });
     }
     return { name: f.name, additions: add, deletions: del };
   });
@@ -226,6 +287,8 @@ function mapCommit(
     l5xPath,
     // Real commits fetch full routine content on demand via getRoutineContent.
     fullContent: {},
+    changeSet,
+    changedFiles,
   };
 }
 
@@ -255,18 +318,20 @@ export async function getCommit(
   // The commit's metadata and parent live in its branch history, which may not be
   // the first branch — so fetch every branch's log and use the one that contains
   // the commit. Otherwise author/date fall back to placeholders ("Unknown" / 1970).
-  const [perBranch, ladder, changeSet, l5xPath] = await Promise.all([
-    Promise.all(
-      branches.map((b) =>
-        listCommits(projectId, b).catch(() => [] as CommitOut[]),
+  const [perBranch, ladder, changeSet, l5xPath, changedFiles] =
+    await Promise.all([
+      Promise.all(
+        branches.map((b) =>
+          listCommits(projectId, b).catch(() => [] as CommitOut[]),
+        ),
       ),
-    ),
-    getCommitLadderDiff(projectId, sha)
-      .then((d) => d.routines)
-      .catch(() => [] as IRRoutineLadderDiff[]),
-    getCommitDiff(projectId, sha).catch(() => EMPTY_CHANGESET),
-    resolveCommitL5xPath(projectId, sha).catch(() => null),
-  ]);
+      getCommitLadderDiff(projectId, sha)
+        .then((d) => d.routines)
+        .catch(() => [] as IRRoutineLadderDiff[]),
+      getCommitDiff(projectId, sha).catch(() => EMPTY_CHANGESET),
+      resolveCommitL5xPath(projectId, sha).catch(() => null),
+      getCommitManifest(projectId, sha).catch(() => [] as ChangedFile[]),
+    ]);
   const tree = l5xPath
     ? await getCommitTree(projectId, sha, l5xPath).catch(() =>
         emptyTree("Controller"),
@@ -291,5 +356,6 @@ export async function getCommit(
     changeSet,
     tree,
     l5xPath,
+    changedFiles,
   );
 }

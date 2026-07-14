@@ -1471,7 +1471,6 @@ function CodeView({
           <>
             <FilesTable
               files={files}
-              slug={slug}
               projectId={project.id}
               refName={info.name}
             />

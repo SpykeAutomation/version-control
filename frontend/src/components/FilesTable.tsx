@@ -1,4 +1,3 @@
-import { Link } from "react-router-dom";
 import {
   Boxes,
   Braces,
@@ -29,20 +28,18 @@ export function initials(name: string): string {
   return ((p[0]?.[0] ?? "") + (p[1]?.[0] ?? "")).toUpperCase() || "?";
 }
 
-// The repository file listing. Names link to the file view; callers supply the
-// surrounding card/footer so it can sit in a tab or on a branch page. The Name
+// The repository file listing. Callers supply the surrounding card/footer so
+// it can sit in a tab or on a branch page. The Name
 // column is the file's actual (upload) name; the Controller column is the
 // controller ("PLC") identity read from inside the L5X — often the same
 // string, since Studio 5000 defaults the export name to the controller name,
 // but they are different things. `projectId`/`refName` key that lookup.
 export function FilesTable({
   files,
-  slug,
   projectId,
   refName,
 }: {
   files: FileEntry[];
-  slug: string;
   projectId?: number;
   refName?: string;
 }) {
@@ -64,15 +61,12 @@ export function FilesTable({
           return (
             <tr key={file.name}>
               <td>
-                <Link
-                  to={`/organization/${slug}/files/${encodeURIComponent(file.name)}`}
-                  className="file-cell"
-                >
+                <span className="file-cell">
                   <span className="file-kind">
                     <Icon size={16} strokeWidth={1.8} />
                   </span>
                   <span className="file-cell-name">{file.name}</span>
-                </Link>
+                </span>
               </td>
               <td>
                 {file.kind === "controller" && file.path ? (

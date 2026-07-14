@@ -1,17 +1,17 @@
 // Types and data access for the merge-request review view. The page reads a
 // MergeRequest from getMergeRequest(), mapped from the backend pull-request
-// endpoints. Ladder rungs reuse the diff model from ./compare so the panels
+// endpoints. Ladder rungs use the IR model from ./diff so the review pages
 // share one renderer.
 import { apiFetch } from "./client";
 import { displayName } from "./users";
 import { listCommits } from "./commits";
 import {
+  EMPTY_CHANGESET,
   getCommitDiff,
   getCommitLadderDiff,
   getDiff,
   getLadderDiff,
 } from "./diff";
-import type { Rung } from "./compare";
 import type { ChangeSet, IRRoutineLadderDiff } from "./diff";
 import { deriveChangeView, summarizeChangeSet } from "../lib/changeset";
 
@@ -38,30 +38,15 @@ export interface MRCheck {
   state: CheckState;
 }
 
+// A discussion comment, in the shape the shared threaded Discussion component
+// renders (flat list, threaded client-side by parentId).
 export interface MRComment {
-  author: string;
-  role: string;
-  isAuthor?: boolean;
-  on?: string; // network/routine the comment is anchored to, e.g. "Network 27"
+  id: number;
+  parentId: number | null;
+  authorId: number;
+  author: string; // display name
   at: string; // ISO
   body: string;
-}
-
-// One side of a ladder diff (current vs proposed).
-export interface MRLadderSide {
-  ref: string; // e.g. "Current / main"
-  version: string; // e.g. "r1.0.2"
-  rungs: Rung[];
-}
-
-export interface MRLadderDiff {
-  routine: string;
-  networks: number;
-  left: MRLadderSide;
-  right: MRLadderSide;
-  // One marker per aligned rung row (null where the rung is unchanged); drives
-  // the centre-gutter badges between the two panels.
-  marks?: (DiffMark | null)[];
 }
 
 // Structured-text diff: a line-oriented code diff per side.
@@ -201,6 +186,7 @@ interface CommentOut {
   id: number;
   author: PullUser;
   body: string;
+  parent_id: number | null;
   created_at: string;
 }
 
@@ -313,24 +299,34 @@ export async function mergeChangeRequest(
 export async function createComment(
   projectId: number,
   mrId: string,
-  body: string,
+  input: { body: string; parentId?: number | null },
 ): Promise<CommentOut> {
   const number = pullNumber(mrId);
   return apiFetch<CommentOut>(
     `/projects/${projectId}/pulls/${number}/comments`,
-    { method: "POST", json: { body } },
+    {
+      method: "POST",
+      json: {
+        body: input.body,
+        ...(input.parentId != null ? { parent_id: input.parentId } : {}),
+      },
+    },
   );
 }
 
-const EMPTY_CHANGESET: ChangeSet = {
-  controller: [],
-  modules: [],
-  data_types: [],
-  add_on_instructions: [],
-  controller_tags: [],
-  programs: [],
-  tasks: [],
-};
+// Each changed ladder routine as a PRRoutineChange, the shape both review
+// pages' change lists render. Shared with the commit page's mapper.
+export function ladderRoutineChanges(
+  ladder: IRRoutineLadderDiff[],
+): PRRoutineChange[] {
+  return ladder.map<PRRoutineChange>((r) => ({
+    routine: r.routine ?? "Routine",
+    kind: "ladder",
+    controller: r.controller ?? undefined,
+    program: r.program ?? undefined,
+    ladder: r,
+  }));
+}
 
 // Group the PR's changed routines under their controller (the L5X file). A
 // project is one controller file, so every changed routine falls under a single
@@ -340,13 +336,7 @@ function ladderFiles(ladder: IRRoutineLadderDiff[]): PRFile[] {
   return [
     {
       name: ladder[0].controller ?? "Controller",
-      changes: ladder.map<PRRoutineChange>((r) => ({
-        routine: r.routine ?? "Routine",
-        kind: "ladder",
-        controller: r.controller ?? undefined,
-        program: r.program ?? undefined,
-        ladder: r,
-      })),
+      changes: ladderRoutineChanges(ladder),
     },
   ];
 }
@@ -389,9 +379,10 @@ function mapPull(
     files: ladderFiles(ladder),
     commits: prCommits,
     comments: comments.map((c) => ({
+      id: c.id,
+      parentId: c.parent_id,
+      authorId: c.author.id,
       author: displayName(c.author),
-      role: c.author.id === pull.author.id ? "Author" : "Reviewer",
-      isAuthor: c.author.id === pull.author.id,
       at: c.created_at,
       body: c.body,
     })),

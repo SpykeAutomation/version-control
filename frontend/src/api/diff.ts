@@ -86,14 +86,21 @@ export interface ChangeSet {
 // these resolve every changed L5X from the manifest and merge the results.
 
 // A changed-file entry from a diff manifest (also a commit's file list).
-interface ChangedFile {
+export interface ChangedFile {
   path: string;
   kind: "l5x" | "file";
   change: "added" | "modified" | "removed";
   views: string[];
 }
 
-const EMPTY_CHANGESET: ChangeSet = {
+// The unified text diff for one non-L5X file. `unified` is null for binaries.
+export interface TextDiff {
+  path: string;
+  binary: boolean;
+  unified: string | null;
+}
+
+export const EMPTY_CHANGESET: ChangeSet = {
   controller: [],
   modules: [],
   data_types: [],
@@ -124,6 +131,30 @@ async function changedL5xPaths(manifestUrl: string): Promise<string[]> {
 
 function refQuery(base: string, head: string): string {
   return `?base=${encodeURIComponent(base)}&head=${encodeURIComponent(head)}`;
+}
+
+// The commit's changed-files manifest. The commit detail itself carries it
+// (same {files:[...]} shape as /diff), so this is one fetch of that endpoint.
+export async function getCommitManifest(
+  projectId: number,
+  sha: string,
+): Promise<ChangedFile[]> {
+  const detail = await apiFetch<{ files: ChangedFile[] }>(
+    `/projects/${projectId}/commits/${sha}`,
+  );
+  return detail.files ?? [];
+}
+
+// The text diff for one non-L5X file at a commit (vs its parent). The path
+// comes from a manifest entry: "files/<nested/path>".
+export async function getCommitTextDiff(
+  projectId: number,
+  sha: string,
+  path: string,
+): Promise<TextDiff> {
+  return apiFetch<TextDiff>(
+    `/projects/${projectId}/commits/${sha}/diff/text?path=${encodeURIComponent(path)}`,
+  );
 }
 
 // The semantic change-set for a commit: what changed by entity, across every
