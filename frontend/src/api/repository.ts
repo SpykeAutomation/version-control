@@ -2,6 +2,7 @@
 // change-request / controller endpoints yet, so the page renders empty states
 // until a real detail payload is available; this describes its shape.
 import { type ProjectRow, type RepoStatus } from "./projects";
+import { STATUS_META } from "../lib/statusMeta";
 
 export interface Commit {
   hash: string; // short 7-char hash for display
@@ -125,12 +126,8 @@ export interface RepositoryDetail {
   fileList: FileEntry[];
 }
 
-export const CR_META: Record<CRStatus, { tone: string; label: string }> = {
-  open: { tone: "orange", label: "Open" },
-  review: { tone: "blue", label: "In review" },
-  approved: { tone: "green", label: "Approved" },
-  merged: { tone: "purple", label: "Merged" },
-};
+export const CR_META: Record<CRStatus, { tone: string; label: string }> =
+  STATUS_META;
 
 // Map the sparse fields a ProjectRow can supply onto a RepositoryDetail. The
 // backend has no rich detail endpoint, so commits/branches/change requests are

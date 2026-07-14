@@ -4,11 +4,7 @@ import { ChevronDown, GitBranch } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import { errorText, useBranches, useCommits, useProject } from "../api/queries";
 import { timeAgo } from "../lib/time";
-
-function initials(name: string): string {
-  const p = name.trim().split(/\s+/);
-  return ((p[0]?.[0] ?? "") + (p[1]?.[0] ?? "")).toUpperCase() || "?";
-}
+import { initials } from "../lib/initials";
 
 // A repository's commit history: every commit on the chosen branch with its
 // author, branch and time. Rows link to the commit's review page. The branch

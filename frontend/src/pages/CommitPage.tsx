@@ -19,18 +19,13 @@ import { commitFiles, createBranch } from "../api/commits";
 import { createChangeRequest } from "../api/mergeRequest";
 import { ApiError } from "../api/client";
 import { errorText, queryKeys, useProject } from "../api/queries";
+import { formatBytes } from "../lib/format";
 
 // L5X is the PLC export the engine reads; anything else rides along as a
 // supporting file and is shown neutrally.
 function fileType(name: string): { ext: string; tone: string } {
   const ext = name.includes(".") ? name.split(".").pop()!.toUpperCase() : "FILE";
   return { ext, tone: ext === "L5X" ? "blue" : "gray" };
-}
-
-function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 const ACCEPT = ".L5X,.l5x";
@@ -295,7 +290,7 @@ export function CommitPage() {
                               <td>
                                 <span className={`badge ${t.tone}`}>{t.ext}</span>
                               </td>
-                              <td className="muted-cell">{formatSize(f.size)}</td>
+                              <td className="muted-cell">{formatBytes(f.size)}</td>
                               <td className="file-remove-cell">
                                 <button
                                   type="button"
@@ -359,7 +354,7 @@ export function CommitPage() {
                     />
                     <SummaryRow
                       icon={<Layers size={16} strokeWidth={1.7} />}
-                      value={formatSize(totalSize)}
+                      value={formatBytes(totalSize)}
                       label="total size"
                     />
                   </div>

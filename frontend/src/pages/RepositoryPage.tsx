@@ -64,6 +64,8 @@ import {
   useRepository,
 } from "../api/queries";
 import { formatDate, timeAgo } from "../lib/time";
+import { initials } from "../lib/initials";
+import { formatBytes } from "../lib/format";
 
 const TABS = [
   { label: "Overview", icon: LayoutGrid },
@@ -72,11 +74,6 @@ const TABS = [
   { label: "Settings", icon: Settings },
 ] as const;
 type Tab = (typeof TABS)[number]["label"];
-
-function initials(name: string): string {
-  const p = name.trim().split(/\s+/);
-  return ((p[0]?.[0] ?? "") + (p[1]?.[0] ?? "")).toUpperCase() || "?";
-}
 
 // A repository's icon and colour tone, derived from the slug so each repository
 // reads distinctly without depending on a backend category field. Tones map to
@@ -365,12 +362,6 @@ function RepositoryView({
   );
 }
 
-function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
 // GitHub-style upload flow: files picked via "Add file" become one commit with
 // a title and description, landing either directly on the current branch or on
 // a fresh branch (then straight into the new-merge-request page). A protected
@@ -493,7 +484,7 @@ function UploadFilesDialog({
                 <FileText size={15} strokeWidth={1.7} className="file-ico" />
                 {f.name}
               </span>
-              <span className="upload-size">{formatSize(f.size)}</span>
+              <span className="upload-size">{formatBytes(f.size)}</span>
               <button
                 type="button"
                 className="file-remove"

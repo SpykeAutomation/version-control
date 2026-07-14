@@ -3,7 +3,8 @@
 // endpoints. Ladder rungs use the IR model from ./diff so the review pages
 // share one renderer.
 import { apiFetch } from "./client";
-import { displayName } from "./users";
+import type { CommentApi } from "./comments";
+import { displayName, type UserBrief } from "./users";
 import { listCommits } from "./commits";
 import {
   EMPTY_CHANGESET,
@@ -14,6 +15,7 @@ import {
 } from "./diff";
 import type { ChangeSet, IRRoutineLadderDiff } from "./diff";
 import { deriveChangeView, summarizeChangeSet } from "../lib/changeset";
+import { STATUS_META } from "../lib/statusMeta";
 
 export type MRStatus = "open" | "review" | "approved" | "changes" | "merged";
 
@@ -139,13 +141,8 @@ export interface MergeRequest {
   impactedTags: string[];
 }
 
-export const MR_STATUS_META: Record<MRStatus, { tone: string; label: string }> = {
-  open: { tone: "orange", label: "Open" },
-  review: { tone: "blue", label: "In review" },
-  approved: { tone: "green", label: "Approved" },
-  changes: { tone: "red", label: "Changes requested" },
-  merged: { tone: "purple", label: "Merged" },
-};
+export const MR_STATUS_META: Record<MRStatus, { tone: string; label: string }> =
+  STATUS_META;
 
 export const REVIEW_STATE_META: Record<ReviewState, { tone: string; label: string }> = {
   approved: { tone: "green", label: "Approved" },
@@ -165,12 +162,6 @@ export const CHECK_STATE_META: Record<CheckState, { tone: string; label: string 
 // Shapes returned by the backend pull-request endpoints (backend/app/schemas.py).
 // The backend embeds people as nested user objects (first/last name, no single
 // `name`); displayName() collapses one to a string.
-interface PullUser {
-  id: number;
-  email: string;
-  first_name?: string;
-  last_name?: string;
-}
 interface PullOut {
   number: number;
   title: string;
@@ -178,15 +169,8 @@ interface PullOut {
   source_branch: string;
   target_branch: string;
   status: string; // "open" | "merged" | ...
-  author: PullUser;
+  author: UserBrief;
   merge_sha: string | null;
-  created_at: string;
-}
-interface CommentOut {
-  id: number;
-  author: PullUser;
-  body: string;
-  parent_id: number | null;
   created_at: string;
 }
 
@@ -300,9 +284,9 @@ export async function createComment(
   projectId: number,
   mrId: string,
   input: { body: string; parentId?: number | null },
-): Promise<CommentOut> {
+): Promise<CommentApi> {
   const number = pullNumber(mrId);
-  return apiFetch<CommentOut>(
+  return apiFetch<CommentApi>(
     `/projects/${projectId}/pulls/${number}/comments`,
     {
       method: "POST",
@@ -349,7 +333,7 @@ function ladderFiles(ladder: IRRoutineLadderDiff[]): PRFile[] {
 function mapPull(
   mrId: string,
   pull: PullOut,
-  comments: CommentOut[],
+  comments: CommentApi[],
   ladder: IRRoutineLadderDiff[],
   changeSet: ChangeSet,
   prCommits: MRCommitRow[],
@@ -416,7 +400,7 @@ export async function getMergeRequest(
     : getDiff(projectId, pull.target_branch, pull.source_branch);
 
   const [comments, ladder, changeSet, srcCommits, tgtCommits] = await Promise.all([
-    apiFetch<CommentOut[]>(`${base}/comments`).catch(() => [] as CommentOut[]),
+    apiFetch<CommentApi[]>(`${base}/comments`).catch(() => [] as CommentApi[]),
     ladderReq.then((d) => d.routines).catch(() => [] as IRRoutineLadderDiff[]),
     changeReq.catch(() => EMPTY_CHANGESET),
     listCommits(projectId, pull.source_branch).catch(() => []),

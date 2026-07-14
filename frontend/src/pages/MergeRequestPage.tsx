@@ -19,6 +19,7 @@ import {
   Users,
 } from "lucide-react";
 import { FileSection, ZoomControl } from "../components/ChangesView";
+import { TabStrip } from "../components/Tabs";
 import { Discussion } from "../components/Discussion";
 import { ApiError } from "../api/client";
 import {
@@ -38,11 +39,7 @@ import {
 } from "../api/queries";
 import type { MergeOutcome } from "../api/mergeRequest";
 import { formatDate, timeAgo } from "../lib/time";
-
-function initials(name: string): string {
-  const p = name.trim().split(/\s+/);
-  return ((p[0]?.[0] ?? "") + (p[1]?.[0] ?? "")).toUpperCase() || "?";
-}
+import { initials } from "../lib/initials";
 
 export function MergeRequestPage() {
   const { slug, mrId } = useParams();
@@ -387,21 +384,7 @@ function Tabs({
     { key: "commits", label: "Commits", count: mr.commits.length || mr.sourceCommits },
     { key: "files", label: "Files", count: mr.files.length },
   ];
-  return (
-    <nav className="pr-tabs">
-      {tabs.map((t) => (
-        <button
-          key={t.key}
-          className={`pr-tab${t.key === tab ? " active" : ""}`}
-          type="button"
-          onClick={() => onSelect(t.key)}
-        >
-          {t.label}
-          {t.count != null && <span className="pr-tab-count">{t.count}</span>}
-        </button>
-      ))}
-    </nav>
-  );
+  return <TabStrip tabs={tabs} active={tab} onSelect={onSelect} />;
 }
 
 // ---- Commits tab ----

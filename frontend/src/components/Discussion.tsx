@@ -9,6 +9,7 @@ import { CornerUpLeft, MoreVertical } from "lucide-react";
 import { errorText } from "../api/queries";
 import { useAuth } from "../auth/AuthContext";
 import { timeAgo } from "../lib/time";
+import { initials } from "../lib/initials";
 
 // The comment shape both pages map their backend rows onto.
 export interface DiscussionComment {
@@ -18,11 +19,6 @@ export interface DiscussionComment {
   author: string; // display name
   at: string; // ISO
   body: string;
-}
-
-function initials(name: string): string {
-  const p = name.trim().split(/\s+/);
-  return ((p[0]?.[0] ?? "") + (p[1]?.[0] ?? "")).toUpperCase() || "?";
 }
 
 export function Discussion({

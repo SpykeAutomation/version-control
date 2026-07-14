@@ -1,5 +1,6 @@
 import { apiFetch } from "./client";
 import type { Commit } from "./repository";
+import { shortSha } from "../lib/format";
 
 export interface CommitResult {
   sha: string;
@@ -28,7 +29,7 @@ export async function listCommits(
     `/projects/${projectId}/commits?branch=${encodeURIComponent(branch)}`,
   );
   return commits.map((c) => ({
-    hash: c.sha.slice(0, 7),
+    hash: shortSha(c.sha),
     sha: c.sha,
     message: c.title,
     author: c.author,
@@ -82,7 +83,7 @@ export async function listBranches(
     merged: b.merged,
     ahead: b.ahead,
     behind: b.behind,
-    lastCommitHash: b.latest_commit?.sha.slice(0, 7),
+    lastCommitHash: b.latest_commit ? shortSha(b.latest_commit.sha) : undefined,
     lastCommitSha: b.latest_commit?.sha,
     lastCommitMessage: b.latest_commit?.title,
     lastCommitAuthor: b.latest_commit?.author,

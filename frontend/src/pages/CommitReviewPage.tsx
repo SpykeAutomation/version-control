@@ -24,6 +24,7 @@ import {
 } from "../components/ChangesView";
 import { EntityPanel } from "../components/L5xPanels";
 import { Discussion } from "../components/Discussion";
+import { TabStrip } from "../components/Tabs";
 import { ProjectTree, type RoutineSelection } from "../components/ProjectTree";
 import { ApiError } from "../api/client";
 import type { ProjectTree as ProjectTreeData, TreeNode } from "../api/tree";
@@ -52,11 +53,8 @@ import {
   useRoutineContent,
 } from "../api/queries";
 import { formatDate, timeAgo } from "../lib/time";
-
-function initials(name: string): string {
-  const p = name.trim().split(/\s+/);
-  return ((p[0]?.[0] ?? "") + (p[1]?.[0] ?? "")).toUpperCase() || "?";
-}
+import { initials } from "../lib/initials";
+import { shortSha } from "../lib/format";
 
 export function CommitReviewPage() {
   const { slug, sha } = useParams();
@@ -145,7 +143,7 @@ function CommitReviewView({
   // is the manager-only rollback path, so hide it from plain members there.
   const branchCommits = useCommits(projectId, commit.branch).data ?? null;
   const isLatest = branchCommits
-    ? branchCommits[0]?.sha.slice(0, 7) === commit.sha
+    ? shortSha(branchCommits[0]?.sha ?? "") === commit.sha
     : false;
   const branches = useBranches(projectId).data ?? null;
   const isProtected =
@@ -419,19 +417,7 @@ function Tabs({
     { key: "files", label: "Files" },
   ];
   return (
-    <nav className="pr-tabs cm-tabs">
-      {tabs.map((t) => (
-        <button
-          key={t.key}
-          className={`pr-tab${t.key === activeTab ? " active" : ""}`}
-          type="button"
-          onClick={() => onSelect(t.key)}
-        >
-          {t.label}
-          {t.count != null && <span className="pr-tab-count">{t.count}</span>}
-        </button>
-      ))}
-    </nav>
+    <TabStrip tabs={tabs} active={activeTab} onSelect={onSelect} className="cm-tabs" />
   );
 }
 
@@ -1089,7 +1075,7 @@ function RevertModal({
             {branch}
           </span>{" "}
           as <strong>one new commit</strong> on top of{" "}
-          <span className="cm-commit-sha">{tip?.sha.slice(0, 7)}</span>. Nothing
+          <span className="cm-commit-sha">{tip && shortSha(tip.sha)}</span>. Nothing
           is deleted — the commits in between stay in the history. Pick the
           commit whose state you want back, then preview exactly what will
           change before anything happens.
@@ -1109,7 +1095,7 @@ function RevertModal({
               <span className="revert-commit-main">
                 <span className="revert-commit-msg">{c.message}</span>
                 <span className="revert-commit-meta">
-                  <span className="mr-meta-mono">{c.sha.slice(0, 7)}</span> ·{" "}
+                  <span className="mr-meta-mono">{shortSha(c.sha)}</span> ·{" "}
                   {c.author} · {timeAgo(c.at)}
                 </span>
               </span>

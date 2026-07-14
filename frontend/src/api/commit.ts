@@ -19,6 +19,7 @@ import type {
 } from "./diff";
 import { getCommitTree, resolveCommitL5xPath } from "./tree";
 import type { ProjectTree } from "./tree";
+import type { Commit } from "./repository";
 import { ladderRoutineChanges } from "./mergeRequest";
 import type {
   CodeLine,
@@ -27,6 +28,7 @@ import type {
   PRRoutineChange,
 } from "./mergeRequest";
 import { deriveChangeView, summarizeChangeSet } from "../lib/changeset";
+import { shortSha } from "../lib/format";
 
 // One changed file's line tally, shown in the rail's "Files changed" card.
 export interface CommitFileStat {
@@ -91,19 +93,6 @@ export interface CommitDetail {
   // The commit's changed-files manifest; its kind:"file" entries drive the
   // Changes tab's text-diff sections for non-L5X files.
   changedFiles: ChangedFile[];
-}
-
-// --- Backend wiring ---
-interface CommitOut {
-  sha: string;
-  message: string;
-  author: string;
-  at: string;
-  filesChanged?: number;
-}
-
-function shortSha(sha: string): string {
-  return sha.slice(0, 7);
 }
 
 const emptyTree = (label: string): ProjectTree => ({
@@ -193,7 +182,7 @@ function structuredChanges(
 function mapCommit(
   sha: string,
   branch: string,
-  commits: CommitOut[],
+  commits: Commit[],
   ladder: IRRoutineLadderDiff[],
   changeSet: ChangeSet,
   tree: ProjectTree,
@@ -322,7 +311,7 @@ export async function getCommit(
     await Promise.all([
       Promise.all(
         branches.map((b) =>
-          listCommits(projectId, b).catch(() => [] as CommitOut[]),
+          listCommits(projectId, b).catch(() => [] as Commit[]),
         ),
       ),
       getCommitLadderDiff(projectId, sha)
@@ -351,7 +340,7 @@ export async function getCommit(
   return mapCommit(
     sha,
     branch,
-    commits as CommitOut[],
+    commits,
     ladder,
     changeSet,
     tree,

@@ -11,6 +11,7 @@ import {
 import { FILE_KIND_LABEL, type FileEntry, type FileKind } from "../api/repository";
 import { useL5xController } from "../api/queries";
 import { timeAgo } from "../lib/time";
+import { initials } from "../lib/initials";
 
 export const FILE_ICON: Record<FileKind, typeof Tag> = {
   controller: Cpu,
@@ -22,11 +23,6 @@ export const FILE_ICON: Record<FileKind, typeof Tag> = {
   document: FileText,
   udt: Braces,
 };
-
-export function initials(name: string): string {
-  const p = name.trim().split(/\s+/);
-  return ((p[0]?.[0] ?? "") + (p[1]?.[0] ?? "")).toUpperCase() || "?";
-}
 
 // The repository file listing. Callers supply the surrounding card/footer so
 // it can sit in a tab or on a branch page. The Name

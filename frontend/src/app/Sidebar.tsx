@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { Logo } from "../components/Logo";
 import { useAuth } from "../auth/AuthContext";
+import { initials } from "../lib/initials";
 
 const NAV = [
   { to: "/dashboard", label: "Dashboard", icon: Home },
@@ -24,11 +25,6 @@ const NAV = [
 ];
 
 const COLLAPSE_KEY = "spyke_sidebar_collapsed";
-
-function initials(name: string | undefined): string {
-  const parts = (name ?? "").trim().split(/\s+/);
-  return ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "")).toUpperCase() || "?";
-}
 
 export function Sidebar() {
   const { user } = useAuth();
