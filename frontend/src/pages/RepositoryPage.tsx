@@ -623,7 +623,7 @@ function UploadFilesDialog({
   );
 }
 
-// Creates a branch off an existing start point via POST /organization/{id}/branches,
+// Creates a branch off an existing start point via POST /projects/{id}/branches,
 // then refreshes the project's branch data so the new branch shows up everywhere.
 function NewBranchDialog({
   project,

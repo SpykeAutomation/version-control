@@ -21,7 +21,7 @@ function slugify(value: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
-// Only the project name is persisted today (POST /organization {name}); the
+// Only the project name is persisted today (POST /projects {name}); the
 // description, visibility, and documentation controls are UI for now and aren't
 // stored until the backend supports them.
 export function OnboardingPage() {
