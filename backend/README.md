@@ -216,7 +216,7 @@ separate from the per-project activity feed.
 | `GET`  | `/projects/{id}/commits/{sha}/diff/ladder` | `?path=l5x/<name>` | `LadderDocument` (parent → commit) |
 | `GET`  | `/projects/{id}/commits/{sha}/diff/text` | `?path=files/<nested/path>` | `TextDiff` (parent → commit) |
 | `GET`  | `/projects/{id}/commits/{sha}/tree` | `?path=l5x/<name>` | `ProjectTree` (organizer of one L5X at the commit, vs its parent) |
-| `GET`  | `/projects/{id}/commits/{sha}/routine` | `?program=<name>&routine=<name>&path=l5x/<name>` (`path` optional; without it every L5X at the commit is probed) | `RoutineFull` — the routine's full content at the commit, not a diff; `404` for encoded (source-protected) routines and FBD/SFC |
+| `GET`  | `/projects/{id}/commits/{sha}/routine` | `?routine=<name>` + exactly one of `program=<name>` / `aoi=<name>` (else `400`); `path=l5x/<name>` optional — without it every L5X at the commit is probed | `RoutineFull` — the routine's full content at the commit, not a diff; AOI routines (Logic/Prescan/Postscan/EnableInFalse) render through the same ladder pipeline with the AOI name as `program`; `404` for encoded (source-protected) routines/AOIs and FBD/SFC |
 | `GET`  | `/projects/{id}/commits/{sha}/comments` | `?limit=100&offset=0` | `[Comment]` + `X-Total-Count` (the commit page's discussion; flat, nest by `parent_id`); `404` if `sha` doesn't resolve |
 | `POST` | `/projects/{id}/commits/{sha}/comments` | `{body, parent_id?, anchor?}` — parent must belong to the same commit's discussion (any depth) | `201` `Comment` (stored under the fully resolved sha, so short-ref posts and full-sha reads converge) |
 | `PATCH` | `/projects/{id}/commits/{sha}/comments/{cid}` | `{body?, resolved?}` (body = author only) | `Comment` |
@@ -446,8 +446,11 @@ Operand  = { "label": string, "value": string, "changed": bool }  // `changed` t
 
 ### `RoutineFull` — one routine's full content at a commit (the Files tab)
 
-Returned by `/commits/{sha}/routine?program=<name>&routine=<name>`. Not a
-diff: the whole routine as committed, read straight from the snapshot. A
+Returned by `/commits/{sha}/routine?routine=<name>` with exactly one of
+`program=<name>` (a program routine) or `aoi=<name>` (an AOI routine —
+Logic / Prescan / Postscan / EnableInFalse). Not a diff: the whole routine as
+committed, read straight from the snapshot. Both scopes render identically;
+for an AOI routine the ladder's `program` field carries the AOI name. A
 discriminated union on `kind`:
 
 ```jsonc
@@ -781,6 +784,17 @@ carry their routines as children (no ladder-card identity), new Motion Groups
 and Power-Up / Controller Fault Handler folders, and a task's program
 references now carry the program's routine subtree under namespaced keys. The
 flat Programs folder and all existing keys are unchanged.
+
+### 2026-07-09 · AOI routines through the ladder pipeline
+
+No new endpoint. `GET /projects/{id}/commits/{sha}/routine` gains an AOI
+scope: `program` is now optional and `aoi=<name>` selects a routine inside an
+AOI definition (Logic / Prescan / Postscan / EnableInFalse — the nodes the
+organizer tree lists as `aoi:{name}/routine:{rt}`). Exactly one of
+`program`/`aoi` must be given (`400` otherwise); existing `program=` calls
+are unchanged. AOI routines return the same `RoutineFull` shapes — ladder IR
+(with the AOI name as `program`) or ST lines; encoded (source-protected)
+AOIs and FBD/SFC routines are `404`.
 
 ### 2026-07-10 · Revert to a commit & commit-page discussions
 
