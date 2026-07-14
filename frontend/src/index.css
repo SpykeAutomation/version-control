@@ -6855,6 +6855,106 @@ a.cmr-tl-link:hover .cmr-tl-msg {
   vertical-align: baseline;
 }
 
+/* --- Commit tree (repo Overview, Tree view) --- */
+.overview-view-seg {
+  margin-bottom: 14px;
+  width: fit-content;
+}
+.overview-view-seg .seg-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.ct-card {
+  border: 1px solid var(--line2);
+  background: var(--panel);
+  border-radius: 12px;
+  padding: 10px 0 4px;
+}
+.ct-scroll {
+  overflow: auto;
+  max-height: 640px;
+}
+.ct-canvas {
+  position: relative;
+  margin: 0 auto;
+}
+.ct-dot-hit {
+  cursor: pointer;
+}
+.ct-lane-hit {
+  cursor: pointer;
+}
+.ct-lane:hover .ct-lane-line {
+  stroke-width: 3.5;
+}
+.ct-branch-label {
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border: 1.5px solid;
+  border-radius: 999px;
+  background: var(--panel);
+  font: 600 11.5px/1.4 var(--sans);
+  cursor: pointer;
+  white-space: nowrap;
+  z-index: 2;
+}
+.ct-branch-label:hover {
+  background: var(--hover);
+}
+.ct-tooltip {
+  position: absolute;
+  z-index: 3;
+  max-width: 300px;
+
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--panel);
+  box-shadow: 0 6px 20px rgba(30, 28, 24, 0.13);
+  pointer-events: none;
+}
+.ct-tooltip-top {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  margin-bottom: 2px;
+}
+.ct-tooltip-sha {
+  font: 600 12px/1.4 var(--mono);
+  color: var(--ink);
+}
+.ct-tooltip-when {
+  font: 400 11.5px/1.4 var(--sans);
+  color: var(--ink3);
+}
+.ct-tooltip-title {
+  font: 500 12.5px/1.45 var(--sans);
+  color: var(--ink);
+}
+.ct-tooltip-meta {
+  margin-top: 2px;
+  font: 400 11.5px/1.4 var(--sans);
+  color: var(--ink3);
+}
+.ct-note {
+  margin: 8px 14px 6px;
+  font: 400 12px/1.5 var(--sans);
+  color: var(--ink3);
+}
+/* A branch that was deleted after merging: label stays informative but inert. */
+.ct-branch-label.ct-label-gone {
+  cursor: default;
+  border-style: dashed;
+  opacity: 0.85;
+}
+.ct-branch-label.ct-label-gone:hover {
+  background: var(--panel);
+}
+
 /* Files table: the controller identity read from inside an L5X. */
 .ctrl-cell {
   display: block;

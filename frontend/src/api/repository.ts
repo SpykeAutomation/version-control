@@ -12,6 +12,9 @@ export interface Commit {
   branch: string;
   at: string; // ISO
   filesChanged?: number;
+  // Parent shas, first parent first; empty for a root commit. Absent only in
+  // mock/detail payloads that never carried them.
+  parents?: string[];
 }
 
 export interface BranchInfo {

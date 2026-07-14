@@ -4,7 +4,12 @@
 // cache instead of reloading.
 
 import { useMemo } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useMutation,
+  useQueries,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { ApiError } from "./client";
 import {
   createProject,
@@ -253,6 +258,28 @@ export function useMergedPulls(projectId: number | undefined) {
     queryKey: [...queryKeys.changeRequests(projectId ?? -1), "merged"],
     queryFn: () => listChangeRequests(projectId!, "merged"),
     enabled: projectId != null,
+  });
+}
+
+// Every branch's commit list at once (one request per branch, cached under
+// the same keys the per-branch views use). Drives the commit graph.
+export function useAllBranchCommits(
+  projectId: number | undefined,
+  branchNames: string[],
+) {
+  return useQueries({
+    queries: branchNames.map((b) => ({
+      queryKey: queryKeys.commits(projectId ?? -1, b),
+      queryFn: () => listCommits(projectId!, b),
+      enabled: projectId != null,
+    })),
+    combine: (results) => ({
+      isPending: results.some((r) => r.isPending),
+      error: results.find((r) => r.error)?.error ?? null,
+      byBranch: Object.fromEntries(
+        branchNames.map((b, i) => [b, results[i]?.data ?? null]),
+      ) as Record<string, Commit[] | null>,
+    }),
   });
 }
 

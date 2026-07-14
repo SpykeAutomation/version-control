@@ -16,8 +16,10 @@ import {
   History,
   Info,
   LayoutGrid,
+  List,
   type LucideIcon,
   MoreHorizontal,
+  Network,
   Plus,
   Search,
   Settings,
@@ -26,6 +28,7 @@ import {
   Workflow,
   X,
 } from "lucide-react";
+import { CommitTree } from "../components/CommitTree";
 import { FilesTable } from "../components/FilesTable";
 import { useAuth } from "../auth/AuthContext";
 import {
@@ -117,9 +120,12 @@ export function RepositoryPage() {
   const detail = repoQuery.data ?? null;
 
   const crs = useChangeRequests(project?.id).data ?? null;
-  const commits =
-    useCommits(project?.id, project?.branches[0] ?? "main").data ?? null;
   const branches = useBranches(project?.id).data ?? null;
+  // The repo's headline commits (Last commit strip, Overview commits card) are
+  // the DEFAULT branch's — resolved by flag, not list position: branches[0]
+  // sorts alphabetically and can be any feature branch.
+  const defaultBranch = branches?.find((b) => b.isDefault)?.name ?? "main";
+  const commits = useCommits(project?.id, defaultBranch).data ?? null;
   const members = useMembers(project?.id).data ?? null;
 
   const projectFatal = Boolean(projectError);
@@ -194,6 +200,15 @@ function RepositoryView({
     : "Overview";
   const setTab = (next: Tab) =>
     setSearchParams(next === "Overview" ? {} : { tab: next });
+  // Overview's List/Tree toggle is URL state too (?view=tree), like the tab.
+  const view = searchParams.get("view") === "tree" ? "tree" : "list";
+  const setView = (v: "list" | "tree") =>
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (v === "tree") next.set("view", "tree");
+      else next.delete("view");
+      return next;
+    });
   const [newBranchOpen, setNewBranchOpen] = useState(false);
 
   const { user } = useAuth();
@@ -291,20 +306,53 @@ function RepositoryView({
       ) : (
         <div className="repo-grid">
           <div className="repo-col">
-            <CommitsCard
-              commits={detail?.commits?.length ? detail.commits : commits}
-              slug={slug}
-            />
-            <BranchesCard
-              branches={detail?.branches?.length ? detail.branches : branches}
-              project={project}
-              slug={slug}
-            />
-            <ChangeRequestsCard
-              crs={crs}
-              detailCrs={detail?.changeRequests ?? null}
-              slug={slug}
-            />
+            <div className="seg overview-view-seg" role="tablist" aria-label="Overview view">
+              <button
+                type="button"
+                className={`seg-btn${view === "list" ? " active" : ""}`}
+                onClick={() => setView("list")}
+              >
+                <List size={14} strokeWidth={2} />
+                List view
+              </button>
+              <button
+                type="button"
+                className={`seg-btn${view === "tree" ? " active" : ""}`}
+                onClick={() => setView("tree")}
+              >
+                <Network size={14} strokeWidth={2} />
+                Tree view
+              </button>
+            </div>
+            {view === "tree" ? (
+              <CommitTree
+                slug={slug}
+                projectId={project.id}
+                defaultBranch={
+                  (branches ?? []).find(
+                    (b) => "isDefault" in b && b.isDefault,
+                  )?.name ?? "main"
+                }
+                branches={branches ?? []}
+              />
+            ) : (
+              <>
+                <CommitsCard
+                  commits={detail?.commits?.length ? detail.commits : commits}
+                  slug={slug}
+                />
+                <BranchesCard
+                  branches={detail?.branches?.length ? detail.branches : branches}
+                  project={project}
+                  slug={slug}
+                />
+                <ChangeRequestsCard
+                  crs={crs}
+                  detailCrs={detail?.changeRequests ?? null}
+                  slug={slug}
+                />
+              </>
+            )}
           </div>
           <aside className="repo-rail">
             <DetailsCard detail={detail} project={project} members={members} />
