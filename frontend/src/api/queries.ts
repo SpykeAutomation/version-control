@@ -19,6 +19,7 @@ import {
   listProjects,
   removeMember,
   searchMemberCandidates,
+  setDefaultBranch,
   transferOwnership,
   updateMemberRole,
   type MemberCandidate,
@@ -233,6 +234,19 @@ export function useDeleteProject(projectId: number | undefined) {
   return useMutation<void, Error, void>({
     mutationFn: () => deleteProject(projectId!),
     onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.projects });
+    },
+  });
+}
+
+// Changing the default branch flips is_default and ahead/behind across the
+// branch list, and the project payload echoes it — refresh both.
+export function useSetDefaultBranch(projectId: number | undefined) {
+  const qc = useQueryClient();
+  return useMutation<void, Error, string>({
+    mutationFn: (branch) => setDefaultBranch(projectId!, branch),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.branches(projectId ?? -1) });
       qc.invalidateQueries({ queryKey: queryKeys.projects });
     },
   });

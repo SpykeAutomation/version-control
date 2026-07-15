@@ -1,7 +1,7 @@
 // The repository Settings tab: access control (member list + add-member
 // search) on top, and the danger zone at the bottom — visibility (locked to
-// private), default branch (locked until the backend supports changing it),
-// per-branch protection, ownership transfer, and repository deletion. Every
+// private), default branch, per-branch protection, ownership transfer, and
+// repository deletion. Every
 // danger-zone action explains its consequences in a confirm dialog first;
 // nothing deploys on a single click.
 import { useEffect, useState } from "react";
@@ -27,6 +27,7 @@ import {
   useMembers,
   useRemoveMember,
   useSetBranchProtection,
+  useSetDefaultBranch,
   useTransferOwnership,
   useUpdateMemberRole,
 } from "../api/queries";
@@ -38,6 +39,7 @@ import { initials } from "../lib/initials";
 type PendingAction =
   | { kind: "protect"; branch: BranchSummary }
   | { kind: "unprotect"; branch: BranchSummary }
+  | { kind: "set-default"; branch: BranchSummary; current: string }
   | { kind: "remove-member"; member: Member }
   | { kind: "transfer"; member: Member }
   | { kind: "delete-repo" };
@@ -352,6 +354,11 @@ function DangerZone({
   onStage: (a: PendingAction) => void;
 }) {
   const defaultBranch = branches?.find((b) => b.isDefault)?.name ?? "main";
+  // Candidates for a new default: any other branch that has commits.
+  const defaultCandidates = (branches ?? []).filter(
+    (b) => !b.isDefault && b.lastCommitSha != null,
+  );
+  const [defaultPick, setDefaultPick] = useState("");
   const others = (members ?? []).filter(
     (m) => m.role !== "owner" && m.id !== meId,
   );
@@ -403,14 +410,42 @@ function DangerZone({
           </p>
         </div>
         <div className="dz-action">
-          <button
-            type="button"
-            className="btn btn-outline btn-sm"
-            disabled
-            title="Changing the default branch needs a backend update that isn't deployed yet."
-          >
-            Change default branch
-          </button>
+          {isOwner ? (
+            <>
+              <select
+                className="select"
+                value={defaultPick}
+                onChange={(e) => setDefaultPick(e.target.value)}
+              >
+                <option value="">Choose a branch…</option>
+                {defaultCandidates.map((b) => (
+                  <option key={b.name} value={b.name}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                className="btn-dz"
+                disabled={defaultPick === ""}
+                onClick={() => {
+                  const branch = defaultCandidates.find(
+                    (b) => b.name === defaultPick,
+                  );
+                  if (branch)
+                    onStage({
+                      kind: "set-default",
+                      branch,
+                      current: defaultBranch,
+                    });
+                }}
+              >
+                Change…
+              </button>
+            </>
+          ) : (
+            <span className="dz-locked">Only the owner can change this.</span>
+          )}
         </div>
       </div>
 
@@ -557,6 +592,7 @@ function ConfirmActionModal({
 }) {
   const navigate = useNavigate();
   const protect = useSetBranchProtection(project.id);
+  const setDefault = useSetDefaultBranch(project.id);
   const removeMember = useRemoveMember(project.id);
   const transfer = useTransferOwnership(project.id);
   const deleteRepo = useDeleteProject(project.id);
@@ -568,11 +604,16 @@ function ConfirmActionModal({
 
   const busy =
     protect.isPending ||
+    setDefault.isPending ||
     removeMember.isPending ||
     transfer.isPending ||
     deleteRepo.isPending;
   const error =
-    protect.error ?? removeMember.error ?? transfer.error ?? deleteRepo.error;
+    protect.error ??
+    setDefault.error ??
+    removeMember.error ??
+    transfer.error ??
+    deleteRepo.error;
 
   const done = () => onClose();
 
@@ -648,6 +689,33 @@ function ConfirmActionModal({
           { branch: action.branch.name, isProtected: false, requiredApprovals: 0 },
           { onSuccess: done },
         );
+      break;
+
+    case "set-default":
+      title = `Make ${action.branch.name} the default branch`;
+      confirmLabel = "Change default branch";
+      body = (
+        <>
+          <p>
+            Making <span className="branch-name">{action.branch.name}</span>{" "}
+            the default (currently{" "}
+            <span className="branch-name">{action.current}</span>) means:
+          </p>
+          <ul className="dz-consequences">
+            <li>Merge requests will target it by default.</li>
+            <li>New branches will start from it.</li>
+            <li>
+              It becomes the protected default: it can't be deleted and its
+              protection can't be removed.
+            </li>
+            <li>
+              <span className="branch-name">{action.current}</span> keeps any
+              explicit protection but loses its default status.
+            </li>
+          </ul>
+        </>
+      );
+      onConfirm = () => setDefault.mutate(action.branch.name, { onSuccess: done });
       break;
 
     case "remove-member":

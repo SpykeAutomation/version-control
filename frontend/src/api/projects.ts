@@ -1,4 +1,4 @@
-import { apiFetch } from "./client";
+import { apiFetch, ApiError } from "./client";
 import { displayName, type UserBrief } from "./users";
 
 export interface Project {
@@ -100,9 +100,10 @@ export async function searchMemberCandidates(
   projectId: number,
   q: string,
 ): Promise<MemberCandidate[]> {
-  const rows = await apiFetch<MemberApi[]>(
-    `/projects/${projectId}/member-candidates?q=${encodeURIComponent(q)}`,
-  );
+  // Backend MemberCandidate: {id, email, first_name, last_name, avatar}.
+  const rows = await apiFetch<
+    { id: number; email: string; first_name?: string; last_name?: string }[]
+  >(`/projects/${projectId}/member-candidates?q=${encodeURIComponent(q)}`);
   return rows.map((m) => ({ id: m.id, email: m.email, name: displayName(m) }));
 }
 
@@ -153,4 +154,25 @@ export function transferOwnership(
 // Delete the repository and everything attached to it (owner/admin).
 export function deleteProject(projectId: number): Promise<void> {
   return apiFetch(`/projects/${projectId}`, { method: "DELETE" });
+}
+
+// Change the project's default branch (owner only). The backend feature may
+// not be deployed yet: production's PATCH ignores unknown fields and answers
+// 200 without applying, so success is only believed when the response echoes
+// the new default back — anything else surfaces as an error, never as a
+// silent false success.
+export async function setDefaultBranch(
+  projectId: number,
+  branch: string,
+): Promise<void> {
+  const res = await apiFetch<{ default_branch?: string }>(
+    `/projects/${projectId}`,
+    { method: "PATCH", json: { default_branch: branch } },
+  );
+  if (res.default_branch !== branch) {
+    throw new ApiError(
+      501,
+      "The backend doesn't support changing the default branch yet — nothing was changed.",
+    );
+  }
 }
