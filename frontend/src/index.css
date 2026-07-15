@@ -7036,6 +7036,8 @@ a.cmr-tl-link:hover .cmr-tl-msg {
   flex-direction: column;
   gap: 20px;
   max-width: 900px;
+  width: 100%;
+  margin: 0 auto;
 }
 .settings-body {
   padding: 14px 16px;
