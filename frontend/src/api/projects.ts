@@ -86,3 +86,71 @@ export async function listMembers(projectId: number): Promise<Member[]> {
     role: m.role,
   }));
 }
+
+// A same-org, non-member account matching a search fragment — the add-member
+// typeahead's row. Served by GET /member-candidates (backend addition; until
+// it is deployed the endpoint 404s and the UI falls back to exact-email add).
+export interface MemberCandidate {
+  id: number;
+  email: string;
+  name: string;
+}
+
+export async function searchMemberCandidates(
+  projectId: number,
+  q: string,
+): Promise<MemberCandidate[]> {
+  const rows = await apiFetch<MemberApi[]>(
+    `/projects/${projectId}/member-candidates?q=${encodeURIComponent(q)}`,
+  );
+  return rows.map((m) => ({ id: m.id, email: m.email, name: displayName(m) }));
+}
+
+// Add a member by email. The backend resolves the account (404 if unknown).
+export function addMember(
+  projectId: number,
+  email: string,
+  role: "member" | "admin" = "member",
+): Promise<unknown> {
+  return apiFetch(`/projects/${projectId}/members`, {
+    method: "POST",
+    json: { email, role },
+  });
+}
+
+export function updateMemberRole(
+  projectId: number,
+  userId: number,
+  role: "member" | "admin",
+): Promise<unknown> {
+  return apiFetch(`/projects/${projectId}/members/${userId}`, {
+    method: "PATCH",
+    json: { role },
+  });
+}
+
+export function removeMember(
+  projectId: number,
+  userId: number,
+): Promise<void> {
+  return apiFetch(`/projects/${projectId}/members/${userId}`, {
+    method: "DELETE",
+  });
+}
+
+// Transfer ownership (current owner only). The previous owner is demoted to
+// admin by the backend.
+export function transferOwnership(
+  projectId: number,
+  newOwnerId: number,
+): Promise<unknown> {
+  return apiFetch(`/projects/${projectId}/transfer`, {
+    method: "POST",
+    json: { new_owner_id: newOwnerId },
+  });
+}
+
+// Delete the repository and everything attached to it (owner/admin).
+export function deleteProject(projectId: number): Promise<void> {
+  return apiFetch(`/projects/${projectId}`, { method: "DELETE" });
+}

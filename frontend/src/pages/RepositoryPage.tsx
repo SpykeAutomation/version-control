@@ -65,6 +65,7 @@ import {
 } from "../api/queries";
 import { formatDate, timeAgo } from "../lib/time";
 import { initials } from "../lib/initials";
+import { RepositorySettings } from "./RepositorySettings";
 import { formatBytes } from "../lib/format";
 
 const TABS = [
@@ -298,6 +299,8 @@ function RepositoryView({
           detailCrs={detail?.changeRequests ?? null}
           slug={slug}
         />
+      ) : tab === "Settings" ? (
+        <RepositorySettings project={project} />
       ) : tab !== "Overview" ? (
         <div className="panel-msg">{tab} isn't built yet.</div>
       ) : (

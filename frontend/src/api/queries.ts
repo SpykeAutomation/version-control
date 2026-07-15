@@ -12,13 +12,25 @@ import {
 } from "@tanstack/react-query";
 import { ApiError } from "./client";
 import {
+  addMember,
   createProject,
+  deleteProject,
   listMembers,
   listProjects,
+  removeMember,
+  searchMemberCandidates,
+  transferOwnership,
+  updateMemberRole,
+  type MemberCandidate,
   type Project,
   type ProjectRow,
 } from "./projects";
-import { listBranches, listCommits, type BranchSummary } from "./commits";
+import {
+  listBranches,
+  listCommits,
+  setBranchProtection,
+  type BranchSummary,
+} from "./commits";
 import { listProjectFiles } from "./files";
 import type { FileEntry } from "./repository";
 import {
@@ -153,6 +165,96 @@ export function useBranches(projectId: number | undefined) {
     queryKey: queryKeys.branches(projectId ?? -1),
     queryFn: () => listBranches(projectId!),
     enabled: projectId != null,
+  });
+}
+
+// ---- Settings tab: members, protection, ownership ----
+
+// Live add-member search (backend addition; 404 until deployed — the settings
+// tab catches that and falls back to exact-email add). Debounce in the caller.
+export function useMemberCandidates(
+  projectId: number | undefined,
+  q: string,
+) {
+  return useQuery<MemberCandidate[]>({
+    queryKey: ["projects", projectId ?? -1, "member-candidates", q],
+    queryFn: () => searchMemberCandidates(projectId!, q),
+    enabled: projectId != null && q.trim().length >= 2,
+    staleTime: 30_000,
+    retry: false, // a 404 (endpoint not deployed) should fail fast, not retry
+  });
+}
+
+export function useAddMember(projectId: number | undefined) {
+  const qc = useQueryClient();
+  return useMutation<unknown, Error, { email: string; role?: "member" | "admin" }>({
+    mutationFn: (input) => addMember(projectId!, input.email, input.role),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.members(projectId ?? -1) });
+    },
+  });
+}
+
+export function useUpdateMemberRole(projectId: number | undefined) {
+  const qc = useQueryClient();
+  return useMutation<unknown, Error, { userId: number; role: "member" | "admin" }>({
+    mutationFn: (input) => updateMemberRole(projectId!, input.userId, input.role),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.members(projectId ?? -1) });
+    },
+  });
+}
+
+export function useRemoveMember(projectId: number | undefined) {
+  const qc = useQueryClient();
+  return useMutation<unknown, Error, number>({
+    mutationFn: (userId) => removeMember(projectId!, userId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.members(projectId ?? -1) });
+    },
+  });
+}
+
+// Transferring ownership changes roles (old owner -> admin), which the project
+// list echoes via your_role — refresh both.
+export function useTransferOwnership(projectId: number | undefined) {
+  const qc = useQueryClient();
+  return useMutation<unknown, Error, number>({
+    mutationFn: (newOwnerId) => transferOwnership(projectId!, newOwnerId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.members(projectId ?? -1) });
+      qc.invalidateQueries({ queryKey: queryKeys.projects });
+    },
+  });
+}
+
+export function useDeleteProject(projectId: number | undefined) {
+  const qc = useQueryClient();
+  return useMutation<void, Error, void>({
+    mutationFn: () => deleteProject(projectId!),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.projects });
+    },
+  });
+}
+
+export function useSetBranchProtection(projectId: number | undefined) {
+  const qc = useQueryClient();
+  return useMutation<
+    unknown,
+    Error,
+    { branch: string; isProtected: boolean; requiredApprovals?: number }
+  >({
+    mutationFn: (input) =>
+      setBranchProtection(
+        projectId!,
+        input.branch,
+        input.isProtected,
+        input.requiredApprovals ?? 0,
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.branches(projectId ?? -1) });
+    },
   });
 }
 

@@ -7029,3 +7029,262 @@ a.cmr-tl-link:hover .cmr-tl-msg {
   font-weight: 600;
   text-decoration: underline;
 }
+
+/* ---- Repository settings tab ---- */
+.settings-col {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 900px;
+}
+.settings-body {
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.settings-note {
+  font: 400 13px/1.55 var(--sans);
+  color: var(--ink2);
+  margin: 0;
+}
+.settings-you {
+  font: 600 10.5px/1 var(--sans);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink3);
+  background: var(--gray-bg);
+  border: 1px solid var(--gray-line);
+  border-radius: 999px;
+  padding: 2px 7px;
+  margin-left: 8px;
+}
+.members-table .role-select {
+  min-width: 110px;
+}
+.member-remove-cell {
+  width: 36px;
+  text-align: right;
+}
+
+/* Add-member search */
+.member-search {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.member-search-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.member-search-ico {
+  color: var(--ink4);
+  display: inline-flex;
+}
+.member-search-input {
+  flex: 1;
+}
+.settings-hint {
+  font: 400 12.5px/1.5 var(--sans);
+  color: var(--ink3);
+  margin: 0;
+}
+.ms-results {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.ms-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 12px;
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--line2);
+  font: 400 13px/1.4 var(--sans);
+  color: var(--ink);
+  cursor: pointer;
+  text-align: left;
+}
+.ms-row:last-child {
+  border-bottom: 0;
+}
+.ms-row:hover {
+  background: var(--panel2);
+}
+.ms-name {
+  font-weight: 600;
+}
+.ms-email {
+  color: var(--ink3);
+}
+.ms-add {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--accent);
+  font: 600 12px/1 var(--sans);
+}
+.ms-empty {
+  padding: 10px 12px;
+  font: 400 12.5px/1.4 var(--sans);
+  color: var(--ink3);
+}
+
+/* Danger zone */
+.danger-zone {
+  border: 1px solid var(--danger-line);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.dz-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  font: 600 13.5px/1 var(--sans);
+  color: var(--danger);
+  background: var(--danger-bg);
+  border-bottom: 1px solid var(--danger-line);
+}
+.dz-row {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line);
+}
+.dz-row:last-child {
+  border-bottom: 0;
+}
+.dz-info {
+  flex: 1;
+  min-width: 0;
+}
+.dz-title {
+  font: 600 13.5px/1.3 var(--sans);
+  color: var(--ink-title);
+}
+.dz-desc {
+  font: 400 12.5px/1.5 var(--sans);
+  color: var(--ink2);
+  margin: 4px 0 0;
+}
+.dz-action {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+.dz-locked {
+  font: 400 12.5px/1.4 var(--sans);
+  color: var(--ink3);
+}
+.dz-row-branches {
+  flex-direction: column;
+  align-items: stretch;
+}
+.dz-branches {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.dz-branch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--line2);
+  font: 400 13px/1.3 var(--sans);
+}
+.dz-branch:last-child {
+  border-bottom: 0;
+}
+.dz-branch .badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.dz-branch-spacer {
+  flex: 1;
+}
+.btn-dz {
+  font: 600 12.5px/1 var(--sans);
+  color: var(--danger);
+  background: none;
+  border: 1px solid var(--danger-line);
+  border-radius: 7px;
+  padding: 7px 12px;
+  cursor: pointer;
+}
+.btn-dz:hover:not(:disabled) {
+  background: var(--danger-bg);
+}
+.btn-dz:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.dz-seg .seg-btn:disabled {
+  cursor: default;
+}
+
+/* Danger-zone confirm dialog */
+.dz-modal {
+  max-width: 460px;
+}
+.dz-modal-ico {
+  color: var(--danger);
+  margin-right: 6px;
+  vertical-align: -3px;
+}
+.dz-modal-body {
+  font: 400 13px/1.55 var(--sans);
+  color: var(--ink2);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.dz-modal-body p {
+  margin: 0;
+}
+.dz-consequences {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.dz-approvals {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font: 600 12.5px/1.3 var(--sans);
+  color: var(--ink-title);
+}
+.dz-approvals-input {
+  width: 70px;
+}
+.dz-fine {
+  font: 400 12px/1.5 var(--sans);
+  color: var(--ink3);
+}
+.btn-dz-confirm {
+  background: var(--danger);
+  color: #fff;
+  border: 1px solid var(--danger);
+}
+.btn-dz-confirm:hover:not(:disabled) {
+  filter: brightness(0.94);
+}
+.btn-dz-confirm:disabled {
+  opacity: 0.5;
+}
+.dz-confirm-phrase {
+  white-space: nowrap;
+}

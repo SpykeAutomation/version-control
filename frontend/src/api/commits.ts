@@ -46,6 +46,7 @@ export interface BranchSummary {
   name: string;
   isDefault: boolean;
   isProtected: boolean;
+  requiredApprovals: number; // approvals a PR into this branch needs to merge
   merged: boolean; // fully merged into the default branch (ahead == 0)
   ahead: number;
   behind: number;
@@ -62,6 +63,7 @@ interface BranchOut {
   name: string;
   is_default: boolean;
   is_protected: boolean;
+  required_approvals?: number;
   latest_commit: CommitOut | null;
   ahead: number;
   behind: number;
@@ -80,6 +82,7 @@ export async function listBranches(
     name: b.name,
     isDefault: b.is_default,
     isProtected: b.is_protected,
+    requiredApprovals: b.required_approvals ?? 0,
     merged: b.merged,
     ahead: b.ahead,
     behind: b.behind,
@@ -154,4 +157,21 @@ export function revertBranch(
       ...(input.message ? { message: input.message } : {}),
     },
   });
+}
+
+// Protect or unprotect a branch, setting how many PR approvals a merge into it
+// needs. Owner/admin; the backend rejects unprotecting the default branch.
+export function setBranchProtection(
+  projectId: number,
+  branch: string,
+  isProtected: boolean,
+  requiredApprovals = 0,
+): Promise<unknown> {
+  return apiFetch(
+    `/projects/${projectId}/branches/${encodeURIComponent(branch)}/protection`,
+    {
+      method: "PUT",
+      json: { protected: isProtected, required_approvals: requiredApprovals },
+    },
+  );
 }
