@@ -1089,6 +1089,17 @@ button.link:hover {
   opacity: 0;
   pointer-events: none;
 }
+/* Collapsed rail: the faded user-meta also leaves the layout, so the avatar
+   sits dead-centre in the block instead of hugging the left padding. */
+.sidebar.collapsed .user-block {
+  justify-content: center;
+  padding: 9px 0;
+  gap: 0;
+}
+.sidebar.collapsed .user-block .user-meta {
+  flex: 0 0 0;
+  width: 0;
+}
 .sidebar-nav {
   display: flex;
   flex-direction: column;
@@ -1150,17 +1161,19 @@ button.link:hover {
   align-items: center;
   gap: 10px;
   padding: 9px 10px;
-  border: 1px solid rgba(255, 255, 255, 0.22);
+  border: 1px solid rgba(255, 255, 255, 0.3);
   border-radius: var(--r-lg);
-  background: rgba(255, 255, 255, 0.13);
+  background: rgba(255, 255, 255, 0.22);
 }
 .avatar {
   width: 32px;
   height: 32px;
   flex: none;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.12);
-  color: #fff;
+  /* Near-solid white chip on the translucent block, so the avatar reads as
+     the button's focal point instead of blending into it. */
+  background: rgba(255, 255, 255, 0.94);
+  color: #16181a;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -7323,7 +7336,7 @@ a.cmr-tl-link:hover .cmr-tl-msg {
   font: inherit;
 }
 .user-block-btn:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.3);
 }
 .account-backdrop {
   position: fixed;
