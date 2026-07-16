@@ -26,6 +26,14 @@ import type {
 const GLYPH_H = 30;
 const GMID = GLYPH_H / 2;
 
+// The rail-offset invariant: EVERY element (chip, box, branch, raw) puts its
+// wire line exactly RAIL_Y below its own top edge, and every row/leg aligns
+// children to flex-start. Alignment then needs no vertical centring, no
+// per-element transforms and no lane-count arithmetic: any two elements on a
+// row meet at the same wire line by construction, however tall they are —
+// a branch's wire line is its first leg's, which recursively is RAIL_Y too.
+const RAIL_Y = 31;
+
 // --- SVG symbols ---------------------------------------------------------
 
 // A normally-open or normally-closed contact, with short stubs to the chip edge.
@@ -33,10 +41,10 @@ function ContactSymbol({ form }: { form?: string | null }) {
   const closed = form === "nc";
   return (
     <svg className="el-symbol" width={34} height={GLYPH_H} aria-hidden="true">
-      <line x1={0} y1={GMID} x2={12} y2={GMID} stroke="currentColor" strokeWidth={1.6} />
-      <line x1={22} y1={GMID} x2={34} y2={GMID} stroke="currentColor" strokeWidth={1.6} />
-      <line x1={12} y1={5} x2={12} y2={25} stroke="currentColor" strokeWidth={1.9} />
-      <line x1={22} y1={5} x2={22} y2={25} stroke="currentColor" strokeWidth={1.9} />
+      <line x1={0} y1={GMID} x2={12} y2={GMID} stroke="currentColor" strokeWidth={2} />
+      <line x1={22} y1={GMID} x2={34} y2={GMID} stroke="currentColor" strokeWidth={2} />
+      <line x1={12} y1={5} x2={12} y2={25} stroke="currentColor" strokeWidth={2} />
+      <line x1={22} y1={5} x2={22} y2={25} stroke="currentColor" strokeWidth={2} />
       {closed && (
         <line x1={11} y1={26} x2={23} y2={4} stroke="currentColor" strokeWidth={1.9} />
       )}
@@ -52,8 +60,8 @@ function CoilSymbol({ form }: { form?: string | null }) {
       {/* The two parens are semicircular arcs (radius 11, centred at x=16 / x=24)
           so the coil reads as a round circle. Stubs stop at the arcs' convex
           backs (x=5 / x=35) — the wire meets the coil there, not through it. */}
-      <line x1={0} y1={GMID} x2={5} y2={GMID} stroke="currentColor" strokeWidth={1.6} />
-      <line x1={35} y1={GMID} x2={40} y2={GMID} stroke="currentColor" strokeWidth={1.6} />
+      <line x1={0} y1={GMID} x2={5} y2={GMID} stroke="currentColor" strokeWidth={2} />
+      <line x1={35} y1={GMID} x2={40} y2={GMID} stroke="currentColor" strokeWidth={2} />
       <path d="M16 4 A11 11 0 0 0 16 26" fill="none" stroke="currentColor" strokeWidth={1.9} />
       <path d="M24 4 A11 11 0 0 1 24 26" fill="none" stroke="currentColor" strokeWidth={1.9} />
       {letter && (
@@ -78,24 +86,6 @@ function CoilSymbol({ form }: { form?: string | null }) {
 // Element-level status class. Drives the green/red/amber highlight in the CSS.
 function elClass(el: IRElement): string {
   return `el-${el.status}`;
-}
-
-function branchLaneCount(el: IRElement): number {
-  if (el.kind !== "branch") return 1;
-  return Math.max(1, el.legs?.length ?? 0);
-}
-
-function maxBranchLaneCount(elements: IRElement[]): number {
-  let max = 1;
-  for (const el of elements) {
-    if (el.kind === "branch") {
-      max = Math.max(max, branchLaneCount(el));
-      for (const leg of el.legs ?? []) {
-        max = Math.max(max, maxBranchLaneCount(leg));
-      }
-    }
-  }
-  return max;
 }
 
 // The small corner badge on a changed element: + added, − removed, ~ modified.
@@ -205,15 +195,33 @@ function BranchElement({ el, boundary }: { el: IRElement; boundary?: boolean }) 
 
 function BranchCore({ el }: { el: IRElement }) {
   const legs = el.legs ?? [];
-  const lanes = branchLaneCount(el);
-  const style = {
-    "--branch-lanes": String(lanes),
-    "--branch-drop": `${(lanes - 1) * 31}px`,
-  } as CSSProperties;
+  // The join bars must span from the first leg's wire line to the last leg's.
+  // Both lines sit RAIL_Y below their leg's top (the invariant), so the only
+  // unknown is the last leg's offset within the stack — legs are auto-height,
+  // so measure it (and re-measure when contents resize).
+  const legsRef = useRef<HTMLDivElement>(null);
+  const [joinSpan, setJoinSpan] = useState(0);
+  useLayoutEffect(() => {
+    const legsEl = legsRef.current;
+    if (!legsEl) return;
+    const measure = () => {
+      const last = legsEl.lastElementChild as HTMLElement | null;
+      setJoinSpan((prev) => {
+        const next = last ? last.offsetTop : 0;
+        return prev === next ? prev : next;
+      });
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(legsEl);
+    for (const child of Array.from(legsEl.children)) observer.observe(child);
+    return () => observer.disconnect();
+  }, [el]);
+  const style = { "--join-span": `${joinSpan}px` } as CSSProperties;
   return (
     <div className={`ladder-branch ${elClass(el)}`} style={style}>
       <span className="branch-join branch-join-l" aria-hidden="true" />
-      <div className="branch-legs">
+      <div className="branch-legs" ref={legsRef}>
         {legs.map((leg, i) => (
           <div className="branch-leg" key={i}>
             <span className="branch-wire" aria-hidden="true" />
@@ -305,20 +313,22 @@ function RungNet({ elements }: { elements: IRElement[] }) {
     if (!net) return;
     const measure = () => {
       const box = net.getBoundingClientRect();
-      // Children on one flex row share a vertical centre (align-items: center),
-      // so group by it; arrows ignore themselves.
+      // Children on one flex row share a TOP (align-items: flex-start), so
+      // group rows by it; the row's wire line sits RAIL_Y below that top.
+      // Arrows/fills/rails ignore themselves; the left rail spans all rows.
       const rows = new Map<number, { left: number; right: number; y: number }>();
       for (const child of Array.from(net.children) as HTMLElement[]) {
         if (
           child.classList.contains("wrap-arrow") ||
           child.classList.contains("rung-fill") ||
-          child.classList.contains("rung-rail-r")
+          child.classList.contains("rung-rail-r") ||
+          child.classList.contains("rail")
         )
           continue;
         const b = child.getBoundingClientRect();
         if (b.width === 0 && b.height === 0) continue;
-        const y = (b.top + b.bottom) / 2 - box.top;
-        const key = Math.round(y / 4) * 4;
+        const y = b.top - box.top + RAIL_Y;
+        const key = Math.round((b.top - box.top) / 4) * 4;
         const left = b.left - box.left;
         const right = b.right - box.left;
         const cur = rows.get(key);
@@ -430,16 +440,9 @@ function RungLine({
     (rung.status === "added" && isBefore) ||
     (rung.status === "removed" && !isBefore);
   const accent = rungAccent(rung.status, isBefore);
-  const lanes = maxBranchLaneCount(elements);
-  const style = { "--rung-branch-lanes": String(lanes) } as CSSProperties;
 
   return (
-    <div
-      className={`lad-rung ${lanes > 1 ? "lad-rung-branched" : ""} ${
-        missing ? "lad-rung-empty" : accent
-      }`}
-      style={style}
-    >
+    <div className={`lad-rung ${missing ? "lad-rung-empty" : accent}`}>
       {showNumbers &&
         (missing ? (
           <div className="rung-num rung-num-empty" />

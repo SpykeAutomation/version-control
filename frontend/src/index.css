@@ -4300,6 +4300,8 @@ a.mr-commit-row:hover {
 /* Wraps the shared LadderDiff renderer inside the numbered section card. */
 .mr-ladderwrap {
   padding: 14px;
+  /* Wide rungs (an indivisible branch cluster) scroll instead of clipping. */
+  overflow-x: auto;
 }
 .mr-ladderwrap .ladder-diff-doc {
   gap: 0;
@@ -4734,7 +4736,9 @@ a.mr-commit-row:hover {
   background: var(--panel);
   border: 1px solid var(--line2);
   border-radius: 12px;
-  overflow: hidden;
+  /* Wide rungs (an indivisible branch cluster) scroll instead of clipping. */
+  overflow-x: auto;
+  overflow-y: hidden;
 }
 .tree-rail {
   position: relative;
@@ -5091,9 +5095,6 @@ a.mr-commit-row:hover {
   height: 100%;
   padding: 12px 16px 14px;
 }
-.lad-rung-branched {
-  min-height: 156px;
-}
 /* a wholly added/removed rung tints its whole row; a modified rung gets no row
    styling — the changed element's badge/outline carries the colour */
 .lad-rung-add {
@@ -5168,8 +5169,11 @@ a.mr-commit-row:hover {
   min-width: 0;
   padding: 4px 0;
   flex-wrap: wrap;
-  align-items: center;
-  row-gap: 6px;
+  /* Rows align element TOPS; every element puts its wire line exactly 31px
+     below its own top (the rail-offset invariant), so a row's elements meet
+     on one wire line no matter how tall each is. */
+  align-items: flex-start;
+  row-gap: 10px;
   position: relative;
 }
 /* Continuation arrows at a wrap point: a right-pointing chevron where a row
@@ -5237,7 +5241,7 @@ a.mr-commit-row:hover {
      (.rung-fill) and closed by the overlaid right rail. */
   flex: 0 0 auto;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   min-width: 0;
 }
 /* The boundary slot (the first write) is the ONLY growable item on the line, and
@@ -5264,7 +5268,9 @@ a.mr-commit-row:hover {
   min-width: 8px;
   height: 2px;
   background: var(--wire);
-  align-self: center;
+  /* On the wire line: 30px down + 2px tall centres on the 31px rail offset. */
+  align-self: flex-start;
+  margin-top: 30px;
   opacity: 0.85;
 }
 .el-iwire {
@@ -5285,9 +5291,10 @@ a.mr-commit-row:hover {
   border-radius: 7px;
   /* No horizontal padding: the wire row reaches the chip edge so the rung line
      stays unbroken across the glyph. Breathing room for the change highlight
-     comes from the tag's own padding instead. */
+     comes from the tag's own padding instead. No transform: the fixed-height
+     tag zone (2 + 13 + 1) puts the glyph centre at 2+13+1+15 = 31px — the
+     rail offset — with everything on whole pixels, so text stays crisp. */
   padding: 2px 0 1px;
-  transform: translateY(-7.8px);
 }
 .el-chip .el-tag {
   max-width: 126px;
@@ -5295,7 +5302,8 @@ a.mr-commit-row:hover {
   overflow: hidden;
   text-overflow: ellipsis;
   text-align: center;
-  font: 600 10.5px/1.3 var(--mono);
+  font: 600 10.5px/13px var(--mono);
+  height: 13px;
   color: var(--ink2);
   margin-bottom: 1px;
   padding: 0 6px;
@@ -5449,21 +5457,12 @@ a.mr-commit-row:hover {
 /* branch: parallel legs stacked vertically, joined on both ends */
 .ladder-branch {
   flex: none;
+  position: relative;
   display: flex;
-  align-items: stretch;
-  /* The transform drops the branch so its top leg sits on the rail, but a
-     transform paints outside the layout box without reserving space — so the
-     lower leg would hang below the slot and collide with a wrapped
-     continuation row. Reserve the drop symmetrically (top + bottom) so the
-     slot grows to contain the dropped branch and stays centred on the rail
-     (which keeps the wrap measurement, keyed on slot centres, correct). No
-     horizontal margin: the slot's own wire stubs butt against the join bars,
-     so there's no gap between the branch and the wires on either side. */
-  margin: var(--branch-drop, 0px) 0;
-  min-height: 0;
+  align-items: flex-start;
   background: transparent;
-  overflow: visible;
-  transform: translateY(var(--branch-drop, 0px));
+  /* 2px each side so the legs' wires butt against the absolute join bars. */
+  padding: 0 2px;
 }
 .ladder-diff-card .ladder-branch.el-added,
 .ladder-diff-card .ladder-branch.el-removed,
@@ -5471,35 +5470,39 @@ a.mr-commit-row:hover {
   background: transparent;
 }
 .branch-join {
+  /* Span from the first leg's wire line (top + 30px) down to the last leg's:
+     legs put their wire lines a fixed 31px below their own top, so the only
+     variable is the last leg's offset in the stack — measured by the
+     component into --join-span. */
+  position: absolute;
+  top: 30px;
   width: 2px;
-  /* Span only from the top leg's wire line to the bottom leg's, so the
-     connectors enclose the legs as a branch box. Stretching the full grid
-     height made the bars overshoot above and below the contacts (the 54px
-     rows + 8px gap are taller than the ~30px contacts), reading as ladder
-     rails. Leg centres are (lanes - 1) * (54 + 8) = (lanes - 1) * 62px apart. */
-  align-self: center;
-  height: calc((var(--branch-lanes, 2) - 1) * 62px);
+  height: calc(var(--join-span, 0px) + 2px);
   background: var(--wire);
-  flex: none;
   border-radius: 1px;
 }
+.branch-join-l {
+  left: 0;
+}
+.branch-join-r {
+  right: 0;
+}
 .branch-legs {
-  display: grid;
-  grid-auto-rows: 54px;
+  position: relative; /* offset parent for the join-span measurement */
+  display: flex;
+  flex-direction: column;
   gap: 8px;
-  align-content: center;
-  padding: 3px 0;
 }
 .branch-leg {
   display: flex;
-  align-items: center;
-  min-height: 54px;
-  height: 54px;
-  overflow: visible;
+  align-items: flex-start;
+  /* Content-driven: a leg is as tall as its tallest element (a multi-operand
+     box, even a nested branch). The min keeps empty/contact legs readable. */
+  min-height: 46px;
 }
 .branch-leg-elements {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   flex: none;
 }
 .branch-leg .el-iwire {
@@ -5512,17 +5515,13 @@ a.mr-commit-row:hover {
 .branch-leg .ladder-box {
   min-width: 112px;
 }
-.branch-leg .el-chip {
-  /* Same lift as a stand-alone contact (.el-chip) so the branch leg's glyph
-     sits exactly on its wire line — -6px left it 1.8px low, kinking the wire. */
-  transform: translateY(-7.8px);
-}
 /* an empty (pass-through) branch leg drawn as a plain horizontal wire */
 .branch-wire {
   flex: 1 1 14px;
   min-width: 14px;
   height: 2px;
-  align-self: center;
+  align-self: flex-start;
+  margin-top: 30px;
   background: var(--wire);
   opacity: 0.85;
   border-radius: 1px;
@@ -5532,6 +5531,8 @@ a.mr-commit-row:hover {
   flex: none;
   width: 18px;
   height: 2px;
+  align-self: flex-start;
+  margin-top: 30px;
   background: var(--wire);
   opacity: 0.85;
   border-radius: 1px;
@@ -5546,7 +5547,7 @@ a.mr-commit-row:hover {
 /* raw fallback: verbatim text in a monospace pill */
 .ladder-raw {
   flex: none;
-  margin: 0 6px;
+  margin: 20px 6px 0;
   padding: 4px 8px;
   border: 1px solid var(--line);
   border-radius: var(--r-sm);
@@ -5730,10 +5731,32 @@ a.mr-commit-row:hover {
   border-radius: 0 0 var(--r-lg) var(--r-lg);
   overflow: hidden;
 }
+/* A rung wider than the panel (an indivisible branch cluster) scrolls inside
+   its own cell; the rung box grows to its content so the wire measurement and
+   right rail land at the TRUE right edge, reachable by scrolling. */
+.ladfull-cell,
+.lad-cell {
+  overflow-x: auto;
+}
+.ladfull-cell .lad-rung,
+.lad-cell .lad-rung {
+  min-width: fit-content;
+}
 .ladfull-cell {
   background: var(--panel);
 }
-.ladfull-cell + .ladfull-cell {
+.ladfull-cell + /* A rung wider than the panel (an indivisible branch cluster) scrolls inside
+   its own cell; the rung box grows to its content so the wire measurement and
+   right rail land at the TRUE right edge, reachable by scrolling. */
+.ladfull-cell,
+.lad-cell {
+  overflow-x: auto;
+}
+.ladfull-cell .lad-rung,
+.lad-cell .lad-rung {
+  min-width: fit-content;
+}
+.ladfull-cell {
   border-top: 1px solid var(--line2);
 }
 .cmfull {
