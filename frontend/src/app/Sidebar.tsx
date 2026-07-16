@@ -1,5 +1,6 @@
-import { useState } from "react";
-import { NavLink } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, NavLink } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Book,
   ChevronsLeft,
@@ -7,6 +8,7 @@ import {
   GitBranch,
   Home,
   Layers,
+  LogOut,
   Settings,
   Tag,
 } from "lucide-react";
@@ -27,10 +29,33 @@ const NAV = [
 const COLLAPSE_KEY = "spyke_sidebar_collapsed";
 
 export function Sidebar() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
+  const qc = useQueryClient();
   const [collapsed, setCollapsed] = useState(
     () => localStorage.getItem(COLLAPSE_KEY) === "1",
   );
+  // The account menu anchored to the user block. Fixed-positioned (the rail
+  // clips overflow), closed by the backdrop, Escape, or choosing an item.
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMenuOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [menuOpen]);
+
+  // Logout is client-side: the backend has no web-session revocation, so
+  // dropping the token ends the session. Clear the query cache too, so a
+  // different account logging in never sees this one's cached data;
+  // RequireAuth then redirects to /login on its own.
+  const doLogout = () => {
+    setMenuOpen(false);
+    qc.clear();
+    logout();
+  };
 
   function toggle() {
     setCollapsed((c) => {
@@ -82,13 +107,68 @@ export function Sidebar() {
 
       {user && (
         <div className="sidebar-foot">
-          <div className="user-block" title={collapsed ? user.name : undefined}>
+          <button
+            type="button"
+            className="user-block user-block-btn"
+            title={collapsed ? user.name : undefined}
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
+            onClick={() => setMenuOpen((v) => !v)}
+          >
             <span className="avatar">{initials(user.name)}</span>
             <div className="user-meta">
               <div className="user-name">{user.name}</div>
               <div className="user-sub">@{user.username ?? "user"}</div>
             </div>
-          </div>
+          </button>
+
+          {menuOpen && (
+            <>
+              <div
+                className="account-backdrop"
+                onClick={() => setMenuOpen(false)}
+              />
+              <div className="account-pop" role="menu" aria-label="Account">
+                <div className="ap-head">
+                  <span className="author-av">{initials(user.name)}</span>
+                  <div className="ap-id">
+                    <div className="ap-name">{user.name}</div>
+                    <div className="ap-email" title={user.email}>
+                      {user.email}
+                    </div>
+                  </div>
+                </div>
+                <Link
+                  to="/settings"
+                  className="ap-item"
+                  role="menuitem"
+                  onClick={() => setMenuOpen(false)}
+                >
+                  <Settings size={15} strokeWidth={1.8} />
+                  Settings
+                </Link>
+                <Link
+                  to="/documentation"
+                  className="ap-item"
+                  role="menuitem"
+                  onClick={() => setMenuOpen(false)}
+                >
+                  <Book size={15} strokeWidth={1.8} />
+                  Documentation
+                </Link>
+                <div className="ap-sep" />
+                <button
+                  type="button"
+                  className="ap-item ap-logout"
+                  role="menuitem"
+                  onClick={doLogout}
+                >
+                  <LogOut size={15} strokeWidth={1.8} />
+                  Log out
+                </button>
+              </div>
+            </>
+          )}
         </div>
       )}
     </aside>
