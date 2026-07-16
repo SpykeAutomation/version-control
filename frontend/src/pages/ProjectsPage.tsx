@@ -497,12 +497,9 @@ function OrgIntroBubble({ orgName }: { orgName?: string | null }) {
   return (
     <div className="intro-bubble">
       <p>
-        This is {orgName ? `${orgName}'s` : "your organization's"} home — every
+        This is {orgName ? `${orgName}'s` : "your organization's"} home; every
         PLC repository your team tracks lives here. Open a repository to browse
-        its controller files, see ladder logic drawn rung by rung, and review
-        changes semantically instead of as raw L5X. Branches, merge requests
-        with approvals, releases, and commissioning context are versioned
-        alongside the logic, so the plant's full history stays auditable.
+        its files, branches, and merge requests.
       </p>
       <div className="intro-bubble-actions">
         <button type="button" className="btn btn-primary btn-sm" onClick={dismiss}>
