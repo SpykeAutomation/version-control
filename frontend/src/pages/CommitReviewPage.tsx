@@ -24,6 +24,7 @@ import {
 } from "../components/ChangesView";
 import { EntityPanel } from "../components/L5xPanels";
 import { Discussion } from "../components/Discussion";
+import { Dismissible } from "../components/Dismissible";
 import { TabStrip } from "../components/Tabs";
 import { ProjectTree, type RoutineSelection } from "../components/ProjectTree";
 import { ApiError } from "../api/client";
@@ -231,7 +232,9 @@ function CommitReviewView({
         </div>
 
         <aside className="repo-rail cm-rail">
-          <AboutCommitsCard />
+          <Dismissible id="about-commits">
+            <AboutCommitsCard />
+          </Dismissible>
           <FilesChangedCard files={commit.fileStats} />
           <ActionsCard
             slug={slug}

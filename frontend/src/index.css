@@ -7406,3 +7406,58 @@ a.cmr-tl-link:hover .cmr-tl-msg {
 .ap-logout:hover {
   background: var(--danger-bg);
 }
+
+/* ---- One-time hints: org intro bubble + dismissible rail cards ---- */
+.intro-bubble {
+  position: relative;
+  margin-top: 12px;
+  max-width: 660px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 13px 15px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
+}
+/* The tail pointing up at the organization name. */
+.intro-bubble::before {
+  content: "";
+  position: absolute;
+  top: -7px;
+  left: 26px;
+  width: 12px;
+  height: 12px;
+  background: var(--panel);
+  border-left: 1px solid var(--line);
+  border-top: 1px solid var(--line);
+  transform: rotate(45deg);
+}
+.intro-bubble p {
+  margin: 0;
+  font: 400 13px/1.65 var(--sans);
+  color: var(--ink2);
+}
+.intro-bubble-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 10px;
+}
+.dismissible {
+  position: relative;
+}
+.dismiss-x {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 1;
+  display: inline-flex;
+  padding: 4px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--ink4);
+  cursor: pointer;
+}
+.dismiss-x:hover {
+  background: var(--panel2);
+  color: var(--ink2);
+}

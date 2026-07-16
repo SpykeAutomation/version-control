@@ -22,6 +22,8 @@ import {
   Workflow,
 } from "lucide-react";
 import { useTopBarActions } from "../app/TopBarActions";
+import { Dismissible } from "../components/Dismissible";
+import { useDismissal } from "../lib/dismissals";
 import { StatusBadge } from "../components/StatusBadge";
 import { useAuth } from "../auth/AuthContext";
 import { type ProjectRow, type RepoStatus } from "../api/projects";
@@ -179,10 +181,7 @@ function ProjectsView({ projects }: { projects: ProjectRow[] }) {
     <div className="page-grid">
       <div className="page-header">
         <h1>{user?.organization ? `${user.organization}'s Home` : "Home"}</h1>
-        <p>
-          Manage PLC repositories, branches, releases, and commissioning
-          context across your plant.
-        </p>
+        <OrgIntroBubble orgName={user?.organization} />
       </div>
 
       <div className="page-main">
@@ -293,7 +292,9 @@ function ProjectsView({ projects }: { projects: ProjectRow[] }) {
       </div>
 
       <aside className="page-rail">
-        <AboutRepositoriesCard />
+        <Dismissible id="about-repositories">
+          <AboutRepositoriesCard />
+        </Dismissible>
       </aside>
     </div>
   );
@@ -483,6 +484,30 @@ function ProjectsTable({
             <ChevronRight size={15} strokeWidth={1.8} />
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// The one-time welcome bubble under the organization name: a fuller
+// description than the old static subtitle, shown until this user clicks OK.
+function OrgIntroBubble({ orgName }: { orgName?: string | null }) {
+  const { dismissed, dismiss } = useDismissal("org-intro");
+  if (dismissed) return null;
+  return (
+    <div className="intro-bubble">
+      <p>
+        This is {orgName ? `${orgName}'s` : "your organization's"} home — every
+        PLC repository your team tracks lives here. Open a repository to browse
+        its controller files, see ladder logic drawn rung by rung, and review
+        changes semantically instead of as raw L5X. Branches, merge requests
+        with approvals, releases, and commissioning context are versioned
+        alongside the logic, so the plant's full history stays auditable.
+      </p>
+      <div className="intro-bubble-actions">
+        <button type="button" className="btn btn-primary btn-sm" onClick={dismiss}>
+          OK
+        </button>
       </div>
     </div>
   );

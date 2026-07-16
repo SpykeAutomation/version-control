@@ -21,6 +21,7 @@ import {
 import { FileSection, ZoomControl } from "../components/ChangesView";
 import { TabStrip } from "../components/Tabs";
 import { Discussion } from "../components/Discussion";
+import { Dismissible } from "../components/Dismissible";
 import { ApiError } from "../api/client";
 import {
   MR_STATUS_META,
@@ -173,7 +174,9 @@ function MergeRequestView({
         </div>
 
         <aside className="repo-rail mr-rail">
-          <AboutMergeRequestsCard />
+          <Dismissible id="about-merge-requests">
+            <AboutMergeRequestsCard />
+          </Dismissible>
           <ReviewersCard reviewers={mr.reviewers} />
           <MergeDetails mr={mr} />
           <MergeActions
