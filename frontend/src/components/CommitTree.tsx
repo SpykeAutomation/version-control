@@ -212,13 +212,13 @@ function TreeSvg({ graph, slug }: { graph: CommitGraph; slug: string }) {
                   : { top: hover.y + 14 }),
               }}
             >
+              <div className="ct-tooltip-title">{hover.dot.title}</div>
               <div className="ct-tooltip-top">
                 <span className="ct-tooltip-sha">{hover.dot.shortSha}</span>
                 <span className="ct-tooltip-when">{timeAgo(hover.dot.at)}</span>
               </div>
-              <div className="ct-tooltip-title">{hover.dot.title}</div>
               <div className="ct-tooltip-meta">
-                {hover.dot.author} · {hover.dot.branch}
+                {hover.dot.author}
                 {hover.dot.mergeOf ? ` · merged ${hover.dot.mergeOf}` : ""}
               </div>
             </div>
