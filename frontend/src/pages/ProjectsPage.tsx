@@ -24,14 +24,12 @@ import {
 import { useTopBarActions } from "../app/TopBarActions";
 import { Dismissible } from "../components/Dismissible";
 import { useDismissal } from "../lib/dismissals";
-import { StatusBadge } from "../components/StatusBadge";
 import { useAuth } from "../auth/AuthContext";
-import { type ProjectRow, type RepoStatus } from "../api/projects";
-import { errorText, useProjects } from "../api/queries";
+import { type ProjectRow } from "../api/projects";
+import { errorText, useProjectOverviews, useProjects } from "../api/queries";
 import { timeAgo } from "../lib/time";
 
 type SortKey = "updated" | "name" | "created";
-type StatusFilter = "all" | RepoStatus;
 type ControllerFilter = "all" | string;
 
 const PAGE_SIZE = 6;
@@ -118,32 +116,34 @@ function ProjectsView({ projects }: { projects: ProjectRow[] }) {
   const { user } = useAuth();
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortKey>("updated");
-  const [status, setStatus] = useState<StatusFilter>("all");
   const [controller, setController] = useState<ControllerFilter>("all");
   const [page, setPage] = useState(1);
+
+  // The list endpoint doesn't carry controller / open-MR data, so the tiles,
+  // the controller filter and the per-row MR counts read from one overview
+  // call per repo (cached; folds into the list once the backend carries it).
+  const projectIds = useMemo(() => projects.map((p) => p.id), [projects]);
+  const overviews = useProjectOverviews(projectIds);
+  const controllerOf = (p: ProjectRow): string | null =>
+    overviews.get(p.id)?.controller_name ?? null;
+  const openPullsOf = (p: ProjectRow): number =>
+    overviews.get(p.id)?.open_pull_count ?? 0;
 
   const controllers = useMemo(
     () =>
       Array.from(
         new Set(
-          projects.map((p) => p.controller).filter((c): c is string => Boolean(c)),
+          projects
+            .map((p) => overviews.get(p.id)?.controller_name)
+            .filter((c): c is string => Boolean(c)),
         ),
       ).sort(),
-    [projects],
+    [projects, overviews],
   );
 
-  const totalControllers = useMemo(
-    () =>
-      new Set(
-        projects.map((p) => p.controller).filter((c): c is string => Boolean(c)),
-      ).size,
-    [projects],
-  );
+  const totalControllers = controllers.length;
 
-  const openChanges = useMemo(
-    () => projects.reduce((n, p) => n + (p.open_changes ?? 0), 0),
-    [projects],
-  );
+  const openChanges = projects.reduce((n, p) => n + openPullsOf(p), 0);
 
   const totalBranches = useMemo(
     () => projects.reduce((n, p) => n + (p.branches?.length ?? 0), 0),
@@ -152,15 +152,15 @@ function ProjectsView({ projects }: { projects: ProjectRow[] }) {
 
   const visible = useMemo(() => {
     let rows = [...projects];
-    if (status !== "all") rows = rows.filter((p) => p.status === status);
-    if (controller !== "all") rows = rows.filter((p) => p.controller === controller);
+    if (controller !== "all")
+      rows = rows.filter((p) => controllerOf(p) === controller);
     const q = query.trim().toLowerCase();
     if (q) {
       rows = rows.filter(
         (p) =>
           p.name.toLowerCase().includes(q) ||
           p.slug.toLowerCase().includes(q) ||
-          (p.controller?.toLowerCase().includes(q) ?? false) ||
+          (controllerOf(p)?.toLowerCase().includes(q) ?? false) ||
           (p.description?.toLowerCase().includes(q) ?? false),
       );
     }
@@ -171,7 +171,8 @@ function ProjectsView({ projects }: { projects: ProjectRow[] }) {
       return ak < bk ? 1 : -1;
     });
     return rows;
-  }, [projects, status, controller, query, sort]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projects, overviews, controller, query, sort]);
 
   const pageCount = Math.max(1, Math.ceil(visible.length / PAGE_SIZE));
   const safePage = Math.min(page, pageCount);
@@ -241,20 +242,6 @@ function ProjectsView({ projects }: { projects: ProjectRow[] }) {
             ]}
           />
           <SelectControl
-            value={status}
-            onChange={(v) => {
-              setStatus(v as StatusFilter);
-              setPage(1);
-            }}
-            options={[
-              ["all", "All statuses"],
-              ["production", "Production"],
-              ["commissioning", "Commissioning"],
-              ["review", "Needs review"],
-              ["draft", "Draft"],
-            ]}
-          />
-          <SelectControl
             value={sort}
             onChange={(v) => setSort(v as SortKey)}
             icon={<Calendar size={15} strokeWidth={1.8} />}
@@ -282,6 +269,7 @@ function ProjectsView({ projects }: { projects: ProjectRow[] }) {
           <div className="panel-msg">No repositories match these filters.</div>
         ) : (
           <ProjectsTable
+            openPullsOf={openPullsOf}
             rows={pageRows}
             total={visible.length}
             page={safePage}
@@ -336,12 +324,14 @@ function ProjectsTable({
   page,
   pageCount,
   onPage,
+  openPullsOf,
 }: {
   rows: ProjectRow[];
   total: number;
   page: number;
   pageCount: number;
   onPage: (p: number) => void;
+  openPullsOf: (p: ProjectRow) => number;
 }) {
   const from = (page - 1) * PAGE_SIZE + 1;
   const to = Math.min(page * PAGE_SIZE, total);
@@ -354,7 +344,6 @@ function ProjectsTable({
             <th>Default branch</th>
             <th>Owner</th>
             <th>Last activity</th>
-            <th>Status</th>
             <th>Activity</th>
             <th aria-label="Actions" />
           </tr>
@@ -409,15 +398,6 @@ function ProjectsTable({
                 </div>
               </td>
 
-              {/* Status */}
-              <td>
-                {p.status ? (
-                  <StatusBadge status={p.status} />
-                ) : (
-                  <span className="cell-empty">—</span>
-                )}
-              </td>
-
               {/* Activity counters */}
               <td>
                 <div className="act-counts">
@@ -426,12 +406,10 @@ function ProjectsTable({
                     {p.branches?.length ?? 0}
                   </span>
                   <span
-                    className={`act-count${
-                      (p.open_changes ?? 0) > 0 ? " has" : ""
-                    }`}
+                    className={`act-count${openPullsOf(p) > 0 ? " has" : ""}`}
                   >
                     <GitPullRequestArrow size={13} strokeWidth={1.9} />
-                    {p.open_changes ?? 0}
+                    {openPullsOf(p)}
                   </span>
                 </div>
               </td>

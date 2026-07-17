@@ -15,6 +15,7 @@ import {
   addMember,
   createProject,
   deleteProject,
+  getProjectOverview,
   listMembers,
   listProjects,
   removeMember,
@@ -24,6 +25,7 @@ import {
   updateMemberRole,
   type MemberCandidate,
   type Project,
+  type ProjectOverviewBrief,
   type ProjectRow,
 } from "./projects";
 import {
@@ -143,6 +145,28 @@ export function useProject(slug: string | undefined) {
     [query.data, slug],
   );
   return { ...query, project };
+}
+
+// One overview per repo, for the org home's tiles/filters. Bounded by the
+// repo count and cached; collapses to a single list request once the backend
+// carries controller_name/open_pull_count on GET /projects itself.
+export function useProjectOverviews(
+  projectIds: number[],
+): Map<number, ProjectOverviewBrief> {
+  const results = useQueries({
+    queries: projectIds.map((id) => ({
+      queryKey: ["projects", id, "overview"] as const,
+      queryFn: () => getProjectOverview(id),
+      staleTime: 30_000,
+    })),
+  });
+  // Rebuilt each render — a handful of entries, cheaper than getting a
+  // variable-length memo dependency array wrong.
+  const map = new Map<number, ProjectOverviewBrief>();
+  results.forEach((r, i) => {
+    if (r.data) map.set(projectIds[i], r.data);
+  });
+  return map;
 }
 
 export function useMembers(projectId: number | undefined) {

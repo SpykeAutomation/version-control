@@ -176,3 +176,18 @@ export async function setDefaultBranch(
     );
   }
 }
+
+// The slice of GET /projects/{id}/overview the org home aggregates: the
+// controller inside the repo's L5X and its open merge-request count. The
+// list endpoint doesn't carry these (yet — a backend change folds them in);
+// until then the home page fans out one overview call per repo.
+export interface ProjectOverviewBrief {
+  controller_name: string | null;
+  open_pull_count: number;
+}
+
+export function getProjectOverview(
+  projectId: number,
+): Promise<ProjectOverviewBrief> {
+  return apiFetch<ProjectOverviewBrief>(`/projects/${projectId}/overview`);
+}
