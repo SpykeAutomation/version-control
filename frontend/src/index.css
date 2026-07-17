@@ -6997,7 +6997,7 @@ a.cmr-tl-link:hover .cmr-tl-msg {
 }
 .ct-tooltip-sha {
   font: 600 12px/1.4 var(--mono);
-  color: var(--ink);
+  color: var(--ink3);
 }
 .ct-tooltip-when {
   font: 400 11.5px/1.4 var(--sans);
