@@ -685,7 +685,15 @@ def transfer_ownership(
     access."""
     project = require_owner(project_id, db, user)
     new_owner = db.get(User, payload.new_owner_id)
-    if new_owner is None or new_owner.deleted_at is not None:
+    # One 404 for "no such user", "deleted", and "different organization" —
+    # the project's org is derived from its owner, so a cross-org transfer
+    # would silently move the project (and its storage accounting) to the
+    # other organization.
+    if (
+        new_owner is None
+        or new_owner.deleted_at is not None
+        or new_owner.organization_id != _project_org_id(db, project)
+    ):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
     if new_owner.id == project.owner_id:
         raise HTTPException(
@@ -870,7 +878,7 @@ def upload_files(
     branch's *implicit* protection deliberately does NOT block commits: a
     project with no protection rows works straight on main.
     """
-    require_member(project_id, db, user)
+    project = require_member(project_id, db, user)
     if branch in _protection_map(db, project_id):
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
@@ -904,6 +912,7 @@ def upload_files(
         usage.reserve(db, user, incoming)
         try:
             with locked_repo(project_id) as repo:
+                first_commit = not repo.has_commits()
                 info = repo.commit_files(
                     specs,
                     branch=branch,
@@ -923,6 +932,11 @@ def upload_files(
                 os.unlink(path)
             except OSError:
                 pass
+    if first_commit and project.default_branch != branch:
+        # The repo's first commit births its first branch — whatever it was
+        # named, that branch is the project's default (there is always exactly
+        # one) until the owner points it elsewhere via PATCH /projects.
+        project.default_branch = branch
     usage.add_project_bytes(db, project_id, incoming)
     activity.record(
         db, project_id=project_id, actor_id=user.id, verb="commit.pushed",

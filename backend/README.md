@@ -164,9 +164,11 @@ revokes one — the token stops working on its next request.
   (owner/admin).
 
 **Ownership transfer.** `POST /projects/{id}/transfer` (current project owner)
-hands a project to another user — they get the `owner` role and the previous
-owner is demoted to `admin` (keeps access). Account deletion reuses the same
-logic to reassign owned projects to the org owner.
+hands a project to another user **in the same organization** — they get the
+`owner` role and the previous owner is demoted to `admin` (keeps access). A
+cross-org id gets the same `404` as an unknown one (the project's org derives
+from its owner, so a cross-org transfer would move the project itself). Account
+deletion reuses the same logic to reassign owned projects to the org owner.
 
 **Audit.** CLI approvals/revocations, member removals, and account deletions are
 written to an account-level audit log (`app/audit.py` → the `audit_log` table),
@@ -204,12 +206,12 @@ separate from the per-project activity feed.
 | `POST` | `/projects/{id}/members` | `{email, role?}` — `role` ∈ `member`\|`admin` (owner/admin) | `201` `Member`; `404` for an unknown, deleted, or **other-org** email (one answer for all three) |
 | `PATCH` | `/projects/{id}/members/{user_id}` | `{role}` ∈ `member`\|`admin` (owner/admin) | `Member` |
 | `DELETE` | `/projects/{id}/members/{user_id}` | — (owner/admin; only the owner may remove an admin) | `204` |
-| `POST` | `/projects/{id}/transfer` | `{new_owner_id}` (current owner) | `Member` (the new owner) — previous owner demoted to `admin`; `404` unknown/deleted user, `400` already the owner |
+| `POST` | `/projects/{id}/transfer` | `{new_owner_id}` (current owner) | `Member` (the new owner) — previous owner demoted to `admin`; `404` for an unknown, deleted, or **other-org** user (one answer for all three), `400` already the owner |
 | `GET`  | `/projects/{id}/branches` | — | `[Branch]` (enriched: tip commit, default/protected, ahead/behind, merged) |
 | `POST` | `/projects/{id}/branches` | `{name, start_point?}` (default: the project's default branch) | `201` `[Branch]` |
 | `DELETE` | `/projects/{id}/branches/{branch}` | — (any member) | `204`; `400` if it's the default or a protected branch |
 | `PUT` | `/projects/{id}/branches/{branch}/protection` | `{protected, required_approvals?=0}` (owner/admin; unprotecting the **default** branch is **owner-only**) | `Branch` — unprotecting deletes the row and reopens direct commits/member reverts/review-free merges |
-| `POST` | `/projects/{id}/commits` | multipart: `files` (one or more, ≤100 MB each), `branch`, `title`, `description?` | `201` `CommitResult`; `413` if a file is too big; `400` if the branch is **explicitly protected** (commit via a PR — implicit default-branch protection does not block commits) |
+| `POST` | `/projects/{id}/commits` | multipart: `files` (one or more, ≤100 MB each), `branch`, `title`, `description?` | `201` `CommitResult`; `413` if a file is too big; `400` if the branch is **explicitly protected** (commit via a PR — implicit default-branch protection does not block commits). The repo's **first** commit may target any branch name — that branch is born as the project's default |
 | `POST` | `/projects/{id}/revert` | `{branch, target_sha, expected_tip_sha, message?, description?}` (any member; a **protected** branch: owner/admin only) | `201` `CommitResult` — restores `target_sha`'s repo state as ONE new commit on the branch (history preserved). Works on **every** branch: an unprotected branch reverts like it commits, and on a protected branch revert is the manager-only rollback path. **Preview = the existing diff endpoints** (`/diff`, `/compare`, `/tree`, per-file views) with `base=<current tip>&head=<target>` — there is no separate preview route. `403` member on a protected branch; `409` (current tip in `detail`) when the branch moved past `expected_tip_sha`; `400` target already the tip / non-ancestor target / identical trees; `404` unknown branch or target |
 | `GET`  | `/projects/{id}/commits` | `?branch=&limit=50&offset=0` (branch default: the project's default branch) | `[Commit]` + `X-Total-Count` (each tagged with `branch` + `files_changed`) |
 | `GET`  | `/projects/{id}/commits/{sha}` | — | `CommitDetail` (the commit + files it changed vs its parent) |
@@ -240,7 +242,7 @@ separate from the per-project activity feed.
 | `GET`  | `/projects/{id}/pulls/{n}` | — | `Pull` |
 | `PATCH` | `/projects/{id}/pulls/{n}` | `{title?, description?}` (any member) | `Pull` |
 | `DELETE` | `/projects/{id}/pulls/{n}` | — (author/manager; **open only**) | `204`; `409` if not open |
-| `POST` | `/projects/{id}/pulls/{n}/reviewers` | `{email}` (author/manager) | `201` `Pull` |
+| `POST` | `/projects/{id}/pulls/{n}/reviewers` | `{email}` (author/manager) | `201` `Pull`; `404` when the email isn't a project member's (one answer whether or not the account exists) |
 | `DELETE` | `/projects/{id}/pulls/{n}/reviewers/{user_id}` | — (author/manager) | `204` |
 | `POST` | `/projects/{id}/pulls/{n}/approve` | — (any member) | `Pull` |
 | `POST` | `/projects/{id}/pulls/{n}/request-changes` | — (any member) | `Pull` |
@@ -291,7 +293,8 @@ User    = { "id": int, "email": string, "first_name": string, "last_name": strin
 Project = { "id": int, "name": string, "slug": string, "description": string,
             "owner": User, "your_role": "owner"|"admin"|"member"|null,
             "created_at": datetime, "branches": [string],
-            "default_branch": string }  // "main" at creation; owner can change it
+            "default_branch": string }  // born with the first commit's branch;
+                                        // owner can re-point it at any time
 Member  = { "id": int, "email": string, "first_name": string, "last_name": string,
             "role": "owner"|"admin"|"member" }
 MemberCandidate = { "id": int, "email": string, "first_name": string,
@@ -503,9 +506,11 @@ no such L5X file / AOI at the ref, or a bad ref → `400`.
 
 ## Behaviors to handle in the UI
 
-- **New project**: `branches` reports `["main"]`, but `main` has *no commits*
-  until the first upload (`GET /files` is empty too). Create branches only after
-  that first commit.
+- **New project**: `branches` reports `["main"]`, but that's an unborn
+  placeholder with *no commits* (`GET /files` is empty too). The first upload
+  may target **any** branch name; the branch it births becomes the project's
+  default (replacing the placeholder — there is always exactly one default).
+  Create further branches only after that first commit.
 - **Protected branches take no direct commits** (`POST /commits` returns
   `400` on a branch with an explicit protection row). The supported flow —
   which the UI should steer to — is: create a working branch, commit there,

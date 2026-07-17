@@ -303,11 +303,12 @@ def add_reviewer(
             status.HTTP_403_FORBIDDEN, "Only the author or a manager can add reviewers"
         )
     invitee = db.scalar(select(User).where(User.email == payload.email))
-    if invitee is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "No user with that email")
-    if membership_role(project_id, db, invitee) is None:
+    # One 404 for "no such account" and "not a member of this project" alike —
+    # answering them differently would confirm which emails have accounts
+    # elsewhere. (The reviewer picker offers project members only anyway.)
+    if invitee is None or membership_role(project_id, db, invitee) is None:
         raise HTTPException(
-            status.HTTP_400_BAD_REQUEST, "Reviewer must be a member of this project"
+            status.HTTP_404_NOT_FOUND, "No project member with that email"
         )
     existing = db.scalar(
         select(PullReviewer).where(

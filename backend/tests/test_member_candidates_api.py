@@ -211,6 +211,38 @@ def test_add_rejects_other_org_deleted_and_unknown_alike(client, seed):
         assert r.json()["detail"] == "No registered user with that email"
 
 
+# --- same-org enforcement on ownership transfer --------------------------------
+
+
+def test_transfer_rejects_other_org_user(client, seed):
+    pid = client.post(
+        "/projects", json={"name": "Transfer Demo"}, headers=_auth(seed.owner)
+    ).json()["id"]
+    db = SessionLocal()
+    try:
+        outsider_id = db.scalar(select(User.id).where(User.email == OUTSIDER))
+        colleague_id = db.scalar(
+            select(User.id).where(User.email == "jatin.hooda@spyke.example")
+        )
+    finally:
+        db.close()
+    r = client.post(
+        f"/projects/{pid}/transfer",
+        json={"new_owner_id": outsider_id},
+        headers=_auth(seed.owner),
+    )
+    assert r.status_code == 404
+    assert r.json()["detail"] == "User not found"  # same answer as a bogus id
+    # A same-org colleague works and lands as owner.
+    r = client.post(
+        f"/projects/{pid}/transfer",
+        json={"new_owner_id": colleague_id},
+        headers=_auth(seed.owner),
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["role"] == "owner"
+
+
 # --- rate limit (last: it fills the admin account's budget) --------------------
 
 

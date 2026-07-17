@@ -204,6 +204,26 @@ def test_pull_without_target_lands_on_new_default(client, seed):
     assert r.json()["target_branch"] == "develop"
 
 
+def test_reviewer_gets_one_404_for_unknown_and_non_member(client, seed):
+    # An account that exists but isn't a project member must be told apart
+    # from a nonexistent one by nothing — both get the same 404.
+    _login(client, "defbranch-outsider@example.com", "Oz", "Outsider")
+    for email in ("defbranch-outsider@example.com", "ghost@nowhere.example"):
+        r = client.post(
+            f"/projects/{seed.pid}/pulls/1/reviewers",
+            json={"email": email},
+            headers=_auth(seed.owner),
+        )
+        assert r.status_code == 404, (email, r.text)
+        assert r.json()["detail"] == "No project member with that email"
+    r = client.post(
+        f"/projects/{seed.pid}/pulls/1/reviewers",
+        json={"email": ADMIN},
+        headers=_auth(seed.owner),
+    )
+    assert r.status_code == 201, r.text
+
+
 def test_branch_creation_starts_from_new_default(client, seed):
     r = client.post(
         f"/projects/{seed.pid}/branches",
@@ -243,3 +263,33 @@ def test_old_default_relaxes_and_can_be_deleted(client, seed):
     )
     assert r.status_code == 204
     assert "main" not in seed.branches()
+
+
+def test_first_commit_branch_becomes_default(client, seed):
+    """A fresh repo's first commit may target any branch name; the branch it
+    births replaces the unborn "main" placeholder as the project's default —
+    there is always exactly one default."""
+    pid = client.post(
+        "/projects", json={"name": "Fresh Trunk"}, headers=_auth(seed.owner)
+    ).json()["id"]
+    before = client.get(f"/projects/{pid}", headers=_auth(seed.owner)).json()
+    assert before["default_branch"] == "main"  # the unborn placeholder
+    r = client.post(
+        f"/projects/{pid}/commits",
+        files=[("files", ("first.txt", "hello", "application/octet-stream"))],
+        data={"branch": "trunk", "title": "first commit"},
+        headers=_auth(seed.owner),
+    )
+    assert r.status_code == 201, r.text
+    after = client.get(f"/projects/{pid}", headers=_auth(seed.owner)).json()
+    assert after["default_branch"] == "trunk"
+    assert after["branches"] == ["trunk"]  # the placeholder never materialized
+    views = client.get(
+        f"/projects/{pid}/branches", headers=_auth(seed.owner)
+    ).json()
+    assert [(b["name"], b["is_default"]) for b in views] == [("trunk", True)]
+    # The one-and-only default stays undeletable.
+    r = client.delete(
+        f"/projects/{pid}/branches/trunk", headers=_auth(seed.owner)
+    )
+    assert r.status_code == 400
