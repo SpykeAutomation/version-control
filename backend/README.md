@@ -196,9 +196,9 @@ separate from the per-project activity feed.
 | `POST` | `/projects` | `{name, description?}` | `201` `Project` |
 | `GET`  | `/projects` | — | `[Project]` |
 | `GET`  | `/projects/{id}` | — | `Project` |
-| `PATCH` | `/projects/{id}` | `{name?, description?}` (owner/admin) | `Project` |
+| `PATCH` | `/projects/{id}` | `{name?, description?, default_branch?}` (owner/admin; **`default_branch` is owner-only** — admin gets `403`) | `Project` — changing the default also repoints the repo's HEAD; `400` if the branch is unknown or has no commits; same value = no-op |
 | `DELETE` | `/projects/{id}` | — (owner/admin) | `204` — deletes the repo, members, PRs (+ their reviewers/approvals/comments), branch protections, activity & cached diffs |
-| `GET`  | `/projects/{id}/overview` | `?ref=main` | `RepositoryOverview` |
+| `GET`  | `/projects/{id}/overview` | `?ref=` (default: the project's default branch) | `RepositoryOverview` |
 | `GET`  | `/projects/{id}/members` | — | `[Member]` |
 | `GET`  | `/projects/{id}/member-candidates` | `?q=<fragment>` (owner/admin; rate-limited per account) | `[MemberCandidate]` — ≤10 same-org non-members matching name/email case-insensitively; `q` under 2 chars → `[]` |
 | `POST` | `/projects/{id}/members` | `{email, role?}` — `role` ∈ `member`\|`admin` (owner/admin) | `201` `Member`; `404` for an unknown, deleted, or **other-org** email (one answer for all three) |
@@ -206,12 +206,12 @@ separate from the per-project activity feed.
 | `DELETE` | `/projects/{id}/members/{user_id}` | — (owner/admin; only the owner may remove an admin) | `204` |
 | `POST` | `/projects/{id}/transfer` | `{new_owner_id}` (current owner) | `Member` (the new owner) — previous owner demoted to `admin`; `404` unknown/deleted user, `400` already the owner |
 | `GET`  | `/projects/{id}/branches` | — | `[Branch]` (enriched: tip commit, default/protected, ahead/behind, merged) |
-| `POST` | `/projects/{id}/branches` | `{name, start_point?="main"}` | `201` `[Branch]` |
+| `POST` | `/projects/{id}/branches` | `{name, start_point?}` (default: the project's default branch) | `201` `[Branch]` |
 | `DELETE` | `/projects/{id}/branches/{branch}` | — (any member) | `204`; `400` if it's the default or a protected branch |
 | `PUT` | `/projects/{id}/branches/{branch}/protection` | `{protected, required_approvals?=0}` (owner/admin; unprotecting the **default** branch is **owner-only**) | `Branch` — unprotecting deletes the row and reopens direct commits/member reverts/review-free merges |
 | `POST` | `/projects/{id}/commits` | multipart: `files` (one or more, ≤100 MB each), `branch`, `title`, `description?` | `201` `CommitResult`; `413` if a file is too big; `400` if the branch is **explicitly protected** (commit via a PR — implicit default-branch protection does not block commits) |
 | `POST` | `/projects/{id}/revert` | `{branch, target_sha, expected_tip_sha, message?, description?}` (any member; a **protected** branch: owner/admin only) | `201` `CommitResult` — restores `target_sha`'s repo state as ONE new commit on the branch (history preserved). Works on **every** branch: an unprotected branch reverts like it commits, and on a protected branch revert is the manager-only rollback path. **Preview = the existing diff endpoints** (`/diff`, `/compare`, `/tree`, per-file views) with `base=<current tip>&head=<target>` — there is no separate preview route. `403` member on a protected branch; `409` (current tip in `detail`) when the branch moved past `expected_tip_sha`; `400` target already the tip / non-ancestor target / identical trees; `404` unknown branch or target |
-| `GET`  | `/projects/{id}/commits` | `?branch=main&limit=50&offset=0` | `[Commit]` + `X-Total-Count` (each tagged with `branch` + `files_changed`) |
+| `GET`  | `/projects/{id}/commits` | `?branch=&limit=50&offset=0` (branch default: the project's default branch) | `[Commit]` + `X-Total-Count` (each tagged with `branch` + `files_changed`) |
 | `GET`  | `/projects/{id}/commits/{sha}` | — | `CommitDetail` (the commit + files it changed vs its parent) |
 | `GET`  | `/projects/{id}/commits/{sha}/diff/changeset` | `?path=l5x/<name>` | `ChangeSet` (parent → commit) |
 | `GET`  | `/projects/{id}/commits/{sha}/diff/ladder` | `?path=l5x/<name>` | `LadderDocument` (parent → commit) |
@@ -224,10 +224,10 @@ separate from the per-project activity feed.
 | `DELETE` | `/projects/{id}/commits/{sha}/comments/{cid}` | — (author/manager) | `204` — the reply subtree cascades away |
 | `GET`  | `/projects/{id}/compare` | `?base=<ref>&head=<ref>` | `CompareView` (rolled-up summary + impact rows) |
 | `GET`  | `/projects/{id}/tags` | `?limit=50&offset=0` | `[Tag]` + `X-Total-Count` (newest first; tags = releases) |
-| `POST` | `/projects/{id}/tags` | `{name, ref?="main", message?}` (any member) | `201` `Tag` |
+| `POST` | `/projects/{id}/tags` | `{name, ref?, message?}` (any member; ref default: the project's default branch) | `201` `Tag` |
 | `DELETE` | `/projects/{id}/tags/{name}` | — (owner/admin) | `204` |
 | `GET`  | `/projects/{id}/activity` | `?limit=50&offset=0` | `[Activity]` + `X-Total-Count` (newest first) |
-| `GET`  | `/projects/{id}/files` | `?ref=main` | `FileListing` |
+| `GET`  | `/projects/{id}/files` | `?ref=` (default: the project's default branch) | `FileListing` |
 | `GET`  | `/projects/{id}/files/raw` | `?ref=<ref>&path=<repo-path>` | raw bytes (file download) |
 | `GET`  | `/projects/{id}/diff` | `?base=<ref>&head=<ref>` | `DiffManifest` (changed files) |
 | `GET`  | `/projects/{id}/diff/changeset` | `?base=<ref>&head=<ref>&path=l5x/<name>` | `ChangeSet` |
@@ -235,7 +235,7 @@ separate from the per-project activity feed.
 | `GET`  | `/projects/{id}/diff/text` | `?base=<ref>&head=<ref>&path=files/<nested/path>` | `TextDiff` |
 | `GET`  | `/projects/{id}/tree` | `?base=<ref>&head=<ref>&path=l5x/<name>` | `ProjectTree` (organizer of one L5X at `head`, tagged by the `base..head` diff) |
 | `GET`  | `/projects/{id}/l5x` | `?ref=<ref>&path=l5x/<name>&section=controller\|datatypes\|tags\|modules\|aoi` (`section=aoi` also needs `&name=<aoi>`) | `L5XSection` — one raw section of the parsed file at `ref`, for the organizer's detail tables; cached per commit |
-| `POST` | `/projects/{id}/pulls` | `{title, description?, source_branch, target_branch?="main"}` | `201` `Pull` |
+| `POST` | `/projects/{id}/pulls` | `{title, description?, source_branch, target_branch?}` (target default: the project's default branch) | `201` `Pull` |
 | `GET`  | `/projects/{id}/pulls` | `?status_filter=open&limit=50&offset=0` | `[Pull]` + `X-Total-Count` |
 | `GET`  | `/projects/{id}/pulls/{n}` | — | `Pull` |
 | `PATCH` | `/projects/{id}/pulls/{n}` | `{title?, description?}` (any member) | `Pull` |
@@ -290,7 +290,8 @@ User    = { "id": int, "email": string, "first_name": string, "last_name": strin
             "deleted": bool }  // soft-deleted account — grey it out
 Project = { "id": int, "name": string, "slug": string, "description": string,
             "owner": User, "your_role": "owner"|"admin"|"member"|null,
-            "created_at": datetime, "branches": [string] }
+            "created_at": datetime, "branches": [string],
+            "default_branch": string }  // "main" at creation; owner can change it
 Member  = { "id": int, "email": string, "first_name": string, "last_name": string,
             "role": "owner"|"admin"|"member" }
 MemberCandidate = { "id": int, "email": string, "first_name": string,
@@ -316,7 +317,7 @@ Commit  = { "sha": string, "title": string, "description": string,
 Branch  = { "name": string, "is_default": bool, "is_protected": bool,
             "required_approvals": int,     // approvals a PR into this branch needs to merge
             "latest_commit": Commit|null,  // null on an unborn branch (no commits yet)
-            "ahead": int, "behind": int,   // vs the default branch (main)
+            "ahead": int, "behind": int,   // vs the project's default branch
             "merged": bool }               // fully merged into the default branch (ahead == 0)
 CommitDetail = { "sha": string, "title": string, "description": string,
                  "author": string, "date": string, "branch": string|null,
@@ -588,8 +589,9 @@ and any diff. These need the Git history or the protection table.
 **What the frontend can derive itself — and therefore should, to avoid a round
 trip:**
 
-- **`is_default`** is just `name === "main"` (the default branch). The API sends
-  it for convenience, but you don't need a call to know it.
+- **`is_default`** is `name === project.default_branch` (stored per project —
+  "main" at creation, owner-changeable via `PATCH /projects/{id}`). You already
+  have `default_branch` on every `Project` payload, so no extra call is needed.
 - **`merged`** is exactly `ahead === 0` (for a non-default branch with a tip).
   If you already have a `Branch`, you don't need a separate "is it merged?" call.
 - **"Latest release"** is just `tags[0]` from `GET /tags` (newest first). Don't

@@ -81,6 +81,12 @@ class Project(Base):
     slug: Mapped[str] = mapped_column(String(200), index=True)
     description: Mapped[str] = mapped_column(Text, default="")
     owner_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    # The branch the API treats as the repo's trunk: the is_default flag, the
+    # ahead/behind/merged base, the deletion guard, implicit display-protection,
+    # and every "no branch given" fallback (branch creation start point, PR
+    # target, ?ref=/branch= defaults). Changed via PATCH /projects (owner only),
+    # which also repoints the repo's HEAD.
+    default_branch: Mapped[str] = mapped_column(String(255), default="main")
     # Logical bytes committed to this project (see Organization.used_bytes).
     # Per-project so deleting a project can give exactly its bytes back to the
     # org's counter.

@@ -218,6 +218,16 @@ class ProjectRepo:
         self._ensure_repo()
         self._run("branch", name, start_point)
 
+    def set_head(self, branch: str) -> None:
+        """Point HEAD at `branch` — the repo-side half of changing the default
+        branch. Checks the branch out (rather than rewriting the symbolic ref
+        directly) so the working tree follows, matching what every other
+        branch-switching operation here does."""
+        self._ensure_repo()
+        if not self.branch_exists(branch):
+            raise ProjectRepoError(f"unknown branch: {branch}")
+        self._checkout_branch(branch)
+
     def delete_branch(self, name: str, *, fallback: str = "main") -> None:
         """Force-delete a branch.
 

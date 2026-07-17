@@ -160,9 +160,10 @@ def create_pull(
     db: Session = Depends(get_db),
     user: User = Depends(current_user),
 ) -> PullOut:
-    require_member(project_id, db, user)
+    project = require_member(project_id, db, user)
+    target_branch = payload.target_branch or project.default_branch
     repo = repo_for(project_id)  # branch-existence checks read refs; no lock
-    for branch in (payload.source_branch, payload.target_branch):
+    for branch in (payload.source_branch, target_branch):
         if not repo.branch_exists(branch):
             raise HTTPException(
                 status.HTTP_400_BAD_REQUEST, f"Unknown branch: {branch}"
@@ -182,7 +183,7 @@ def create_pull(
         title=payload.title,
         description=payload.description,
         source_branch=payload.source_branch,
-        target_branch=payload.target_branch,
+        target_branch=target_branch,
         author_id=user.id,
     )
     db.add(pr)

@@ -100,11 +100,13 @@ from ..storage import delete_repo, locked_repo, repo_for
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
-# The repo's default branch. `init` creates it and PRs/overview default to it;
-# branch enrichment measures ahead/behind against it, it can never be deleted,
-# and it shows as protected in branch views even without a protection row
-# (write-blocking protection, though, is the explicit row alone).
-DEFAULT_BRANCH = "main"
+# The branch a brand-new repo is born with. Only project creation uses this;
+# everywhere else the default branch is per-project state (Project.
+# default_branch, changeable by the owner via PATCH /projects): it can never
+# be deleted, ahead/behind is measured against it, and it displays as
+# protected even without a protection row (write-blocking protection, though,
+# is the explicit row alone).
+INITIAL_BRANCH = "main"
 
 
 def _commit_out(commit: CommitLog | None, branch: str | None = None) -> CommitOut | None:
@@ -138,20 +140,23 @@ def _protection_map(db: Session, project_id: int) -> dict[str, int]:
     }
 
 
-def _branch_views(repo: ProjectRepo, db: Session, project_id: int) -> list[BranchOut]:
+def _branch_views(
+    repo: ProjectRepo, db: Session, project: Project
+) -> list[BranchOut]:
     """Every branch with its tip commit, default/protected flags, required
     approvals, and how far it sits ahead/behind (and whether it's merged into)
-    the default branch."""
-    protection = _protection_map(db, project_id)
+    the project's default branch."""
+    default = project.default_branch
+    protection = _protection_map(db, project.id)
     tips = repo.branch_tips()
     views: list[BranchOut] = []
     for name in repo.list_branches():
-        is_default = name == DEFAULT_BRANCH
+        is_default = name == default
         tip = tips.get(name)
         ahead = behind = 0
         merged = False
         if not is_default:
-            counts = repo.ahead_behind(name, DEFAULT_BRANCH)
+            counts = repo.ahead_behind(name, default)
             if counts is not None:
                 ahead, behind = counts
                 merged = tip is not None and ahead == 0
@@ -249,6 +254,7 @@ def _to_out(
         your_role=role,
         created_at=project.created_at,
         branches=branches,
+        default_branch=project.default_branch,
     )
 
 
@@ -270,10 +276,10 @@ def create_project(
     db.commit()
     db.refresh(project)
 
-    # Initialise the Git repo with an empty main branch.
+    # Initialise the Git repo with an empty initial branch.
     with locked_repo(project.id) as repo:
-        repo.init(initial_branch="main")
-    return _to_out(db, project, branches=["main"], role="owner")
+        repo.init(initial_branch=INITIAL_BRANCH)
+    return _to_out(db, project, branches=[INITIAL_BRANCH], role="owner")
 
 
 @router.get("", response_model=list[ProjectOut])
@@ -311,18 +317,64 @@ def update_project(
     db: Session = Depends(get_db),
     user: User = Depends(current_user),
 ) -> ProjectOut:
-    """Rename a project or edit its description (owner/admin only)."""
+    """Rename a project, edit its description (owner/admin), or change its
+    default branch (owner only)."""
     project = require_manager(project_id, db, user)
     if payload.name is not None:
         project.name = payload.name
         project.slug = _unique_slug(db, payload.name, project.owner_id)
     if payload.description is not None:
         project.description = payload.description
+    if (
+        payload.default_branch is not None
+        and payload.default_branch != project.default_branch
+    ):
+        _change_default_branch(db, project, payload.default_branch, user)
     db.commit()
     db.refresh(project)
     role = membership_role(project_id, db, user)
     branches = repo_for(project_id).list_branches()  # read-only; no lock
     return _to_out(db, project, branches, role)
+
+
+def _change_default_branch(
+    db: Session, project: Project, name: str, user: User
+) -> None:
+    """Stage the default-branch switch: owner-only, target must be a real
+    branch with at least one commit, and the repo's HEAD follows it. Nothing
+    about protection changes here — an explicit row on the old default stays,
+    and the new default becomes implicitly protected by virtue of being the
+    default. The caller commits."""
+    require_owner(project.id, db, user)
+    repo = repo_for(project.id)
+    if not repo.branch_exists(name):
+        # An unborn branch (the initial branch before its first commit) shows
+        # in list_branches but has no ref yet — tell those two cases apart.
+        if name in repo.list_branches():
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                f"Branch {name!r} has no commits yet and cannot be the default",
+            )
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Unknown branch: {name}")
+    old = project.default_branch
+    # HEAD moves via checkout — a repo mutation, so take the write lock like
+    # every other mutating endpoint.
+    with locked_repo(project.id) as locked:
+        locked.set_head(name)
+    project.default_branch = name
+    audit.record(
+        db,
+        action="project.default_branch.changed",
+        actor_id=user.id,
+        target_type="project",
+        target_id=project.id,
+        summary=f"default branch of project {project.id}: {old} -> {name}",
+    )
+    activity.record(
+        db, project_id=project.id, actor_id=user.id, verb="branch.default_changed",
+        target_type="branch", target_id=name,
+        summary=f"changed the default branch from {old} to {name}",
+    )
 
 
 @router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -348,12 +400,13 @@ def delete_project(
 @router.get("/{project_id}/overview", response_model=RepositoryOverview)
 def project_overview(
     project_id: int,
-    ref: str = "main",
+    ref: str | None = None,  # omitted -> the project's default branch
     db: Session = Depends(get_db),
     user: User = Depends(current_user),
 ) -> RepositoryOverview:
     """One-call repository summary for the project landing page."""
     project = require_member(project_id, db, user)
+    ref = ref or project.default_branch
 
     open_pulls = db.scalar(
         select(func.count())
@@ -385,6 +438,7 @@ def project_overview(
         id=project.id,
         name=project.name,
         description=project.description,
+        default_branch=project.default_branch,
         file_count=len(files),
         l5x_count=len(l5x_files),
         open_pull_count=open_pulls or 0,
@@ -664,9 +718,9 @@ def list_branches(
 ) -> list[BranchOut]:
     """Every branch with its tip commit, default/protected flags, and how far it
     is ahead/behind (and whether it's merged into) the default branch."""
-    require_member(project_id, db, user)
+    project = require_member(project_id, db, user)
     # Tip/ahead/behind reads on refs — no lock needed.
-    return _branch_views(repo_for(project_id), db, project_id)
+    return _branch_views(repo_for(project_id), db, project)
 
 
 @router.post(
@@ -680,11 +734,13 @@ def create_branch(
     db: Session = Depends(get_db),
     user: User = Depends(current_user),
 ) -> list[BranchOut]:
-    require_member(project_id, db, user)
+    project = require_member(project_id, db, user)
     try:
         with locked_repo(project_id) as repo:
-            repo.create_branch(payload.name, payload.start_point)
-            views = _branch_views(repo, db, project_id)
+            repo.create_branch(
+                payload.name, payload.start_point or project.default_branch
+            )
+            views = _branch_views(repo, db, project)
     except ProjectRepoError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc))
     activity.record(
@@ -708,8 +764,8 @@ def delete_branch(
     """Delete a branch (any member). The default branch and any protected branch
     cannot be deleted — unprotect it first. Deletion is permanent and may discard
     commits that were never merged."""
-    require_member(project_id, db, user)
-    if branch == DEFAULT_BRANCH:
+    project = require_member(project_id, db, user)
+    if branch == project.default_branch:
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST, "The default branch cannot be deleted"
         )
@@ -720,7 +776,7 @@ def delete_branch(
         )
     try:
         with locked_repo(project_id) as repo:
-            repo.delete_branch(branch, fallback=DEFAULT_BRANCH)
+            repo.delete_branch(branch, fallback=project.default_branch)
     except ProjectRepoError as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc))
     activity.record(
@@ -749,14 +805,14 @@ def set_branch_protection(
     (an admin gets 403); once unprotected, the default branch keeps only its
     "default" tag: it still can't be deleted, but commits/reverts/merges flow
     without review like any other unprotected branch."""
-    require_manager(project_id, db, user)
+    project = require_manager(project_id, db, user)
     required = max(0, payload.required_approvals)
     # Protection state lives in the DB; git is only consulted for existence
     # and the branch views — reads, so no lock is needed.
     repo = repo_for(project_id)
     if not repo.branch_exists(branch):
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"Unknown branch: {branch}")
-    if branch == DEFAULT_BRANCH and not payload.protected:
+    if branch == project.default_branch and not payload.protected:
         # Owner-only: reopening direct writes to the default branch is the
         # project owner's call, not an admin's. Without this, protecting the
         # default branch once would lock direct commits out forever (the row
@@ -780,7 +836,7 @@ def set_branch_protection(
             )
         )
     db.commit()
-    views = _branch_views(repo, db, project_id)
+    views = _branch_views(repo, db, project)
     for view in views:
         if view.name == branch:
             return view
@@ -1003,7 +1059,7 @@ def revert_branch(
 def list_commits(
     project_id: int,
     response: Response,
-    branch: str = "main",
+    branch: str | None = None,  # omitted -> the project's default branch
     limit: int = 50,
     offset: int = 0,
     db: Session = Depends(get_db),
@@ -1012,7 +1068,8 @@ def list_commits(
     """Commit history for a branch, newest first. Each commit is tagged with the
     `branch` it was listed under and a `files_changed` count (vs its parent).
     Paginated via `limit`/`offset`, with the branch's total in `X-Total-Count`."""
-    require_member(project_id, db, user)
+    project = require_member(project_id, db, user)
+    branch = branch or project.default_branch
     limit = max(1, min(limit, 200))
     repo = repo_for(project_id)  # history reads — no lock needed
     commits = repo.log(branch, limit=limit, offset=max(0, offset))
@@ -1590,7 +1647,7 @@ def l5x_section(
 @router.get("/{project_id}/files", response_model=FileListing)
 def list_files(
     project_id: int,
-    ref: str = "main",
+    ref: str | None = None,  # omitted -> the project's default branch
     db: Session = Depends(get_db),
     user: User = Depends(current_user),
 ) -> FileListing:
@@ -1598,7 +1655,8 @@ def list_files(
 
     Non-L5X files keep their uploaded folder structure (e.g. files/docs/io.csv);
     each entry includes its size and who last changed it and when."""
-    require_member(project_id, db, user)
+    project = require_member(project_id, db, user)
+    ref = ref or project.default_branch
     repo = repo_for(project_id)
     entries = repo.list_files(ref, with_history=True)
     return FileListing(
@@ -1679,12 +1737,12 @@ def create_tag(
 ) -> TagOut:
     """Cut a tag/release at a ref (any member). A non-empty `message` makes an
     annotated tag attributed to you, with the message as release notes."""
-    require_member(project_id, db, user)
+    project = require_member(project_id, db, user)
     try:
         with locked_repo(project_id) as repo:
             tag = repo.create_tag(
                 payload.name,
-                payload.ref,
+                payload.ref or project.default_branch,
                 message=payload.message,
                 tagger_name=f"{user.first_name} {user.last_name}".strip(),
                 tagger_email=user.email,
