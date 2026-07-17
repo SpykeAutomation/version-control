@@ -35,10 +35,14 @@ def client_ip(request: Request) -> str:
 def _enforce(scope: str, request: Request, limit: int, window: int, message: str) -> None:
     """Sliding-window check for one (scope, client IP) pair. Raises 429 with a
     Retry-After header once the window is full."""
-    ip = client_ip(request)
+    _enforce_key(f"{scope}:{client_ip(request)}", limit, window, message)
+
+
+def _enforce_key(key: str, limit: int, window: int, message: str) -> None:
+    """The sliding window itself, for any bucket key (an IP or an account)."""
     now = time.monotonic()
     with _lock:
-        bucket = _hits[f"{scope}:{ip}"]
+        bucket = _hits[key]
         while bucket and now - bucket[0] > window:
             bucket.popleft()
         if len(bucket) >= limit:
@@ -127,6 +131,22 @@ def invite_rate_limit(request: Request) -> None:
         settings.invite_rate_max,
         settings.invite_rate_window_seconds,
         "Too many invitation requests; please try again later.",
+    )
+
+
+def member_search_rate_limit(user_id: int) -> None:
+    """Cap member-candidate searches per account within a time window.
+
+    The endpoint substring-matches over the org's user directory, so it
+    enumerates personal data; keyed on the authenticated account (not the IP)
+    so one account can't spray queries and a whole plant behind one NAT is
+    never punished collectively. Called from inside the handler, after the
+    membership check has established who is asking."""
+    _enforce_key(
+        f"member-search:{user_id}",
+        settings.member_search_rate_max,
+        settings.member_search_rate_window_seconds,
+        "Too many member searches; please try again later.",
     )
 
 

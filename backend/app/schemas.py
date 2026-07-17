@@ -165,6 +165,16 @@ class MemberOut(BaseModel):
     role: str
 
 
+class MemberCandidateOut(BaseModel):
+    """One "add member" search hit: an org colleague not yet on the project."""
+
+    id: int
+    email: EmailStr
+    first_name: str
+    last_name: str
+    avatar: str = "000"  # 3-char code; the frontend renders the illustration
+
+
 class BranchIn(BaseModel):
     name: str
     start_point: str = "main"

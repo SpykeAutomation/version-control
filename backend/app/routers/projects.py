@@ -24,7 +24,7 @@ from fastapi import (
     UploadFile,
     status,
 )
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from diff import ChangeSet, LadderDocument
@@ -42,7 +42,7 @@ from ..config import settings
 from ..db import get_db
 from ..deps import membership_role, require_manager, require_member, require_owner
 from ..membership import transfer_project_ownership
-from ..ratelimit import client_ip
+from ..ratelimit import client_ip, member_search_rate_limit
 from ..diffing import (
     build_compare,
     build_manifest,
@@ -77,6 +77,7 @@ from ..schemas import (
     FileEntry,
     FileListing,
     L5XSection,
+    MemberCandidateOut,
     MemberIn,
     MemberOut,
     ProjectIn,
@@ -435,6 +436,68 @@ def list_members(
     ]
 
 
+def _project_org_id(db: Session, project: Project) -> int | None:
+    """The organization a project belongs to — its owner's org (projects have
+    no org column of their own; see usage.credit_project_deletion)."""
+    return db.scalar(select(User.organization_id).where(User.id == project.owner_id))
+
+
+def _like_fragment(q: str) -> str:
+    """Quote LIKE wildcards so the user's fragment matches literally."""
+    escaped = q.replace("\\", r"\\").replace("%", r"\%").replace("_", r"\_")
+    return f"%{escaped}%"
+
+
+@router.get("/{project_id}/member-candidates", response_model=list[MemberCandidateOut])
+def member_candidates(
+    project_id: int,
+    q: str = "",
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+) -> list[MemberCandidateOut]:
+    """Live search for the add-member box (owner/admin only): colleagues from
+    the project's own organization who aren't members yet, matched
+    case-insensitively on first name, last name, or email. Only ever searches
+    that one org — other organizations' users and soft-deleted accounts are
+    invisible here."""
+    project = require_manager(project_id, db, user)
+    member_search_rate_limit(user.id)
+    q = q.strip()
+    if len(q) < 2:
+        return []
+    org_id = _project_org_id(db, project)
+    if org_id is None:
+        # An org-less project has no directory to search; never fall through
+        # to "all org-less users".
+        return []
+    fragment = _like_fragment(q)
+    already = select(ProjectMember.user_id).where(
+        ProjectMember.project_id == project_id
+    )
+    rows = db.scalars(
+        select(User)
+        .where(
+            User.organization_id == org_id,
+            User.deleted_at.is_(None),
+            User.id.not_in(already),
+            or_(
+                User.first_name.ilike(fragment, escape="\\"),
+                User.last_name.ilike(fragment, escape="\\"),
+                User.email.ilike(fragment, escape="\\"),
+            ),
+        )
+        .order_by(User.last_name, User.first_name, User.id)
+        .limit(10)
+    ).all()
+    return [
+        MemberCandidateOut(
+            id=u.id, email=u.email, first_name=u.first_name,
+            last_name=u.last_name, avatar=u.avatar,
+        )
+        for u in rows
+    ]
+
+
 @router.post(
     "/{project_id}/members", response_model=MemberOut, status_code=status.HTTP_201_CREATED
 )
@@ -444,13 +507,20 @@ def add_member(
     db: Session = Depends(get_db),
     user: User = Depends(current_user),
 ) -> MemberOut:
-    require_manager(project_id, db, user)
+    project = require_manager(project_id, db, user)
     if payload.role not in ("member", "admin"):
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST, "role must be 'member' or 'admin'"
         )
     invitee = db.scalar(select(User).where(User.email == payload.email))
-    if invitee is None:
+    # One 404 for "no such account", "account deleted", and "different
+    # organization" alike — a manager probing emails must not be able to tell
+    # which accounts exist outside their org.
+    if (
+        invitee is None
+        or invitee.deleted_at is not None
+        or invitee.organization_id != _project_org_id(db, project)
+    ):
         raise HTTPException(
             status.HTTP_404_NOT_FOUND, "No registered user with that email"
         )

@@ -200,7 +200,8 @@ separate from the per-project activity feed.
 | `DELETE` | `/projects/{id}` | — (owner/admin) | `204` — deletes the repo, members, PRs (+ their reviewers/approvals/comments), branch protections, activity & cached diffs |
 | `GET`  | `/projects/{id}/overview` | `?ref=main` | `RepositoryOverview` |
 | `GET`  | `/projects/{id}/members` | — | `[Member]` |
-| `POST` | `/projects/{id}/members` | `{email, role?}` — `role` ∈ `member`\|`admin` (owner/admin) | `201` `Member` |
+| `GET`  | `/projects/{id}/member-candidates` | `?q=<fragment>` (owner/admin; rate-limited per account) | `[MemberCandidate]` — ≤10 same-org non-members matching name/email case-insensitively; `q` under 2 chars → `[]` |
+| `POST` | `/projects/{id}/members` | `{email, role?}` — `role` ∈ `member`\|`admin` (owner/admin) | `201` `Member`; `404` for an unknown, deleted, or **other-org** email (one answer for all three) |
 | `PATCH` | `/projects/{id}/members/{user_id}` | `{role}` ∈ `member`\|`admin` (owner/admin) | `Member` |
 | `DELETE` | `/projects/{id}/members/{user_id}` | — (owner/admin; only the owner may remove an admin) | `204` |
 | `POST` | `/projects/{id}/transfer` | `{new_owner_id}` (current owner) | `Member` (the new owner) — previous owner demoted to `admin`; `404` unknown/deleted user, `400` already the owner |
@@ -292,6 +293,9 @@ Project = { "id": int, "name": string, "slug": string, "description": string,
             "created_at": datetime, "branches": [string] }
 Member  = { "id": int, "email": string, "first_name": string, "last_name": string,
             "role": "owner"|"admin"|"member" }
+MemberCandidate = { "id": int, "email": string, "first_name": string,
+                    "last_name": string, "avatar": string }  // add-member search hit:
+                                                             // same org, not yet a member
 RepositoryOverview = { "id": int, "name": string, "description": string,
                        "default_branch": string, "file_count": int, "l5x_count": int,
                        "open_pull_count": int, "unresolved_comment_count": int,
