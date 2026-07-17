@@ -414,6 +414,14 @@ LineChange    = { "kind": "added"|"removed"|"modified", "old_number": int|null,
                   "new_number": int|null, "old_text": string|null, "new_text": string|null }
 ```
 
+`FieldChange.path` is dotted, with named-list elements in brackets
+(`values.Cmd.PRE`, `members[Pt1].data_type`). UDT member order and AOI
+parameter order are meaningful (memory layout; call-site operand order), so a
+reorder of those lists reports one extra row at `members.order` /
+`parameters.order` whose `old`/`new` are the names in old and new order.
+Every other named list is order-free: elements match by name and a moved
+element is not a change.
+
 ### `LadderDocument` — one L5X file's drawable ladder diff (the visual panel)
 
 Returned by `/diff/ladder?path=l5x/<name>`. One card per ladder routine that
