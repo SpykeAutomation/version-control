@@ -67,6 +67,65 @@ def test_protected_aoi_signature_change_detected(l5x, rll, st):
     assert [f.path for f in cs.add_on_instructions[0].fields] == ["signature_id"]
 
 
+# Member order is the UDT's memory layout and parameter order is the operand
+# order at AOI call sites, so a pure reorder must show up in the changeset.
+
+_AMOUNT = '<Member Name="Amount" DataType="DINT" Dimension="0" Radix="Decimal"/>'
+_BLEND = '<Member Name="Blend" DataType="REAL" Dimension="0" Radix="Float"/>'
+
+_RATE = '<Parameter Name="Rate" TagType="Base" DataType="DINT" Usage="Input" Required="true"/>'
+_TIME = '<Parameter Name="Time" TagType="Base" DataType="DINT" Usage="Input" Required="true"/>'
+
+
+def _udt_doc(members: str) -> str:
+    return make_l5x(
+        body='<DataTypes><DataType Name="Recipe" Family="NoFamily" Class="User">'
+        f"<Members>{members}</Members></DataType></DataTypes>"
+    )
+
+
+def _aoi_doc(parameters: str) -> str:
+    return make_l5x(
+        body="<AddOnInstructionDefinitions>"
+        '<AddOnInstructionDefinition Name="Dose" Revision="1.0">'
+        f"<Parameters>{parameters}</Parameters>"
+        "</AddOnInstructionDefinition></AddOnInstructionDefinitions>"
+    )
+
+
+def test_udt_member_reorder_alone_is_reported(l5x, rll, st):
+    cs = _diff_xml(l5x, rll, st, _udt_doc(_AMOUNT + _BLEND), _udt_doc(_BLEND + _AMOUNT))
+    assert [(d.name, d.kind) for d in cs.data_types] == [("Recipe", "modified")]
+    assert [(f.path, f.old, f.new) for f in cs.data_types[0].fields] == [
+        ("members.order", ["Amount", "Blend"], ["Blend", "Amount"])
+    ]
+
+
+def test_udt_member_reorder_plus_edit_reports_both(l5x, rll, st):
+    edited = _BLEND.replace('DataType="REAL"', 'DataType="LREAL"')
+    cs = _diff_xml(l5x, rll, st, _udt_doc(_AMOUNT + _BLEND), _udt_doc(edited + _AMOUNT))
+    assert [(f.path, f.old, f.new) for f in cs.data_types[0].fields] == [
+        ("members.order", ["Amount", "Blend"], ["Blend", "Amount"]),
+        ("members[Blend].data_type", "REAL", "LREAL"),
+    ]
+
+
+def test_udt_member_edit_without_reorder_has_no_order_row(l5x, rll, st):
+    edited = _BLEND.replace('Radix="Float"', 'Radix="Exponential"')
+    cs = _diff_xml(l5x, rll, st, _udt_doc(_AMOUNT + _BLEND), _udt_doc(_AMOUNT + edited))
+    assert [(f.path, f.old, f.new) for f in cs.data_types[0].fields] == [
+        ("members[Blend].radix", "Float", "Exponential")
+    ]
+
+
+def test_aoi_parameter_reorder_is_reported(l5x, rll, st):
+    cs = _diff_xml(l5x, rll, st, _aoi_doc(_RATE + _TIME), _aoi_doc(_TIME + _RATE))
+    assert [(a.name, a.kind) for a in cs.add_on_instructions] == [("Dose", "modified")]
+    assert [(f.path, f.old, f.new) for f in cs.add_on_instructions[0].fields] == [
+        ("parameters.order", ["Rate", "Time"], ["Time", "Rate"])
+    ]
+
+
 def test_rung_edit_reports_one_modified_rung(l5x, rll, st):
     changed = _replaced("XIC(StartPB)OTE(RunLamp);", "XIC(StartPB)XIC(GateOk)OTE(RunLamp);")
     cs = _diff_xml(l5x, rll, st, KITCHEN_SINK, changed)

@@ -34,18 +34,76 @@ def test_plain_list_is_a_leaf():
 
 
 def test_named_list_matched_by_name():
-    old = {"members": [{"name": "P1", "data_type": "DINT"}, {"name": "P2", "data_type": "REAL"}]}
-    new = {"members": [{"name": "P2", "data_type": "REAL"}, {"name": "P1", "data_type": "REAL"}]}
-    # P1 changed type; P2 only moved position, which is not a change
-    assert _paths(diff_fields(old, new)) == [("members[P1].data_type", "DINT", "REAL")]
+    old = {"local_tags": [{"name": "P1", "data_type": "DINT"}, {"name": "P2", "data_type": "REAL"}]}
+    new = {"local_tags": [{"name": "P2", "data_type": "REAL"}, {"name": "P1", "data_type": "REAL"}]}
+    # P1 changed type; P2 only moved position, which for a list whose order
+    # carries no meaning is not a change
+    assert _paths(diff_fields(old, new)) == [("local_tags[P1].data_type", "DINT", "REAL")]
 
 
 def test_named_list_add_remove():
-    old = {"members": [{"name": "Gone", "data_type": "DINT"}]}
-    new = {"members": [{"name": "Fresh", "data_type": "BOOL"}]}
+    old = {"local_tags": [{"name": "Gone", "data_type": "DINT"}]}
+    new = {"local_tags": [{"name": "Fresh", "data_type": "BOOL"}]}
     changes = _paths(diff_fields(old, new))
-    assert ("members[Gone]", {"name": "Gone", "data_type": "DINT"}, None) in changes
-    assert ("members[Fresh]", None, {"name": "Fresh", "data_type": "BOOL"}) in changes
+    assert ("local_tags[Gone]", {"name": "Gone", "data_type": "DINT"}, None) in changes
+    assert ("local_tags[Fresh]", None, {"name": "Fresh", "data_type": "BOOL"}) in changes
+
+
+# UDT member order is the structure's memory layout and AOI parameter order
+# is the operand order at call sites, so for those two lists a reorder is a
+# real change and reports as one "<list>.order" row.
+
+
+def test_members_pure_reorder_reports_order_change():
+    old = {"members": [{"name": "A", "data_type": "DINT"}, {"name": "B", "data_type": "REAL"}]}
+    new = {"members": [{"name": "B", "data_type": "REAL"}, {"name": "A", "data_type": "DINT"}]}
+    assert _paths(diff_fields(old, new)) == [("members.order", ["A", "B"], ["B", "A"])]
+
+
+def test_members_reorder_plus_edit_reports_both():
+    old = {"members": [{"name": "A", "data_type": "DINT"}, {"name": "B", "data_type": "REAL"}]}
+    new = {"members": [{"name": "B", "data_type": "REAL"}, {"name": "A", "data_type": "REAL"}]}
+    assert _paths(diff_fields(old, new)) == [
+        ("members.order", ["A", "B"], ["B", "A"]),
+        ("members[A].data_type", "DINT", "REAL"),
+    ]
+
+
+def test_members_edit_without_reorder_has_no_order_row():
+    old = {"members": [{"name": "A", "data_type": "DINT"}, {"name": "B", "data_type": "REAL"}]}
+    new = {"members": [{"name": "A", "data_type": "REAL"}, {"name": "B", "data_type": "REAL"}]}
+    assert _paths(diff_fields(old, new)) == [("members[A].data_type", "DINT", "REAL")]
+
+
+def test_members_add_and_remove_alone_is_not_a_reorder():
+    old = {"members": [{"name": "A", "data_type": "DINT"}, {"name": "B", "data_type": "REAL"}]}
+    new = {"members": [{"name": "A", "data_type": "DINT"}, {"name": "C", "data_type": "BOOL"}]}
+    assert _paths(diff_fields(old, new)) == [
+        ("members[B]", {"name": "B", "data_type": "REAL"}, None),
+        ("members[C]", None, {"name": "C", "data_type": "BOOL"}),
+    ]
+
+
+def test_members_reorder_with_add_shows_full_sequences():
+    old = {"members": [{"name": "A", "data_type": "DINT"}, {"name": "B", "data_type": "REAL"}]}
+    new = {
+        "members": [
+            {"name": "C", "data_type": "BOOL"},
+            {"name": "B", "data_type": "REAL"},
+            {"name": "A", "data_type": "DINT"},
+        ]
+    }
+    changes = _paths(diff_fields(old, new))
+    assert ("members.order", ["A", "B"], ["C", "B", "A"]) in changes
+    assert ("members[C]", None, {"name": "C", "data_type": "BOOL"}) in changes
+
+
+def test_parameters_reorder_reported_too():
+    old = {"parameters": [{"name": "Rate", "usage": "Input"}, {"name": "Time", "usage": "Input"}]}
+    new = {"parameters": [{"name": "Time", "usage": "Input"}, {"name": "Rate", "usage": "Input"}]}
+    assert _paths(diff_fields(old, new)) == [
+        ("parameters.order", ["Rate", "Time"], ["Time", "Rate"])
+    ]
 
 
 def test_port_keyed_list_matched_by_port():

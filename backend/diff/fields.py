@@ -3,6 +3,8 @@
 Works on the plain dicts that model_dump() produces, so it covers every
 field the parser has today and every field it gains later. Lists whose
 elements all carry a unique "name" are matched by name, never by position.
+The exception is the lists where position itself is meaning (UDT members,
+AOI parameters): those additionally report a reorder as one order change.
 """
 from __future__ import annotations
 
@@ -41,6 +43,13 @@ def _join(prefix: str, key: str) -> str:
 # Keys that identify an element of a list, tried in this order. Most lists
 # use "name"; module ports use "id"; controller ethernet ports use "port".
 _IDENTITY_KEYS = ("name", "id", "port")
+
+# Named lists that are real sequences, not bags of named things: UDT member
+# order is the structure's memory layout, AOI parameter order is the operand
+# order at every call site. A reorder inside these lists is a real change and
+# is reported; every other named list stays order-free, because there export
+# position carries no meaning and reporting it would only be churn.
+_ORDER_MATTERS = frozenset({"members", "parameters"})
 
 
 def _named(items: object) -> dict | None:
@@ -82,6 +91,8 @@ def _walk(old: object, new: object, path: str, out: list[FieldChange]) -> None:
 
     old_named, new_named = _named(old), _named(new)
     if old_named is not None and new_named is not None:
+        if path in _ORDER_MATTERS:
+            _order_change(old_named, new_named, path, out)
         for name in _ordered_keys(old_named, new_named):
             old_item = old_named.get(name)
             new_item = new_named.get(name)
@@ -92,3 +103,16 @@ def _walk(old: object, new: object, path: str, out: list[FieldChange]) -> None:
         return
 
     out.append(FieldChange(path=path, old=old, new=new))
+
+
+def _order_change(old_named: dict, new_named: dict, path: str, out: list[FieldChange]) -> None:
+    """Report a reorder of the elements present on both sides.
+
+    An addition or removal on its own is not a reorder — it already has its
+    per-element change — so only the surviving elements' relative order is
+    compared. The reported values are the full identity sequences, so the
+    reader sees where any added element landed.
+    """
+    common = old_named.keys() & new_named.keys()
+    if [k for k in old_named if k in common] != [k for k in new_named if k in common]:
+        out.append(FieldChange(path=f"{path}.order", old=list(old_named), new=list(new_named)))
