@@ -18,7 +18,6 @@ import {
   LayoutGrid,
   List,
   type LucideIcon,
-  MoreHorizontal,
   Network,
   Plus,
   Search,
@@ -827,7 +826,6 @@ function CommitsCard({
               <th>Author</th>
               <th>Branch</th>
               <th>Updated</th>
-              <th aria-label="Actions" />
             </tr>
           </thead>
           <tbody>
@@ -856,11 +854,6 @@ function CommitsCard({
                   </span>
                 </td>
                 <td className="muted-cell">{timeAgo(c.at)}</td>
-                <td className="row-action">
-                  <button className="icon-btn" aria-label="More actions" disabled title="Coming soon">
-                    <MoreHorizontal size={16} strokeWidth={1.8} />
-                  </button>
-                </td>
               </tr>
             ))}
           </tbody>
@@ -1018,7 +1011,6 @@ function ChangeRequestsCard({
               <th>Author</th>
               <th>Status</th>
               <th>Updated</th>
-              <th aria-label="Actions" />
             </tr>
           </thead>
           <tbody>
@@ -1047,11 +1039,6 @@ function ChangeRequestsCard({
                     <span className={`badge ${m.tone}`}>{m.label}</span>
                   </td>
                   <td className="muted-cell">{timeAgo(cr.at)}</td>
-                  <td className="row-action">
-                    <button className="icon-btn" aria-label="More actions" disabled title="Coming soon">
-                      <MoreHorizontal size={16} strokeWidth={1.8} />
-                    </button>
-                  </td>
                 </tr>
               );
             })}
@@ -1083,7 +1070,6 @@ function ChangeRequestsCard({
               <th>Author</th>
               <th>Status</th>
               <th>Created</th>
-              <th aria-label="Actions" />
             </tr>
           </thead>
           <tbody>
@@ -1112,11 +1098,6 @@ function ChangeRequestsCard({
                     <span className={`badge ${m.tone}`}>{m.label}</span>
                   </td>
                   <td className="muted-cell">{timeAgo(cr.createdAt)}</td>
-                  <td className="row-action">
-                    <button className="icon-btn" aria-label="More actions" disabled title="Coming soon">
-                      <MoreHorizontal size={16} strokeWidth={1.8} />
-                    </button>
-                  </td>
                 </tr>
               );
             })}
@@ -1500,7 +1481,6 @@ function CodeView({
                 <th>Message</th>
                 <th>Files changed</th>
                 <th>Date</th>
-                <th aria-label="Actions" />
               </tr>
             </thead>
             <tbody>
@@ -1530,11 +1510,6 @@ function CodeView({
                   </td>
                   <td className="muted-cell">{c.filesChanged ?? "—"}</td>
                   <td className="muted-cell">{timeAgo(c.at)}</td>
-                  <td className="row-action">
-                    <button className="icon-btn" aria-label="More actions" disabled title="Coming soon">
-                      <MoreHorizontal size={16} strokeWidth={1.8} />
-                    </button>
-                  </td>
                 </tr>
               ))}
             </tbody>

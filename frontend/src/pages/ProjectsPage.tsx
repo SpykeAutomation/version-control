@@ -16,7 +16,6 @@ import {
   GitBranch,
   GitPullRequestArrow,
   type LucideIcon,
-  MoreHorizontal,
   Plus,
   Search,
   Workflow,
@@ -345,7 +344,6 @@ function ProjectsTable({
             <th>Owner</th>
             <th>Last activity</th>
             <th>Activity</th>
-            <th aria-label="Actions" />
           </tr>
         </thead>
         <tbody>
@@ -415,16 +413,6 @@ function ProjectsTable({
               </td>
 
               {/* Kebab */}
-              <td className="row-action">
-                <button
-                  className="icon-btn"
-                  aria-label="More actions"
-                  disabled
-                  title="Coming soon"
-                >
-                  <MoreHorizontal size={16} strokeWidth={1.8} />
-                </button>
-              </td>
             </tr>
           ))}
         </tbody>

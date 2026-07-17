@@ -5,7 +5,7 @@
 // flat under its root comment, and a reply whose parent is itself a reply gets
 // a small quote of that parent — clicking it scrolls the parent into view.
 import { useState } from "react";
-import { CornerUpLeft, MoreVertical } from "lucide-react";
+import { CornerUpLeft } from "lucide-react";
 import { errorText } from "../api/queries";
 import { useAuth } from "../auth/AuthContext";
 import { timeAgo } from "../lib/time";
@@ -235,9 +235,6 @@ function CommentItem({
         <div className="disc-aside">
           <div className="disc-aside-top">
             <span className="disc-time">{timeAgo(c.at)}</span>
-            <button className="disc-kebab" type="button" aria-label="More" disabled title="Coming soon">
-              <MoreVertical size={15} strokeWidth={2} />
-            </button>
           </div>
         </div>
       </div>
