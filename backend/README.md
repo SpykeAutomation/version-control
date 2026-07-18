@@ -121,7 +121,7 @@ another. The creator is the `owner`; the owner and any `admin` are "managers".
 | Manage a PR's reviewers; delete **any** open PR; delete **any** comment | ✅ | ✅ | author only |
 | Revert a **protected** branch to an earlier commit (the emergency rollback that bypasses the PR loop) | ✅ | ✅ | ❌ |
 | Add members, change roles, rename, edit settings, **protect branches**, delete tags, **delete the project** | ✅ | ✅ | ❌ |
-| Remove or demote an **admin**; **unprotect the default branch** | ✅ | ❌ | ❌ |
+| Remove or demote an **admin**; **unprotect the default branch**; **change the default branch**; transfer ownership | ✅ | ❌ | ❌ |
 
 Members can merge — the gate is the **target branch's `required_approvals`**, not
 the role. The owner can't be removed or demoted. A manager-only call by a plain
@@ -595,8 +595,9 @@ and any diff. These need the Git history or the protection table.
 trip:**
 
 - **`is_default`** is `name === project.default_branch` (stored per project —
-  "main" at creation, owner-changeable via `PATCH /projects/{id}`). You already
-  have `default_branch` on every `Project` payload, so no extra call is needed.
+  born with the first commit's branch, owner-changeable via
+  `PATCH /projects/{id}`). You already have `default_branch` on every
+  `Project` payload, so no extra call is needed.
 - **`merged`** is exactly `ahead === 0` (for a non-default branch with a tip).
   If you already have a `Branch`, you don't need a separate "is it merged?" call.
 - **"Latest release"** is just `tags[0]` from `GET /tags` (newest first). Don't
@@ -728,6 +729,7 @@ All settings are `PLCVC_*` environment variables — see [`.env.example`](.env.e
 | `PLCVC_LOGIN_RATE_MAX` / `PLCVC_LOGIN_RATE_WINDOW_SECONDS` | Login attempts allowed per client IP per window (default 600 / 60s — a coarse flood guard, sized so a site behind one NAT never trips it) |
 | `PLCVC_LOGIN_ACCOUNT_MAX` / `PLCVC_LOGIN_ACCOUNT_WINDOW_SECONDS` | Failed logins allowed per account (email) per window before that account is locked out with `429` (default 8 / 900s); a successful login clears it |
 | `PLCVC_INVITE_RATE_MAX` / `PLCVC_INVITE_RATE_WINDOW_SECONDS` | Invite preview/accept calls per client IP per window (default 20 / 60s) |
+| `PLCVC_MEMBER_SEARCH_RATE_MAX` / `PLCVC_MEMBER_SEARCH_RATE_WINDOW_SECONDS` | Member-candidate searches allowed per **account** per window (default 30 / 60s) — the endpoint enumerates the org's user directory, so it's kept tight |
 | `PLCVC_MAX_UPLOAD_MB` | Max size of a single uploaded file (default 100). Per-file (→ `413`); the reverse proxy caps the whole request separately |
 | `PLCVC_ORG_STORAGE_LIMIT_GB` | Per-organization storage cap in GB (default 2); counts the logical bytes of committed uploads (→ `507`); per-org overrides live on the org row |
 | `PLCVC_DIFF_CACHE_MAX_MB` | Soft cap on the diff cache in MB (default 500); least-recently-used entries are evicted past it |
