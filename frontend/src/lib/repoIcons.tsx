@@ -5,8 +5,13 @@
 // ever iconless, and existing repos keep the icon they've always shown.
 import type { ReactNode } from "react";
 
+// The backend stores the icon as an INTEGER (0..21); the number->glyph
+// mapping is defined here and only here, by REPO_ICONS order:
+// 0 controller, 1 ladder, 2 motion, 3 conveyor, 4 robot-arm, 5 sensor,
+// 6 power, 7 network. Stored values beyond the set render as n % 8, so any
+// integer the backend accepts maps to a designed glyph deterministically.
 export interface RepoIconDef {
-  id: string;
+  id: number;
   label: string;
   tone: string;
   glyph: (size: number) => ReactNode;
@@ -32,7 +37,7 @@ function Svg({ size, children }: { size: number; children: ReactNode }) {
 
 export const REPO_ICONS: RepoIconDef[] = [
   {
-    id: "controller",
+    id: 0,
     label: "Controller",
     tone: "blue",
     glyph: (s) => (
@@ -43,7 +48,7 @@ export const REPO_ICONS: RepoIconDef[] = [
     ),
   },
   {
-    id: "ladder",
+    id: 1,
     label: "Ladder logic",
     tone: "green",
     glyph: (s) => (
@@ -55,7 +60,7 @@ export const REPO_ICONS: RepoIconDef[] = [
     ),
   },
   {
-    id: "motion",
+    id: 2,
     label: "Motion",
     tone: "violet",
     glyph: (s) => (
@@ -67,7 +72,7 @@ export const REPO_ICONS: RepoIconDef[] = [
     ),
   },
   {
-    id: "conveyor",
+    id: 3,
     label: "Conveyor",
     tone: "amber",
     glyph: (s) => (
@@ -80,7 +85,7 @@ export const REPO_ICONS: RepoIconDef[] = [
     ),
   },
   {
-    id: "robot-arm",
+    id: 4,
     label: "Robot arm",
     tone: "slate",
     glyph: (s) => (
@@ -95,7 +100,7 @@ export const REPO_ICONS: RepoIconDef[] = [
     ),
   },
   {
-    id: "sensor",
+    id: 5,
     label: "Sensor",
     tone: "teal",
     glyph: (s) => (
@@ -107,7 +112,7 @@ export const REPO_ICONS: RepoIconDef[] = [
     ),
   },
   {
-    id: "power",
+    id: 6,
     label: "Power",
     tone: "orange",
     glyph: (s) => (
@@ -118,7 +123,7 @@ export const REPO_ICONS: RepoIconDef[] = [
     ),
   },
   {
-    id: "network",
+    id: 7,
     label: "Network",
     tone: "indigo",
     glyph: (s) => (
@@ -133,19 +138,21 @@ export const REPO_ICONS: RepoIconDef[] = [
   },
 ];
 
-// The stored id when it's one of ours, else a stable slug-hash fallback.
+// The stored code when present (any non-negative integer renders via % 8),
+// else a stable slug-hash fallback.
 export function resolveRepoIcon(
-  icon: string | null | undefined,
+  icon: number | null | undefined,
   slug: string,
 ): RepoIconDef {
-  const found = icon ? REPO_ICONS.find((i) => i.id === icon) : undefined;
-  if (found) return found;
+  if (typeof icon === "number" && Number.isInteger(icon) && icon >= 0) {
+    return REPO_ICONS[icon % REPO_ICONS.length];
+  }
   let h = 0;
   for (let i = 0; i < slug.length; i += 1) h = (h * 31 + slug.charCodeAt(i)) >>> 0;
   return REPO_ICONS[h % REPO_ICONS.length];
 }
 
-export function randomRepoIconId(): string {
+export function randomRepoIconId(): number {
   return REPO_ICONS[Math.floor(Math.random() * REPO_ICONS.length)].id;
 }
 
@@ -155,7 +162,7 @@ export function RepoIcon({
   size,
   className,
 }: {
-  icon?: string | null;
+  icon?: number | null;
   slug: string;
   size: number;
   className: string;

@@ -35,7 +35,7 @@ export function OnboardingPage() {
   const [description, setDescription] = useState("");
   const [visibility, setVisibility] = useState<"private" | "public">("private");
   // "random" = the surprise-me default: a concrete icon is drawn on submit.
-  const [icon, setIcon] = useState<string>("random");
+  const [icon, setIcon] = useState<number | "random">("random");
   const [readme, setReadme] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);

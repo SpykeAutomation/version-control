@@ -11,9 +11,10 @@ export interface Project {
   // The caller's role on this project ("owner" | "admin" | "member"), echoed
   // by the backend so the UI can hide controls the user can't use.
   your_role?: string;
-  // Repository icon id (lib/repoIcons). Absent until the backend carries it;
-  // the UI falls back to a stable slug-hash pick.
-  icon?: string | null;
+  // Repository icon code, an integer 0..21 (lib/repoIcons maps it to a
+  // glyph). Absent until the backend carries it; the UI falls back to a
+  // stable slug-hash pick.
+  icon?: number | null;
 }
 
 export type RepoStatus = "production" | "commissioning" | "review" | "draft";
@@ -54,18 +55,18 @@ interface ProjectApi {
   created_at: string;
   branches: string[];
   your_role?: string;
-  icon?: string | null;
+  icon?: number | null;
 }
 
 export function createProject(
   name: string,
-  icon?: string,
+  icon?: number,
 ): Promise<Project> {
   // `icon` is ignored by the backend until the icon field ships — harmless;
   // the UI's slug-hash fallback covers the gap.
   return apiFetch<Project>("/projects", {
     method: "POST",
-    json: { name, ...(icon ? { icon } : {}) },
+    json: { name, ...(icon != null ? { icon } : {}) },
   });
 }
 
@@ -209,9 +210,9 @@ export function getProjectOverview(
 // success is only believed when the response echoes the icon back.
 export async function setProjectIcon(
   projectId: number,
-  icon: string,
+  icon: number,
 ): Promise<void> {
-  const res = await apiFetch<{ icon?: string | null }>(
+  const res = await apiFetch<{ icon?: number | null }>(
     `/projects/${projectId}`,
     { method: "PATCH", json: { icon } },
   );

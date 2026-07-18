@@ -683,7 +683,7 @@ export function useMergePull(
 // Creating a project changes the cached list, so refresh it on success.
 export function useCreateProject() {
   const qc = useQueryClient();
-  return useMutation<Project, Error, { name: string; icon?: string }>({
+  return useMutation<Project, Error, { name: string; icon?: number }>({
     mutationFn: (input) => createProject(input.name, input.icon),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.projects });
@@ -693,7 +693,7 @@ export function useCreateProject() {
 
 export function useSetProjectIcon(projectId: number | undefined) {
   const qc = useQueryClient();
-  return useMutation<void, Error, string>({
+  return useMutation<void, Error, number>({
     mutationFn: (icon) => setProjectIcon(projectId!, icon),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.projects });
