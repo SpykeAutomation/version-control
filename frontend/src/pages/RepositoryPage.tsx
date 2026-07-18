@@ -3,13 +3,10 @@ import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Box,
-  Boxes,
   Check,
   ChevronDown,
   Code2,
-  Droplet,
   FileText,
-  Flame,
   GitBranch,
   GitCommitHorizontal,
   GitPullRequestArrow,
@@ -17,14 +14,12 @@ import {
   Info,
   LayoutGrid,
   List,
-  type LucideIcon,
   Network,
   Plus,
   Search,
   Settings,
   ShieldAlert,
   UploadCloud,
-  Workflow,
   X,
 } from "lucide-react";
 import { CommitTree } from "../components/CommitTree";
@@ -63,6 +58,7 @@ import {
   useRepository,
 } from "../api/queries";
 import { formatDate, timeAgo } from "../lib/time";
+import { RepoIcon } from "../lib/repoIcons";
 import { initials } from "../lib/initials";
 import { RepositorySettings } from "./RepositorySettings";
 import { formatBytes } from "../lib/format";
@@ -75,39 +71,6 @@ const TABS = [
 ] as const;
 type Tab = (typeof TABS)[number]["label"];
 
-// A repository's icon and colour tone, derived from the slug so each repository
-// reads distinctly without depending on a backend category field. Tones map to
-// the shared status palette.
-const REPO_VISUALS: { Icon: LucideIcon; tone: string }[] = [
-  { Icon: Boxes, tone: "blue" },
-  { Icon: Workflow, tone: "green" },
-  { Icon: Droplet, tone: "violet" },
-  { Icon: Flame, tone: "amber" },
-  { Icon: Box, tone: "slate" },
-];
-
-function repoVisual(slug: string): { Icon: LucideIcon; tone: string } {
-  let h = 0;
-  for (let i = 0; i < slug.length; i += 1) h = (h * 31 + slug.charCodeAt(i)) >>> 0;
-  return REPO_VISUALS[h % REPO_VISUALS.length];
-}
-
-function RepoIcon({
-  slug,
-  size,
-  className,
-}: {
-  slug: string;
-  size: number;
-  className: string;
-}) {
-  const { Icon, tone } = repoVisual(slug);
-  return (
-    <span className={`${className} tone-${tone}`}>
-      <Icon size={size} strokeWidth={1.9} />
-    </span>
-  );
-}
 
 export function RepositoryPage() {
   const { slug } = useParams();
@@ -226,7 +189,7 @@ function RepositoryView({
 
       {/* header */}
       <header className="mr-head repo-head">
-        <RepoIcon slug={project.slug} size={24} className="repo-ico repo-head-tile" />
+        <RepoIcon icon={project.icon} slug={project.slug} size={24} className="repo-ico repo-head-tile" />
         <div className="mr-head-main">
           <div className="mr-title-row">
             <h1 className="mr-title">{project.name}</h1>

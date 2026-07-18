@@ -11,6 +11,9 @@ export interface Project {
   // The caller's role on this project ("owner" | "admin" | "member"), echoed
   // by the backend so the UI can hide controls the user can't use.
   your_role?: string;
+  // Repository icon id (lib/repoIcons). Absent until the backend carries it;
+  // the UI falls back to a stable slug-hash pick.
+  icon?: string | null;
 }
 
 export type RepoStatus = "production" | "commissioning" | "review" | "draft";
@@ -51,10 +54,19 @@ interface ProjectApi {
   created_at: string;
   branches: string[];
   your_role?: string;
+  icon?: string | null;
 }
 
-export function createProject(name: string): Promise<Project> {
-  return apiFetch<Project>("/projects", { method: "POST", json: { name } });
+export function createProject(
+  name: string,
+  icon?: string,
+): Promise<Project> {
+  // `icon` is ignored by the backend until the icon field ships — harmless;
+  // the UI's slug-hash fallback covers the gap.
+  return apiFetch<Project>("/projects", {
+    method: "POST",
+    json: { name, ...(icon ? { icon } : {}) },
+  });
 }
 
 export async function listProjects(): Promise<ProjectRow[]> {
@@ -190,4 +202,23 @@ export function getProjectOverview(
   projectId: number,
 ): Promise<ProjectOverviewBrief> {
   return apiFetch<ProjectOverviewBrief>(`/projects/${projectId}/overview`);
+}
+
+// Change the repository icon (owner/admin). Same not-deployed guard as
+// setDefaultBranch: production's PATCH ignores unknown fields with a 200, so
+// success is only believed when the response echoes the icon back.
+export async function setProjectIcon(
+  projectId: number,
+  icon: string,
+): Promise<void> {
+  const res = await apiFetch<{ icon?: string | null }>(
+    `/projects/${projectId}`,
+    { method: "PATCH", json: { icon } },
+  );
+  if (res.icon !== icon) {
+    throw new ApiError(
+      501,
+      "The backend doesn't support repository icons yet — nothing was changed.",
+    );
+  }
 }

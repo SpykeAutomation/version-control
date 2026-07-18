@@ -28,11 +28,13 @@ import {
   useRemoveMember,
   useSetBranchProtection,
   useSetDefaultBranch,
+  useSetProjectIcon,
   useTransferOwnership,
   useUpdateMemberRole,
 } from "../api/queries";
 import { useAuth } from "../auth/AuthContext";
 import { initials } from "../lib/initials";
+import { REPO_ICONS, resolveRepoIcon } from "../lib/repoIcons";
 
 // Every confirmable action the tab can stage. The dialog renders from this and
 // nothing mutates until its Confirm button is pressed.
@@ -73,6 +75,8 @@ export function RepositorySettings({ project }: { project: ProjectRow }) {
         meId={user?.id}
         onStage={setPending}
       />
+
+      <AppearanceSection project={project} canManage={canManage} />
 
       <DangerZone
         branches={branchesQ.data ?? null}
@@ -334,6 +338,57 @@ function AddMemberSearch({
         </div>
       )}
     </div>
+  );
+}
+
+// ---- Appearance ----
+// The repository icon: eight fixed glyph+tone pairs (lib/repoIcons), applied
+// on click by owners and admins. Until the backend carries the icon field the
+// mutation's echo-guard reports "not deployed yet" instead of a false success.
+function AppearanceSection({
+  project,
+  canManage,
+}: {
+  project: ProjectRow;
+  canManage: boolean;
+}) {
+  const setIcon = useSetProjectIcon(project.id);
+  const current = resolveRepoIcon(project.icon, project.slug);
+  return (
+    <section className="mr-section settings-section">
+      <div className="mr-section-head">
+        <div className="mr-section-title">Appearance</div>
+      </div>
+      <div className="settings-body">
+        <p className="settings-note">
+          The icon this repository wears in lists and headers.
+        </p>
+        <div className="icon-pick">
+          {REPO_ICONS.map((def) => (
+            <button
+              key={def.id}
+              type="button"
+              className={`icon-swatch tone-${def.tone}${current.id === def.id ? " selected" : ""}`}
+              disabled={!canManage || setIcon.isPending}
+              title={def.label}
+              onClick={() => setIcon.mutate(def.id)}
+            >
+              {def.glyph(20)}
+            </button>
+          ))}
+        </div>
+        {setIcon.error != null && (
+          <div className="form-error">
+            {errorText(setIcon.error, "Couldn't change the icon.")}
+          </div>
+        )}
+        {!canManage && (
+          <p className="settings-hint">
+            Only owners and admins can change the icon.
+          </p>
+        )}
+      </div>
+    </section>
   );
 }
 

@@ -21,6 +21,7 @@ import {
   removeMember,
   searchMemberCandidates,
   setDefaultBranch,
+  setProjectIcon,
   transferOwnership,
   updateMemberRole,
   type MemberCandidate,
@@ -682,8 +683,18 @@ export function useMergePull(
 // Creating a project changes the cached list, so refresh it on success.
 export function useCreateProject() {
   const qc = useQueryClient();
-  return useMutation<Project, Error, string>({
-    mutationFn: (name) => createProject(name),
+  return useMutation<Project, Error, { name: string; icon?: string }>({
+    mutationFn: (input) => createProject(input.name, input.icon),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.projects });
+    },
+  });
+}
+
+export function useSetProjectIcon(projectId: number | undefined) {
+  const qc = useQueryClient();
+  return useMutation<void, Error, string>({
+    mutationFn: (icon) => setProjectIcon(projectId!, icon),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.projects });
     },

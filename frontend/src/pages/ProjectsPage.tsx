@@ -4,21 +4,16 @@ import { Link } from "react-router-dom";
 import {
   ArrowRight,
   Box,
-  Boxes,
   Calendar,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
   Cpu,
   Database,
-  Droplet,
-  Flame,
   GitBranch,
   GitPullRequestArrow,
-  type LucideIcon,
   Plus,
   Search,
-  Workflow,
 } from "lucide-react";
 import { useTopBarActions } from "../app/TopBarActions";
 import { Dismissible } from "../components/Dismissible";
@@ -27,6 +22,7 @@ import { useAuth } from "../auth/AuthContext";
 import { type ProjectRow } from "../api/projects";
 import { errorText, useProjectOverviews, useProjects } from "../api/queries";
 import { timeAgo } from "../lib/time";
+import { RepoIcon } from "../lib/repoIcons";
 
 type SortKey = "updated" | "name" | "created";
 type ControllerFilter = "all" | string;
@@ -40,39 +36,6 @@ const initials = (name: string): string => {
   return ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "")).toUpperCase() || "?";
 };
 
-// A repository's list icon and colour tone. Derived from the slug so each
-// repository reads distinctly across the table and rail without depending on a
-// backend category field. Tones map to the shared status palette.
-const REPO_VISUALS: { Icon: LucideIcon; tone: string }[] = [
-  { Icon: Boxes, tone: "blue" },
-  { Icon: Workflow, tone: "green" },
-  { Icon: Droplet, tone: "violet" },
-  { Icon: Flame, tone: "amber" },
-  { Icon: Box, tone: "slate" },
-];
-
-function repoVisual(slug: string): { Icon: LucideIcon; tone: string } {
-  let h = 0;
-  for (let i = 0; i < slug.length; i += 1) h = (h * 31 + slug.charCodeAt(i)) >>> 0;
-  return REPO_VISUALS[h % REPO_VISUALS.length];
-}
-
-function RepoIcon({
-  slug,
-  size,
-  className,
-}: {
-  slug: string;
-  size: number;
-  className: string;
-}) {
-  const { Icon, tone } = repoVisual(slug);
-  return (
-    <span className={`${className} tone-${tone}`}>
-      <Icon size={size} strokeWidth={1.9} />
-    </span>
-  );
-}
 
 export function ProjectsPage() {
   const { data: projects, isPending, error } = useProjects();
@@ -352,7 +315,7 @@ function ProjectsTable({
               {/* Repository */}
               <td>
                 <Link to={`/organization/${p.slug}`} className="repo-cell">
-                  <RepoIcon slug={p.slug} size={18} className="repo-ico" />
+                  <RepoIcon icon={p.icon} slug={p.slug} size={18} className="repo-ico" />
                   <div>
                     <div className="repo-name">{p.name}</div>
                     {p.description && (

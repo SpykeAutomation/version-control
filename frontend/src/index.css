@@ -7461,3 +7461,55 @@ a.cmr-tl-link:hover .cmr-tl-msg {
   background: var(--panel2);
   color: var(--ink2);
 }
+
+/* ---- Repository icon set: three new tones + the picker swatches ---- */
+.repo-ico.tone-teal,
+.rail-ico.tone-teal {
+  color: #0f766e;
+  background: #e4f3f1;
+  border-color: #bfe3dd;
+}
+.repo-ico.tone-orange,
+.rail-ico.tone-orange {
+  color: #c2410c;
+  background: #fdeee3;
+  border-color: #f6d3b9;
+}
+.repo-ico.tone-indigo,
+.rail-ico.tone-indigo {
+  color: #4f46e5;
+  background: #ecebfe;
+  border-color: #d6d3fb;
+}
+.icon-pick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.icon-swatch {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--panel2);
+  color: var(--ink3);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+.icon-swatch:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+.icon-swatch.selected {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.icon-swatch.tone-blue { color: var(--blue); background: var(--blue-bg); border-color: var(--blue-line); }
+.icon-swatch.tone-green { color: var(--add); background: var(--add-bg); border-color: var(--add-line); }
+.icon-swatch.tone-amber { color: var(--mod); background: var(--mod-bg); border-color: var(--mod-line); }
+.icon-swatch.tone-violet { color: var(--purple); background: var(--purple-bg); border-color: var(--purple-line); }
+.icon-swatch.tone-slate { color: var(--gray); background: var(--gray-bg); border-color: var(--gray-line); }
+.icon-swatch.tone-teal { color: #0f766e; background: #e4f3f1; border-color: #bfe3dd; }
+.icon-swatch.tone-orange { color: #c2410c; background: #fdeee3; border-color: #f6d3b9; }
+.icon-swatch.tone-indigo { color: #4f46e5; background: #ecebfe; border-color: #d6d3fb; }

@@ -1,7 +1,9 @@
 import { useMemo, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
-import { FileText, Globe, Lock } from "lucide-react";
+import {
+  Dices, FileText, Globe, Lock } from "lucide-react";
 import { ApiError } from "../api/client";
+import { randomRepoIconId, REPO_ICONS } from "../lib/repoIcons";
 import { useCreateProject } from "../api/queries";
 import { useAuth } from "../auth/AuthContext";
 
@@ -32,6 +34,8 @@ export function OnboardingPage() {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [visibility, setVisibility] = useState<"private" | "public">("private");
+  // "random" = the surprise-me default: a concrete icon is drawn on submit.
+  const [icon, setIcon] = useState<string>("random");
   const [readme, setReadme] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -45,7 +49,10 @@ export function OnboardingPage() {
     setError(null);
     setSubmitting(true);
     try {
-      const project = await createProjectMut.mutateAsync(name.trim());
+      const project = await createProjectMut.mutateAsync({
+        name: name.trim(),
+        icon: icon === "random" ? randomRepoIconId() : icon,
+      });
       navigate("/done", {
         replace: true,
         state: { projectId: project.id, projectName: project.name },
@@ -105,6 +112,36 @@ export function OnboardingPage() {
             value={description}
             onChange={(e) => setDescription(e.target.value)}
           />
+        </div>
+
+        {/* Icon */}
+        <div className="field">
+          <label className="label">Icon</label>
+          <div className="field-hint">
+            How this project shows up in lists — pick one, or let us surprise
+            you
+          </div>
+          <div className="icon-pick">
+            <button
+              type="button"
+              className={`icon-swatch icon-swatch-random${icon === "random" ? " selected" : ""}`}
+              onClick={() => setIcon("random")}
+              title="Surprise me"
+            >
+              <Dices size={20} strokeWidth={1.8} />
+            </button>
+            {REPO_ICONS.map((def) => (
+              <button
+                key={def.id}
+                type="button"
+                className={`icon-swatch tone-${def.tone}${icon === def.id ? " selected" : ""}`}
+                onClick={() => setIcon(def.id)}
+                title={def.label}
+              >
+                {def.glyph(20)}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Visibility */}
