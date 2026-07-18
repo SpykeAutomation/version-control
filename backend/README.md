@@ -851,3 +851,34 @@ branch** that decision is **owner-only** (an admin gets `403`) — previously
 the default branch could never be unprotected, which combined with the new
 commit block would have locked direct commits out of `main` permanently the
 first time anyone protected it.
+
+### 2026-07-17 · Member search, same-org gates, configurable default branch & organizer v4
+
+| Method | Path | What it adds |
+|--------|------|--------------|
+| `GET` | `/projects/{id}/member-candidates` | Live search for the Settings tab's add-member box: `?q=<fragment>`, owner/admin only, ≤10 same-org non-members matched case-insensitively on name/email; rate-limited **per account** (`PLCVC_MEMBER_SEARCH_RATE_*`, default 30/min). |
+
+*Changed behavior — same-org enforcement:* `POST .../members` and
+`POST .../transfer` now answer one `404` for an unknown, deleted, **or
+other-org** target alike (previously any registered email/id could be
+attached across organizations); `POST .../pulls/{n}/reviewers` likewise
+answers one `404` whether the email has no account or just isn't a project
+member.
+
+*Changed shapes — default branch:* `Project` gains `default_branch`, stored
+per project and honored everywhere `main` used to be assumed (`is_default`,
+ahead/behind/merged base, deletion guard, implicit protection + owner-only
+unprotect, branch `start_point`, PR `target_branch`, tag `ref`, and the
+`?ref=`/`?branch=` fallbacks). `PATCH /projects/{id}` accepts
+`default_branch` (**owner-only**, `400` unknown/unborn branch, repoints the
+repo's HEAD, audited old → new). A fresh repo's **first commit** may target
+any branch name — that branch is born as the default.
+
+*Changed shapes — diffs & tree:* the `ChangeSet` reports UDT member / AOI
+parameter reorders as one `members.order` / `parameters.order` row (order is
+memory layout / call-site operand order; previously a pure reorder produced
+no diff at all). `ProjectTree` schema_version bumped to **4**: no flat
+Programs folder — every program renders exactly once under its scheduling
+home (its task, in schedule order; a handler folder; or "Unscheduled
+Programs" inside Tasks), with removed programs attached at their base-ref
+home. Node identity fields are unchanged; keys are opaque and did change.
