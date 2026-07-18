@@ -26,8 +26,12 @@ from parsers.l5x.models import L5XDocument
 # absent). v3: Studio 5000 organizer categories — Data Types subfolders
 # (User-Defined / Strings / Add-On-Defined), AOI routine children, Motion
 # Groups, Power-Up / Controller Fault Handler folders, and task program
-# references now carrying the program's routine subtree.
-SCHEMA_VERSION = 3
+# references now carrying the program's routine subtree. v4: programs live
+# under their scheduling home like in Studio 5000 — no flat Programs folder;
+# each task owns its scheduled programs' full subtrees in schedule order,
+# handler folders own theirs, the rest sit in "Unscheduled Programs" under
+# Tasks, and every program appears exactly once.
+SCHEMA_VERSION = 4
 
 NodeKind = Literal[
     "controller", "folder", "program", "routine", "aoi", "datatype", "tag", "module", "task"
@@ -90,13 +94,16 @@ def _program_status(pc: Optional[ProgramChange]) -> Status:
 
 
 def _finalize(node: TreeNode) -> None:
-    """Set descendant_changed bottom-up for the whole subtree."""
+    """Set descendant_changed bottom-up for the whole subtree.
+
+    A pre-seeded True survives: a task whose schedule changed is flagged even
+    when the moved program's subtree now renders under another task."""
     changed = False
     for child in node.children:
         _finalize(child)
         if child.status != "unchanged" or child.descendant_changed:
             changed = True
-    node.descendant_changed = changed
+    node.descendant_changed = changed or node.descendant_changed
 
 
 def _routine_nodes(
@@ -104,8 +111,7 @@ def _routine_nodes(
 ) -> list[TreeNode]:
     """Routine nodes for one program, with ladder identity set and removed
     routines injected from its ProgramChange. `key_prefix` namespaces the keys
-    (e.g. "program:P" or "task:T/program:P") so the same program can appear
-    both in the flat Programs folder and under the task that schedules it."""
+    under the program's scheduling home (e.g. "task:T/program:P")."""
     rc_by_name = {r.name: r for r in (pc.routines if pc else [])}
     prog_added = pc is not None and pc.kind == "added"
     nodes: list[TreeNode] = []
@@ -142,12 +148,57 @@ def _routine_nodes(
     return nodes
 
 
-def build_project_tree(doc: L5XDocument, changes: ChangeSet) -> ProjectTree:
+def _program_node(prog, pc: Optional[ProgramChange], ctrl_name: str, key_prefix: str) -> TreeNode:
+    """One program with its full routine subtree, keyed under its home."""
+    key = f"{key_prefix}/program:{prog.name}"
+    return TreeNode(
+        key=key,
+        label=prog.name,
+        kind="program",
+        status=_program_status(pc),
+        program=prog.name,
+        children=_routine_nodes(prog, pc, ctrl_name, key),
+    )
+
+
+def _phantom_program_node(pc: ProgramChange, ctrl_name: str, key_prefix: str) -> TreeNode:
+    """A removed program, rebuilt from its ProgramChange (absent from `doc`)."""
+    key = f"{key_prefix}/program:{pc.name}"
+    return TreeNode(
+        key=key,
+        label=pc.name,
+        kind="program",
+        status="removed",
+        program=pc.name,
+        children=[
+            TreeNode(
+                key=f"{key}/routine:{rc.name}",
+                label=rc.name,
+                kind="routine",
+                status="removed",
+                routine_type=rc.routine_type,
+                controller=ctrl_name,
+                program=pc.name,
+                routine=rc.name,
+            )
+            for rc in pc.routines
+        ],
+    )
+
+
+def build_project_tree(
+    doc: L5XDocument,
+    changes: ChangeSet,
+    base_doc: Optional[L5XDocument] = None,
+) -> ProjectTree:
     """Build the organizer tree for `doc`, tagged with `changes`.
 
     `doc` is the snapshot at the head commit (the full structure); `changes`
     is the diff against the base. Removed entities are absent from `doc`, so
-    they are injected from `changes` and badged "removed".
+    they are injected from `changes` and badged "removed". `base_doc` (the
+    snapshot at the base, when the caller has it) is only consulted to place
+    removed programs under the task that scheduled them back then; without it
+    they fall back to Unscheduled Programs.
     """
     ctrl_name = doc.controller.name
     prog_changes = {p.name: p for p in changes.programs}
@@ -159,50 +210,110 @@ def build_project_tree(doc: L5XDocument, changes: ChangeSet) -> ProjectTree:
 
     folders: list[TreeNode] = []
 
-    # --- Tasks: each task lists the programs it schedules, each carrying the
-    # program's full routine subtree (namespaced keys, so they stay unique
-    # against the flat Programs folder, which the frontend still relies on).
+    # --- Scheduling homes. Like Studio 5000, there is no Programs folder:
+    # every program renders exactly once, under its one scheduling home — a
+    # handler folder, the task that schedules it, or Unscheduled Programs.
+    # Claims run in that order, so a malformed export that references the same
+    # program from two homes still shows it once.
     progs_by_name = {p.name: p for p in doc.programs}
-    task_nodes: list[TreeNode] = []
+    claimed: set[str] = set()
+    handler_specs: list[tuple[str, str, str]] = []
+    for handler, key, label in (
+        (doc.controller.power_loss_program, "folder:powerup-handler", "Power-Up Handler"),
+        (doc.controller.fault_handler_program, "folder:fault-handler", "Controller Fault Handler"),
+    ):
+        if handler:
+            claimed.add(handler)
+            handler_specs.append((handler, key, label))
+
+    # A task whose schedule composition changed is flagged via
+    # descendant_changed even when nothing under it changed at head (the
+    # moved program's subtree renders under its head-ref task only).
+    schedule_changed = {
+        c.name
+        for c in changes.tasks
+        if c.kind == "modified" and any(f.path == "scheduled_programs" for f in c.fields)
+    }
+
+    # --- Tasks: each task owns its scheduled programs' FULL subtrees, in
+    # ScheduledPrograms order (execution order — never sorted).
+    task_nodes: dict[str, TreeNode] = {}
     for task in doc.tasks:
-        refs = []
+        children: list[TreeNode] = []
         for pname in task.scheduled_programs:
             prog = progs_by_name.get(pname)
-            refs.append(
-                TreeNode(
-                    key=f"task:{task.name}/program:{pname}",
-                    label=pname,
-                    kind="program",
-                    status=_program_status(prog_changes.get(pname)),
-                    program=pname,
-                    children=_routine_nodes(
-                        prog,
-                        prog_changes.get(pname),
-                        ctrl_name,
-                        f"task:{task.name}/program:{pname}",
-                    )
-                    if prog is not None  # a partial export can schedule an absent program
-                    else [],
-                )
+            if pname in claimed or prog is None:
+                # Handler-owned or double-scheduled (shown at its one home),
+                # or a partial export scheduling a program that isn't in the
+                # file (nothing to show).
+                continue
+            claimed.add(pname)
+            children.append(
+                _program_node(prog, prog_changes.get(pname), ctrl_name, f"task:{task.name}")
             )
-        task_nodes.append(
-            TreeNode(
-                key=f"task:{task.name}",
-                label=task.name,
-                kind="task",
-                status=task_status.get(task.name, "unchanged"),
-                children=refs,
-            )
+        task_nodes[task.name] = TreeNode(
+            key=f"task:{task.name}",
+            label=task.name,
+            kind="task",
+            status=task_status.get(task.name, "unchanged"),
+            descendant_changed=task.name in schedule_changed,
+            children=children,
         )
     head_task_names = {t.name for t in doc.tasks}
+    removed_task_nodes: dict[str, TreeNode] = {}
     for name, kind in task_status.items():
         if kind == "removed" and name not in head_task_names:
-            task_nodes.append(
-                TreeNode(key=f"task:{name}", label=name, kind="task", status="removed")
+            removed_task_nodes[name] = TreeNode(
+                key=f"task:{name}", label=name, kind="task", status="removed"
             )
-    if task_nodes:
+
+    # --- Unscheduled Programs: whatever no task or handler claims.
+    unscheduled: list[TreeNode] = []
+    for prog in doc.programs:
+        if prog.name not in claimed:
+            claimed.add(prog.name)
+            unscheduled.append(
+                _program_node(prog, prog_changes.get(prog.name), ctrl_name, "unscheduled")
+            )
+
+    # --- Removed programs attach at their BASE-ref home: the task that
+    # scheduled them then (its live node, or its phantom if the task went
+    # too); when the old home is unknown they land in Unscheduled Programs.
+    # Handler-claimed names are skipped — their phantom renders in the
+    # handler folder below.
+    base_home: dict[str, str] = {}
+    if base_doc is not None:
+        for task in base_doc.tasks:
+            for pname in task.scheduled_programs:
+                base_home.setdefault(pname, task.name)
+    for pc in changes.programs:
+        if pc.kind != "removed" or pc.name in progs_by_name or pc.name in claimed:
+            continue
+        home = base_home.get(pc.name)
+        if home in task_nodes:
+            task_nodes[home].children.append(
+                _phantom_program_node(pc, ctrl_name, f"task:{home}")
+            )
+        elif home in removed_task_nodes:
+            removed_task_nodes[home].children.append(
+                _phantom_program_node(pc, ctrl_name, f"task:{home}")
+            )
+        else:
+            unscheduled.append(_phantom_program_node(pc, ctrl_name, "unscheduled"))
+
+    tasks_children = list(task_nodes.values()) + list(removed_task_nodes.values())
+    if unscheduled:  # Studio 5000 places "Unscheduled" inside the Tasks section
+        tasks_children.append(
+            TreeNode(
+                key="folder:unscheduled",
+                label="Unscheduled Programs",
+                kind="folder",
+                children=unscheduled,
+            )
+        )
+    if tasks_children:
         folders.append(
-            TreeNode(key="folder:tasks", label="Tasks", kind="folder", children=task_nodes)
+            TreeNode(key="folder:tasks", label="Tasks", kind="folder", children=tasks_children)
         )
 
     # --- Motion Groups: MOTION_GROUP tags with their axes nested beneath.
@@ -215,76 +326,24 @@ def build_project_tree(doc: L5XDocument, changes: ChangeSet) -> ProjectTree:
             )
         )
 
-    # --- Handler folders: a program *reference* (like a task's), shown only
-    # when the controller names one.
-    for handler, key, label in (
-        (doc.controller.power_loss_program, "folder:powerup-handler", "Power-Up Handler"),
-        (doc.controller.fault_handler_program, "folder:fault-handler", "Controller Fault Handler"),
-    ):
-        if handler:
-            folders.append(
-                TreeNode(
-                    key=key,
-                    label=label,
-                    kind="folder",
-                    children=[
-                        TreeNode(
-                            key=f"{key}/program:{handler}",
-                            label=handler,
-                            kind="program",
-                            status=_program_status(prog_changes.get(handler)),
-                            program=handler,
-                        )
-                    ],
-                )
-            )
-
-    # --- Programs (flat) -> Routines. Routine nodes carry ladder identity.
-    prog_nodes: list[TreeNode] = []
-    for prog in doc.programs:
-        pc = prog_changes.get(prog.name)
-        prog_nodes.append(
-            TreeNode(
-                key=f"program:{prog.name}",
-                label=prog.name,
+    # --- Handler folders: each owns its program's FULL subtree, shown only
+    # when the controller names one. The program can be absent from the file:
+    # removed (phantom from its ProgramChange) or a partial export (bare ref).
+    for handler, key, label in handler_specs:
+        prog = progs_by_name.get(handler)
+        pc = prog_changes.get(handler)
+        if prog is not None:
+            child = _program_node(prog, pc, ctrl_name, key)
+        elif pc is not None and pc.kind == "removed":
+            child = _phantom_program_node(pc, ctrl_name, key)
+        else:
+            child = TreeNode(
+                key=f"{key}/program:{handler}",
+                label=handler,
                 kind="program",
-                status=_program_status(pc),
-                program=prog.name,
-                children=_routine_nodes(prog, pc, ctrl_name, f"program:{prog.name}"),
+                program=handler,
             )
-        )
-    head_prog_names = {p.name for p in doc.programs}
-    for pc in changes.programs:
-        if pc.kind == "removed" and pc.name not in head_prog_names:
-            rout_nodes = [
-                TreeNode(
-                    key=f"program:{pc.name}/routine:{rc.name}",
-                    label=rc.name,
-                    kind="routine",
-                    status="removed",
-                    routine_type=rc.routine_type,
-                    controller=ctrl_name,
-                    program=pc.name,
-                    routine=rc.name,
-                )
-                for rc in pc.routines
-            ]
-            prog_nodes.append(
-                TreeNode(
-                    key=f"program:{pc.name}",
-                    label=pc.name,
-                    kind="program",
-                    status="removed",
-                    program=pc.name,
-                    children=rout_nodes,
-                )
-            )
-    if prog_nodes:
-        folders.append(
-            TreeNode(
-                key="folder:programs", label="Programs", kind="folder", children=prog_nodes
-            )
-        )
+        folders.append(TreeNode(key=key, label=label, kind="folder", children=[child]))
 
     # --- Add-On Instructions: each AOI with its routines as children. AOI
     # routine nodes carry NO ladder identity (controller/program/routine stay

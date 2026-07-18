@@ -213,7 +213,13 @@ def _tree_compute(name: str):
         doc = repo.document_at(head_sha, name)
         if doc is None:
             raise ProjectRepoError(f"no L5X file {name!r} at this ref")
-        return build_project_tree(doc, repo.diff_refs(base_sha, head_sha, name))
+        return build_project_tree(
+            doc,
+            repo.diff_refs(base_sha, head_sha, name),
+            # The base snapshot places removed programs under the task that
+            # scheduled them back then (None when the file is new at base).
+            base_doc=repo.document_at(base_sha, name),
+        )
 
     return compute
 

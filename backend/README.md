@@ -337,14 +337,24 @@ FileEntry   = { "path": string, "kind": "l5x"|"file",     // "l5x/<name>" or "fi
                 "modified_by": string, "modified_at": string }  // last commit's author + ISO-8601 date
 DiffManifest = { "files": [ChangedFile] }
 ProjectTree = { "schema_version": int, "root": TreeNode }   // per-L5X organizer, nested under the file tree
-                // schema_version 3 adds: Data Types subfolders (User-Defined / Strings /
-                // Add-On-Defined AOI refs, keys "datatype:aoi:<name>"), AOI routine children
-                // (keys "aoi:<a>/routine:<r>", NO ladder-card identity), a Motion Groups
-                // folder ("motion:<group>" / "motion:<group>/axis:<tag>"; motion tags also
-                // stay under Controller Tags), Power-Up / Controller Fault Handler folders,
-                // and task program refs carrying the routine subtree
-                // ("task:<t>/program:<p>/routine:<r>", WITH ladder-card identity). The flat
-                // Programs folder and its keys are unchanged.
+                // schema_version 4: Studio 5000-canonical scheduling homes — there is NO
+                // flat Programs folder. Every program appears exactly ONCE, under its one
+                // scheduling home: its task ("task:<t>/program:<p>", full routine subtree,
+                // in ScheduledPrograms/execution order — not sorted), a handler folder
+                // (Power-Up / Controller Fault Handler, full subtree), or an "Unscheduled
+                // Programs" folder inside Tasks (omitted when empty). Removed programs
+                // attach under the task that scheduled them at the BASE ref (that task's
+                // phantom node if it was removed too; Unscheduled when unknown). A program
+                // moved between tasks lights descendant_changed on both tasks; its subtree
+                // shows under the head-ref task only. Task-nested routine nodes carry
+                // ladder-card identity ("task:<t>/program:<p>/routine:<r>"). v3 categories
+                // are unchanged: Data Types subfolders (User-Defined / Strings /
+                // Add-On-Defined AOI refs, keys "datatype:aoi:<name>"), AOI routine
+                // children (keys "aoi:<a>/routine:<r>", NO ladder-card identity), Motion
+                // Groups ("motion:<group>" / "motion:<group>/axis:<tag>"; motion tags also
+                // stay under Controller Tags). Treat `key` values as opaque; ladder cards
+                // and detail panels key on kind + controller/program/routine, which are
+                // unchanged.
 TreeNode    = { "key": string, "label": string,
                 "kind": "controller"|"folder"|"program"|"routine"|"aoi"|"datatype"|"tag"|"module"|"task",
                 "status": "unchanged"|"added"|"removed"|"modified",  // the node's own change
