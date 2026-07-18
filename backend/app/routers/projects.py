@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import os
+import random
 import re
 import tempfile
 from functools import lru_cache
@@ -247,6 +248,19 @@ def _unique_slug(db: Session, name: str, owner_id: int) -> str:
     return slug
 
 
+# Repository icon codes are 0..19: twenty stored values the frontend maps
+# onto its designed glyph set (it renders n % 8, and its picker sends the
+# 0-based glyph ids), so every accepted number is drawable.
+_ICON_CODES = range(20)
+
+
+def _validate_icon(icon: int | None) -> None:
+    if icon is not None and icon not in _ICON_CODES:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, "icon must be an integer from 0 to 19"
+        )
+
+
 def _to_out(
     db: Session, project: Project, branches: list[str], role: str | None = None
 ) -> ProjectOut:
@@ -261,6 +275,7 @@ def _to_out(
         created_at=project.created_at,
         branches=branches,
         default_branch=project.default_branch,
+        icon=project.icon,
     )
 
 
@@ -270,11 +285,15 @@ def create_project(
     db: Session = Depends(get_db),
     user: User = Depends(current_user),
 ) -> ProjectOut:
+    _validate_icon(payload.icon)
     project = Project(
         name=payload.name,
         slug=_unique_slug(db, payload.name, user.id),
         description=payload.description,
         owner_id=user.id,
+        # Omitted (e.g. CLI creations): the server picks one of the twenty at
+        # random, so every project has a concrete stored icon.
+        icon=payload.icon if payload.icon is not None else random.choice(_ICON_CODES),
     )
     db.add(project)
     db.flush()  # assign project.id
@@ -323,14 +342,17 @@ def update_project(
     db: Session = Depends(get_db),
     user: User = Depends(current_user),
 ) -> ProjectOut:
-    """Rename a project, edit its description (owner/admin), or change its
-    default branch (owner only)."""
+    """Rename a project, edit its description or icon (owner/admin), or change
+    its default branch (owner only)."""
     project = require_manager(project_id, db, user)
     if payload.name is not None:
         project.name = payload.name
         project.slug = _unique_slug(db, payload.name, project.owner_id)
     if payload.description is not None:
         project.description = payload.description
+    if payload.icon is not None:
+        _validate_icon(payload.icon)
+        project.icon = payload.icon
     if (
         payload.default_branch is not None
         and payload.default_branch != project.default_branch

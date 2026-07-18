@@ -87,6 +87,12 @@ class Project(Base):
     # target, ?ref=/branch= defaults). Changed via PATCH /projects (owner only),
     # which also repoints the repo's HEAD.
     default_branch: Mapped[str] = mapped_column(String(255), default="main")
+    # Repository icon code (0..19) shown in lists and headers. The frontend
+    # maps any stored value onto its designed glyph set (it renders n % 8 and
+    # its picker sends 0-based ids), so every accepted number is drawable.
+    # Server-assigned at random when creation omits it, so each project has a
+    # concrete stored icon.
+    icon: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # Logical bytes committed to this project (see Organization.used_bytes).
     # Per-project so deleting a project can give exactly its bytes back to the
     # org's counter.

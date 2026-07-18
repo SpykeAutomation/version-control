@@ -195,10 +195,10 @@ separate from the per-project activity feed.
 | `DELETE` | `/orgs/{id}/accounts/{user_id}` | — (org owner) | `204` — soft-delete the account (access cut, history kept); `409` if already deleted |
 | `GET`  | `/invites/{token}` | — (public, rate-limited) | `InvitePreview` (or `429`) |
 | `POST` | `/invites/{token}/accept` | `{email, first_name?, last_name?, password?}` (public, rate-limited) | `AcceptResult` (or `429`) |
-| `POST` | `/projects` | `{name, description?}` | `201` `Project` |
+| `POST` | `/projects` | `{name, description?, icon?}` — `icon` an integer 0–19 (`400` outside); omitted → the server picks one at random | `201` `Project` |
 | `GET`  | `/projects` | — | `[Project]` |
 | `GET`  | `/projects/{id}` | — | `Project` |
-| `PATCH` | `/projects/{id}` | `{name?, description?, default_branch?}` (owner/admin; **`default_branch` is owner-only** — admin gets `403`) | `Project` — changing the default also repoints the repo's HEAD; `400` if the branch is unknown or has no commits; same value = no-op |
+| `PATCH` | `/projects/{id}` | `{name?, description?, icon?, default_branch?}` (owner/admin; **`default_branch` is owner-only** — admin gets `403`) | `Project` — the response echoes `icon` (0–19, `400` outside); changing the default branch also repoints the repo's HEAD (`400` if the branch is unknown or has no commits; same value = no-op) |
 | `DELETE` | `/projects/{id}` | — (owner/admin) | `204` — deletes the repo, members, PRs (+ their reviewers/approvals/comments), branch protections, activity & cached diffs |
 | `GET`  | `/projects/{id}/overview` | `?ref=` (default: the project's default branch) | `RepositoryOverview` |
 | `GET`  | `/projects/{id}/members` | — | `[Member]` |
@@ -293,8 +293,10 @@ User    = { "id": int, "email": string, "first_name": string, "last_name": strin
 Project = { "id": int, "name": string, "slug": string, "description": string,
             "owner": User, "your_role": "owner"|"admin"|"member"|null,
             "created_at": datetime, "branches": [string],
-            "default_branch": string }  // born with the first commit's branch;
+            "default_branch": string,   // born with the first commit's branch;
                                         // owner can re-point it at any time
+            "icon": int|null }          // 0..19; the frontend maps it to a glyph
+                                        // (server picks one at random on create)
 Member  = { "id": int, "email": string, "first_name": string, "last_name": string,
             "role": "owner"|"admin"|"member" }
 MemberCandidate = { "id": int, "email": string, "first_name": string,
@@ -873,6 +875,12 @@ unprotect, branch `start_point`, PR `target_branch`, tag `ref`, and the
 `default_branch` (**owner-only**, `400` unknown/unborn branch, repoints the
 repo's HEAD, audited old → new). A fresh repo's **first commit** may target
 any branch name — that branch is born as the default.
+
+*Changed shapes — repository icon:* `Project` gains `icon` (int 0–19,
+nullable), echoed on every Project payload. `POST /projects` accepts it
+(server picks one of the twenty at random when omitted, so every project has
+a stored icon) and `PATCH /projects/{id}` changes it under the normal
+owner/admin gate; out-of-range values are a `400`.
 
 *Changed shapes — diffs & tree:* the `ChangeSet` reports UDT member / AOI
 parameter reorders as one `members.order` / `parameters.order` row (order is
