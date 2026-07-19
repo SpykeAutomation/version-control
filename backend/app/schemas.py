@@ -126,7 +126,7 @@ class AcceptResult(BaseModel):
 class ProjectIn(BaseModel):
     name: str
     description: str = ""
-    # Icon code 0..19 (400 outside the range); omitted -> the server picks one
+    # Icon code 1..30 (400 outside the range); omitted -> the server picks one
     # at random, so every project has a concrete stored icon.
     icon: Optional[int] = None
 
@@ -137,7 +137,7 @@ class ProjectUpdate(BaseModel):
     # Owner only (admins get 403 for this field). The branch must exist and
     # have at least one commit; changing it also repoints the repo's HEAD.
     default_branch: Optional[str] = None
-    # Icon code 0..19; same owner/admin gate as name and description.
+    # Icon code 1..30; same owner/admin gate as name and description.
     icon: Optional[int] = None
 
 
@@ -151,7 +151,7 @@ class ProjectOut(BaseModel):
     created_at: datetime
     branches: list[str] = []
     default_branch: str = "main"
-    icon: Optional[int] = None  # 0..19; the frontend maps it to a glyph
+    icon: Optional[int] = None  # 1..30; the frontend maps it to a glyph + tone
 
 
 class MemberIn(BaseModel):

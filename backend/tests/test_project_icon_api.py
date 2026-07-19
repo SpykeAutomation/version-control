@@ -1,6 +1,7 @@
-"""API tests for the per-project repository icon: an integer code 0..19,
-stored on create (server-random when omitted, so every project has one),
-changeable by owner/admin via PATCH, echoed on every Project payload."""
+"""API tests for the per-project repository icon: an integer code 1..30 (ten
+glyphs in three colour tones), stored on create (server-random when omitted,
+so every project has one), changeable by owner/admin via PATCH, echoed on
+every Project payload."""
 import os
 import tempfile
 
@@ -94,11 +95,11 @@ def test_create_without_icon_stores_a_random_valid_one(client, seed):
     )
     assert r.status_code == 201, r.text
     icon = r.json()["icon"]
-    assert isinstance(icon, int) and 0 <= icon <= 19
+    assert isinstance(icon, int) and 1 <= icon <= 30
 
 
 def test_create_with_out_of_range_icon_400s(client, seed):
-    for bad in (-1, 20, 999):
+    for bad in (0, -1, 31, 999):
         r = client.post(
             "/projects", json={"name": "Bad", "icon": bad}, headers=_auth(seed.owner)
         )
@@ -114,10 +115,11 @@ def test_admin_can_change_icon_and_response_echoes(client, seed):
     r = seed.patch_icon(seed.admin, 7)
     assert r.status_code == 200, r.text
     assert r.json()["icon"] == 7  # the frontend's success detection reads this
-    # Picker glyph ids start at 0 — the first glyph must be storable.
-    r = seed.patch_icon(seed.admin, 0)
+    # Both ends of the range are storable.
+    assert seed.patch_icon(seed.admin, 30).status_code == 200
+    r = seed.patch_icon(seed.admin, 1)
     assert r.status_code == 200
-    assert r.json()["icon"] == 0
+    assert r.json()["icon"] == 1
 
 
 def test_plain_member_cannot_change_icon(client, seed):
@@ -125,14 +127,15 @@ def test_plain_member_cannot_change_icon(client, seed):
 
 
 def test_patch_out_of_range_icon_400s_and_changes_nothing(client, seed):
-    assert seed.patch_icon(seed.owner, 20).status_code == 400
+    for bad in (0, 31):
+        assert seed.patch_icon(seed.owner, bad).status_code == 400
     r = client.get(f"/projects/{seed.pid}", headers=_auth(seed.owner))
-    assert r.json()["icon"] == 0  # still the last accepted value
+    assert r.json()["icon"] == 1  # still the last accepted value
 
 
 def test_list_and_detail_echo_the_icon(client, seed):
     rows = client.get("/projects", headers=_auth(seed.owner)).json()
     by_id = {p["id"]: p for p in rows}
-    assert by_id[seed.pid]["icon"] == 0
+    assert by_id[seed.pid]["icon"] == 1
     detail = client.get(f"/projects/{seed.pid}", headers=_auth(seed.owner)).json()
-    assert detail["icon"] == 0
+    assert detail["icon"] == 1

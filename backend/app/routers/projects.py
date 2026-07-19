@@ -248,16 +248,16 @@ def _unique_slug(db: Session, name: str, owner_id: int) -> str:
     return slug
 
 
-# Repository icon codes are 0..19: twenty stored values the frontend maps
-# onto its designed glyph set (it renders n % 8, and its picker sends the
-# 0-based glyph ids), so every accepted number is drawable.
-_ICON_CODES = range(20)
+# Repository icon codes are 1..30: ten glyphs in three colour tones. The
+# number->glyph/tone mapping lives in the frontend; the backend only keeps
+# the stored value inside the designed set.
+_ICON_CODES = range(1, 31)
 
 
 def _validate_icon(icon: int | None) -> None:
     if icon is not None and icon not in _ICON_CODES:
         raise HTTPException(
-            status.HTTP_400_BAD_REQUEST, "icon must be an integer from 0 to 19"
+            status.HTTP_400_BAD_REQUEST, "icon must be an integer from 1 to 30"
         )
 
 
@@ -291,7 +291,7 @@ def create_project(
         slug=_unique_slug(db, payload.name, user.id),
         description=payload.description,
         owner_id=user.id,
-        # Omitted (e.g. CLI creations): the server picks one of the twenty at
+        # Omitted (e.g. CLI creations): the server picks one of the thirty at
         # random, so every project has a concrete stored icon.
         icon=payload.icon if payload.icon is not None else random.choice(_ICON_CODES),
     )
