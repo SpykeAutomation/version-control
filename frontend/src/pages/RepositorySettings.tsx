@@ -34,7 +34,8 @@ import {
 } from "../api/queries";
 import { useAuth } from "../auth/AuthContext";
 import { initials } from "../lib/initials";
-import { REPO_ICONS, resolveRepoIcon } from "../lib/repoIcons";
+import { resolveRepoIcon } from "../lib/repoIcons";
+import { IconPicker } from "../components/IconPicker";
 
 // Every confirmable action the tab can stage. The dialog renders from this and
 // nothing mutates until its Confirm button is pressed.
@@ -363,20 +364,11 @@ function AppearanceSection({
         <p className="settings-note">
           The icon this repository wears in lists and headers.
         </p>
-        <div className="icon-pick">
-          {REPO_ICONS.map((def) => (
-            <button
-              key={def.id}
-              type="button"
-              className={`icon-swatch tone-${def.tone}${current.id === def.id ? " selected" : ""}`}
-              disabled={!canManage || setIcon.isPending}
-              title={def.label}
-              onClick={() => setIcon.mutate(def.id)}
-            >
-              {def.glyph(20)}
-            </button>
-          ))}
-        </div>
+        <IconPicker
+          selected={current.code}
+          onSelect={(code) => setIcon.mutate(code)}
+          disabled={!canManage || setIcon.isPending}
+        />
         {setIcon.error != null && (
           <div className="form-error">
             {errorText(setIcon.error, "Couldn't change the icon.")}

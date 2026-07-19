@@ -5,17 +5,17 @@
 // ever iconless, and existing repos keep the icon they've always shown.
 import type { ReactNode } from "react";
 
-// The backend stores the icon as an INTEGER (0..21); the number->glyph
-// mapping is defined here and only here, by REPO_ICONS order:
+// The backend stores the icon as an INTEGER 1..30 (0 and >30 are rejected).
+// The code->look mapping is defined here and only here: ten glyphs x three
+// colour tones, code = 1 + glyphIndex * 3 + toneIndex. Glyph order:
 // 0 controller, 1 ladder, 2 motion, 3 conveyor, 4 robot-arm, 5 sensor,
-// 6 power, 7 network. Stored values beyond the set render as n % 8, so any
-// integer the backend accepts maps to a designed glyph deterministically.
-export interface RepoIconDef {
-  id: number;
+// 6 power, 7 network, 8 gauge, 9 valve. Tone order: 0 blue, 1 green, 2 amber.
+export interface RepoGlyphDef {
   label: string;
-  tone: string;
   glyph: (size: number) => ReactNode;
 }
+
+export const REPO_TONES = ["blue", "green", "amber"] as const;
 
 function Svg({ size, children }: { size: number; children: ReactNode }) {
   return (
@@ -35,11 +35,9 @@ function Svg({ size, children }: { size: number; children: ReactNode }) {
   );
 }
 
-export const REPO_ICONS: RepoIconDef[] = [
+export const REPO_GLYPHS: RepoGlyphDef[] = [
   {
-    id: 0,
     label: "Controller",
-    tone: "blue",
     glyph: (s) => (
       <Svg size={s}>
         <rect x="7" y="6" width="10" height="12" rx="1.5" />
@@ -48,9 +46,7 @@ export const REPO_ICONS: RepoIconDef[] = [
     ),
   },
   {
-    id: 1,
     label: "Ladder logic",
-    tone: "green",
     glyph: (s) => (
       <Svg size={s}>
         <path d="M6 4v16M18 4v16" />
@@ -60,9 +56,7 @@ export const REPO_ICONS: RepoIconDef[] = [
     ),
   },
   {
-    id: 2,
     label: "Motion",
-    tone: "violet",
     glyph: (s) => (
       <Svg size={s}>
         <circle cx="12" cy="13" r="6.5" />
@@ -72,9 +66,7 @@ export const REPO_ICONS: RepoIconDef[] = [
     ),
   },
   {
-    id: 3,
     label: "Conveyor",
-    tone: "amber",
     glyph: (s) => (
       <Svg size={s}>
         <rect x="9" y="5" width="6" height="4.5" rx="1" />
@@ -85,9 +77,7 @@ export const REPO_ICONS: RepoIconDef[] = [
     ),
   },
   {
-    id: 4,
     label: "Robot arm",
-    tone: "slate",
     glyph: (s) => (
       <Svg size={s}>
         <path d="M6.5 20h8" />
@@ -100,9 +90,7 @@ export const REPO_ICONS: RepoIconDef[] = [
     ),
   },
   {
-    id: 5,
     label: "Sensor",
-    tone: "teal",
     glyph: (s) => (
       <Svg size={s}>
         <circle cx="8" cy="12" r="1.7" fill="currentColor" stroke="none" />
@@ -112,9 +100,7 @@ export const REPO_ICONS: RepoIconDef[] = [
     ),
   },
   {
-    id: 6,
     label: "Power",
-    tone: "orange",
     glyph: (s) => (
       <Svg size={s}>
         <rect x="6.5" y="4" width="11" height="16" rx="2" />
@@ -123,9 +109,7 @@ export const REPO_ICONS: RepoIconDef[] = [
     ),
   },
   {
-    id: 7,
     label: "Network",
-    tone: "indigo",
     glyph: (s) => (
       <Svg size={s}>
         <path d="M4 17.5h16" />
@@ -136,24 +120,79 @@ export const REPO_ICONS: RepoIconDef[] = [
       </Svg>
     ),
   },
+  {
+    label: "Gauge",
+    glyph: (s) => (
+      <Svg size={s}>
+        <circle cx="12" cy="13" r="7" />
+        <path d="M12 13l3.4-3.9" />
+        <circle cx="12" cy="13" r="1.4" fill="currentColor" stroke="none" />
+        <path d="M6.8 9.5l-1.2-.8M17.2 9.5l1.2-.8" />
+      </Svg>
+    ),
+  },
+  {
+    label: "Valve",
+    glyph: (s) => (
+      <Svg size={s}>
+        <path d="M5 9.5l7 3.5-7 3.5zM19 9.5l-7 3.5 7 3.5z" />
+        <path d="M12 13V7.5" />
+        <path d="M9 7.5h6" />
+      </Svg>
+    ),
+  },
 ];
 
-// The stored code when present (any non-negative integer renders via % 8),
-// else a stable slug-hash fallback.
+export const ICON_CODE_MAX = REPO_GLYPHS.length * REPO_TONES.length; // 30
+
+export function encodeRepoIcon(glyphIndex: number, toneIndex: number): number {
+  return 1 + glyphIndex * REPO_TONES.length + toneIndex;
+}
+
+export function decodeRepoIcon(
+  code: number | null | undefined,
+): { glyphIndex: number; toneIndex: number } | null {
+  if (
+    typeof code !== "number" ||
+    !Number.isInteger(code) ||
+    code < 1 ||
+    code > ICON_CODE_MAX
+  ) {
+    return null;
+  }
+  const n = code - 1;
+  return {
+    glyphIndex: Math.floor(n / REPO_TONES.length),
+    toneIndex: n % REPO_TONES.length,
+  };
+}
+
+// The stored code when valid, else a stable slug-hash fallback (legacy rows
+// and the window before the backend carries the field).
 export function resolveRepoIcon(
   icon: number | null | undefined,
   slug: string,
-): RepoIconDef {
-  if (typeof icon === "number" && Number.isInteger(icon) && icon >= 0) {
-    return REPO_ICONS[icon % REPO_ICONS.length];
+): { code: number; label: string; tone: string; glyph: (s: number) => ReactNode } {
+  let decoded = decodeRepoIcon(icon);
+  let code = icon as number;
+  if (!decoded) {
+    let h = 0;
+    for (let i = 0; i < slug.length; i += 1)
+      h = (h * 31 + slug.charCodeAt(i)) >>> 0;
+    code = (h % ICON_CODE_MAX) + 1;
+    decoded = decodeRepoIcon(code)!;
   }
-  let h = 0;
-  for (let i = 0; i < slug.length; i += 1) h = (h * 31 + slug.charCodeAt(i)) >>> 0;
-  return REPO_ICONS[h % REPO_ICONS.length];
+  const g = REPO_GLYPHS[decoded.glyphIndex];
+  return {
+    code,
+    label: g.label,
+    tone: REPO_TONES[decoded.toneIndex],
+    glyph: g.glyph,
+  };
 }
 
 export function randomRepoIconId(): number {
-  return REPO_ICONS[Math.floor(Math.random() * REPO_ICONS.length)].id;
+  return 1 + Math.floor(Math.random() * ICON_CODE_MAX);
 }
 
 export function RepoIcon({

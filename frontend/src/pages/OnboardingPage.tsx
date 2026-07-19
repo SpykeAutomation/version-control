@@ -3,7 +3,8 @@ import { useNavigate } from "react-router-dom";
 import {
   Dices, FileText, Globe, Lock } from "lucide-react";
 import { ApiError } from "../api/client";
-import { randomRepoIconId, REPO_ICONS } from "../lib/repoIcons";
+import { randomRepoIconId } from "../lib/repoIcons";
+import { IconPicker } from "../components/IconPicker";
 import { useCreateProject } from "../api/queries";
 import { useAuth } from "../auth/AuthContext";
 
@@ -128,20 +129,13 @@ export function OnboardingPage() {
               onClick={() => setIcon("random")}
               title="Surprise me"
             >
-              <Dices size={20} strokeWidth={1.8} />
+              <Dices size={22} strokeWidth={1.8} />
             </button>
-            {REPO_ICONS.map((def) => (
-              <button
-                key={def.id}
-                type="button"
-                className={`icon-swatch tone-${def.tone}${icon === def.id ? " selected" : ""}`}
-                onClick={() => setIcon(def.id)}
-                title={def.label}
-              >
-                {def.glyph(20)}
-              </button>
-            ))}
           </div>
+          <IconPicker
+            selected={icon === "random" ? null : icon}
+            onSelect={(code) => setIcon(code)}
+          />
         </div>
 
         {/* Visibility */}
