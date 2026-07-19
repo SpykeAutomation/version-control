@@ -189,7 +189,7 @@ function RepositoryView({
 
       {/* header */}
       <header className="mr-head repo-head">
-        <RepoIcon icon={project.icon} slug={project.slug} size={27} className="repo-ico repo-head-tile" />
+        <RepoIcon icon={project.icon} slug={project.slug} size={24} className="repo-ico repo-head-tile" />
         <div className="mr-head-main">
           <div className="mr-title-row">
             <h1 className="mr-title">{project.name}</h1>

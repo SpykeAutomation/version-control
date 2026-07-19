@@ -25,7 +25,11 @@ function Svg({ size, children }: { size: number; children: ReactNode }) {
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth={1.8}
+      // Crisp at the two blessed sizes: 24 (1x) and 48 (2x). At 2x a stroke
+      // of 2 renders 4 device pixels with integer edges; 1.8 would land on
+      // .6/.4 boundaries and smear. Other sizes fractionally scale the whole
+      // 24-grid and blur — render only at 24 or 48.
+      strokeWidth={size >= 48 ? 2 : 1.8}
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"

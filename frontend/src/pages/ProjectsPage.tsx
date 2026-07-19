@@ -315,7 +315,7 @@ function ProjectsTable({
               {/* Repository */}
               <td>
                 <Link to={`/organization/${p.slug}`} className="repo-cell">
-                  <RepoIcon icon={p.icon} slug={p.slug} size={21} className="repo-ico" />
+                  <RepoIcon icon={p.icon} slug={p.slug} size={24} className="repo-ico" />
                   <div>
                     <div className="repo-name">{p.name}</div>
                     {p.description && (
