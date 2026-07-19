@@ -7569,3 +7569,19 @@ a.cmr-tl-link:hover .cmr-tl-msg {
 .tone-chip-red { background: #ff575c; }
 .tone-chip-blue { background: #4799fa; }
 .tone-chip-green { background: #57c765; }
+
+/* Neutral light-grey icon tiles: the solid glyph carries the colour and the
+   square fades into the page background (the reference style). Overrides the
+   per-tone tinted backgrounds above. */
+.repo-ico.tone-blue,
+.repo-ico.tone-green,
+.repo-ico.tone-red,
+.rail-ico.tone-blue,
+.rail-ico.tone-green,
+.rail-ico.tone-red,
+.icon-swatch.tone-blue,
+.icon-swatch.tone-green,
+.icon-swatch.tone-red {
+  background: #f5f6f7;
+  border-color: #e9ebed;
+}
