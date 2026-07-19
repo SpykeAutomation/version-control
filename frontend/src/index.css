@@ -7487,8 +7487,8 @@ a.cmr-tl-link:hover .cmr-tl-msg {
   gap: 8px;
 }
 .icon-swatch {
-  width: 62px;
-  height: 62px;
+  width: 46px;
+  height: 46px;
   border-radius: 10px;
   border: 1px solid var(--line);
   background: var(--panel2);
@@ -7543,3 +7543,29 @@ a.cmr-tl-link:hover .cmr-tl-msg {
 .tone-chip-blue { background: var(--blue); }
 .tone-chip-green { background: var(--add); }
 .tone-chip-amber { background: var(--mod); }
+
+/* Solid icon palette, sampled from the reference image. */
+.repo-ico.tone-blue,
+.rail-ico.tone-blue,
+.icon-swatch.tone-blue {
+  color: #4799fa;
+  background: #e9f2fe;
+  border-color: #c8dffd;
+}
+.repo-ico.tone-green,
+.rail-ico.tone-green,
+.icon-swatch.tone-green {
+  color: #57c765;
+  background: #eaf8ec;
+  border-color: #c8edcd;
+}
+.repo-ico.tone-red,
+.rail-ico.tone-red,
+.icon-swatch.tone-red {
+  color: #ff575c;
+  background: #ffecec;
+  border-color: #ffcfd1;
+}
+.tone-chip-red { background: #ff575c; }
+.tone-chip-blue { background: #4799fa; }
+.tone-chip-green { background: #57c765; }

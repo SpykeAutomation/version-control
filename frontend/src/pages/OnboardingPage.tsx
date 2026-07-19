@@ -129,7 +129,7 @@ export function OnboardingPage() {
               onClick={() => setIcon("random")}
               title="Surprise me"
             >
-              <Dices size={40} strokeWidth={2} />
+              <Dices size={24} strokeWidth={2} />
             </button>
           </div>
           <IconPicker

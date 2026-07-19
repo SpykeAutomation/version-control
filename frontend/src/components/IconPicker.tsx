@@ -55,7 +55,7 @@ export function IconPicker({
             disabled={disabled}
             onClick={() => onSelect(encodeRepoIcon(gi, toneIdx))}
           >
-            {g.glyph(48)}
+            {g.glyph(28)}
           </button>
         ))}
       </div>
