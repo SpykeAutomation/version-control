@@ -10,7 +10,6 @@ import {
   Globe,
   Lock,
   Search,
-  ShieldCheck,
   TriangleAlert,
   UserPlus,
   X,
@@ -36,6 +35,7 @@ import { useAuth } from "../auth/AuthContext";
 import { initials } from "../lib/initials";
 import { resolveRepoIcon } from "../lib/repoIcons";
 import { IconPicker } from "../components/IconPicker";
+import { ProtectedLock } from "../components/ProtectedLock";
 
 // Every confirmable action the tab can stage. The dialog renders from this and
 // nothing mutates until its Confirm button is pressed.
@@ -514,12 +514,15 @@ function DangerZone({
                 <span className="branch-name">{b.name}</span>
                 {b.isDefault && <span className="badge blue">default</span>}
                 {b.isProtected ? (
-                  <span className="badge green">
-                    <ShieldCheck size={12} strokeWidth={2} />
-                    protected
-                    {b.requiredApprovals > 0 &&
-                      ` · ${b.requiredApprovals} ${b.requiredApprovals === 1 ? "approval" : "approvals"}`}
-                  </span>
+                  <>
+                    <ProtectedLock />
+                    {b.requiredApprovals > 0 && (
+                      <span className="dz-branch-approvals">
+                        {b.requiredApprovals}{" "}
+                        {b.requiredApprovals === 1 ? "approval" : "approvals"}
+                      </span>
+                    )}
+                  </>
                 ) : (
                   <span className="badge gray">unprotected</span>
                 )}

@@ -2756,6 +2756,18 @@ a.rail-item:focus-visible,
   background: var(--accent-weak);
   border-color: var(--blue-line);
 }
+/* Protected-branch marker: a lock glyph (tooltip "Protected branch") that
+   replaces the old "protected" text badge. */
+.branch-lock {
+  display: inline-flex;
+  align-items: center;
+  color: var(--ink3);
+  cursor: default;
+}
+.dz-branch-approvals {
+  font: 500 12px/1 var(--sans);
+  color: var(--ink3);
+}
 .ba {
   display: inline-flex;
   align-items: center;
