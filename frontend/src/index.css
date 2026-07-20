@@ -2742,6 +2742,14 @@ a.rail-item:focus-visible,
   padding: 2px 7px;
   vertical-align: middle;
 }
+/* Branch cell: the name chip plus its tags flow with even spacing and gain
+   row spacing when a tag wraps to the next line (instead of sticking to it). */
+.branch-cell {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+}
 .branch-msg {
   margin-left: 8px;
   font: 400 12.5px/1 var(--sans);
@@ -2762,11 +2770,35 @@ a.rail-item:focus-visible,
 /* Protected-branch marker: a lock glyph (tooltip "Protected branch") that
    replaces the old "protected" text badge. */
 .branch-lock {
+  position: relative;
   display: inline-flex;
   align-items: center;
   color: var(--ink3);
   cursor: default;
   vertical-align: middle;
+}
+/* Fast CSS tooltip (native title has an uncontrollable ~1s delay). */
+.branch-lock::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  background: var(--ink-title);
+  color: #fff;
+  font: 500 11px/1 var(--sans);
+  padding: 5px 8px;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(30, 28, 24, 0.18);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 20;
+  transition: opacity 0.09s ease;
+}
+.branch-lock:hover::after,
+.branch-lock:focus-visible::after {
+  opacity: 1;
 }
 .dz-branch-approvals {
   font: 500 12px/1 var(--sans);

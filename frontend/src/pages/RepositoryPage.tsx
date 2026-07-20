@@ -867,7 +867,7 @@ function BranchesCard({
           <tbody>
             {branches.map((b) => (
               <tr key={b.name}>
-                <td>
+                <td className="branch-cell">
                   <Link
                     to={`/organization/${slug}?tab=Files&branch=${encodeURIComponent(b.name)}`}
                     className="branch-name crlink"
@@ -875,17 +875,11 @@ function BranchesCard({
                     <GitBranch size={13} strokeWidth={2} />
                     {b.name}
                   </Link>
-                  {b.isDefault && (
-                    <span className="mini-badge" style={{ marginLeft: 8 }}>
-                      Default
-                    </span>
-                  )}
+                  {b.isDefault && <span className="mini-badge">Default</span>}
                   {!b.isDefault && "merged" in b && b.merged && (
-                    <span className="mini-badge merged" style={{ marginLeft: 8 }}>
-                      Merged
-                    </span>
+                    <span className="mini-badge merged">Merged</span>
                   )}
-                  {b.isProtected && <ProtectedLock style={{ marginLeft: 8 }} />}
+                  {b.isProtected && <ProtectedLock />}
                 </td>
                 <td>
                   {b.lastCommitHash ? (

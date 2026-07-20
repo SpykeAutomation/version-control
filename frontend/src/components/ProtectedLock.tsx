@@ -14,7 +14,7 @@ export function ProtectedLock({
   return (
     <span
       className="branch-lock"
-      title="Protected branch"
+      data-tip="Protected branch"
       aria-label="Protected branch"
       style={style}
     >
