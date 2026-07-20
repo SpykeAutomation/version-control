@@ -70,11 +70,18 @@ def make_owner(email: str, first: str, last: str, org_name: str) -> tuple[str, i
     return login(email), org_id
 
 
-def make_user(email: str, first: str, last: str) -> str:
-    """Create a plain account (no org), then log in."""
+def make_user(
+    email: str, first: str, last: str, organization_id: int | None = None
+) -> str:
+    """Create an account (org-less unless an org id is given), then log in.
+    Only same-org users can be attached to a project, so accounts meant to
+    become members must be created inside the project's org."""
     db = SessionLocal()
     try:
-        create_user(db, email=email, first_name=first, last_name=last, password=PW)
+        create_user(
+            db, email=email, first_name=first, last_name=last, password=PW,
+            organization_id=organization_id,
+        )
     finally:
         db.close()
     return login(email)
@@ -197,8 +204,12 @@ tr = client.get(f"/projects/{pid}/commits/{gate_sha}/tree?path=l5x/line", header
 check("organizer tree computed (cache MISS)", tr.headers.get("X-Cache") == "MISS")
 root = tr.json()["root"]
 check("tree root is the controller", root["kind"] == "controller")
-check("tree has a Programs folder", any(
+check("tree has no flat Programs folder (organizer v4)", not any(
     c["kind"] == "folder" and c["label"] == "Programs" for c in root["children"]))
+check("scheduled program renders under its task", find_node(
+    root,
+    lambda n: n["kind"] == "program" and n["key"] == "task:MainTask/program:MixerProg",
+) is not None)
 mod_routine = find_node(root, lambda n: n["kind"] == "routine" and n["status"] == "modified")
 check("the changed routine is flagged modified, with ladder identity",
       mod_routine is not None and mod_routine["routine"] == "Main"
@@ -318,14 +329,11 @@ check("user without an organization shows null",
       client.get("/auth/me", headers=auth(bob)).json()["organization"] is None)
 check("non-member is forbidden",
       client.get(f"/projects/{pid2}/pulls", headers=auth(bob)).status_code == 403)
-client.post(f"/projects/{pid2}/members", json={"email": "bob@example.com"}, headers=auth(alice))
-check("added member can now view", client.get(
-    f"/projects/{pid2}/pulls", headers=auth(bob)).status_code == 200)
-c = client.post(f"/projects/{pid2}/pulls/2/comments",
-                json={"body": "Please rebase onto main."}, headers=auth(bob))
-check("other user can comment", c.status_code == 201 and c.json()["author"]["first_name"] == "Bob")
-check("comments list shows the comment", len(client.get(
-    f"/projects/{pid2}/pulls/2/comments", headers=auth(alice)).json()) == 1)
+# Bob is not in Alice's org yet, so he cannot be attached to her project —
+# the same 404 as an unknown email (the gate never confirms accounts exist).
+check("adding a user from outside the project's org is rejected with 404", client.post(
+    f"/projects/{pid2}/members", json={"email": "bob@example.com"},
+    headers=auth(alice)).status_code == 404)
 
 print("== organization invites ==")
 check("non-owner cannot invite", client.post(
@@ -361,6 +369,16 @@ check("existing user accepts with just their email", client.post(
 ).status_code == 200)
 check("existing user now shows the org",
       client.get("/auth/me", headers=auth(bob)).json()["organization"] == "Acme Mfg")
+
+# Now that Bob is in Acme, the member add that was rejected above goes through.
+client.post(f"/projects/{pid2}/members", json={"email": "bob@example.com"}, headers=auth(alice))
+check("added same-org member can now view", client.get(
+    f"/projects/{pid2}/pulls", headers=auth(bob)).status_code == 200)
+c = client.post(f"/projects/{pid2}/pulls/2/comments",
+                json={"body": "Please rebase onto main."}, headers=auth(bob))
+check("other user can comment", c.status_code == 201 and c.json()["author"]["first_name"] == "Bob")
+check("comments list shows the comment", len(client.get(
+    f"/projects/{pid2}/pulls/2/comments", headers=auth(alice)).json()) == 1)
 
 _db = SessionLocal()
 try:
@@ -434,7 +452,7 @@ add_admin = client.post(f"/projects/{dpid}/members",
 check("owner can add an admin", add_admin.status_code == 201 and add_admin.json()["role"] == "admin")
 carol_id = client.post(f"/projects/{dpid}/members",
                        json={"email": "carol@acme.com", "role": "member"}, headers=auth(alice)).json()["id"]
-erin = make_user("erin@example.com", "Erin", "Eve")
+erin = make_user("erin@example.com", "Erin", "Eve", organization_id=acme_id)
 check("admin can add a member", client.post(f"/projects/{dpid}/members",
       json={"email": "erin@example.com"}, headers=auth(bob)).status_code == 201)
 check("a plain member cannot add members", client.post(f"/projects/{dpid}/members",
@@ -594,9 +612,11 @@ rv = client.post(f"/projects/{rpid}/pulls/{prn2}/reviewers",
                  json={"email": "bob@example.com"}, headers=auth(alice))
 check("a reviewer can be invited", rv.status_code == 201 and any(
     r["email"] == "bob@example.com" for r in rv.json()["reviewers"]))
+# Non-member and unknown email get the same 404, so the endpoint never
+# confirms whether an address has an account.
 check("a non-member cannot be added as a reviewer", client.post(
     f"/projects/{rpid}/pulls/{prn2}/reviewers", json={"email": "carol@acme.com"},
-    headers=auth(alice)).status_code == 400)
+    headers=auth(alice)).status_code == 404)
 
 head_sha = client.get(f"/projects/{rpid}/commits?branch=feature2", headers=auth(alice)).json()[0]["sha"]
 top = client.post(f"/projects/{rpid}/pulls/{prn2}/comments",

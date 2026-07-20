@@ -38,6 +38,12 @@ class Settings(BaseSettings):
     # of calls (preview + submit, with retries).
     invite_rate_max: int = 20
     invite_rate_window_seconds: int = 60
+    # Member-candidate search rate limit: max searches per *account* within the
+    # window (seconds). The endpoint substring-matches the org's user directory,
+    # so it enumerates personal data — kept tight; a human typing in the add-
+    # member box stays well under it.
+    member_search_rate_max: int = 30
+    member_search_rate_window_seconds: int = 60
     # Max size of a single uploaded file (megabytes). Enforced per file in the
     # upload handler. NOTE: this is per-file; the Caddy edge separately caps the
     # whole request body (see Caddyfile `request_body max_size`), which must be

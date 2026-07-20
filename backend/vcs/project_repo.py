@@ -218,6 +218,23 @@ class ProjectRepo:
         self._ensure_repo()
         self._run("branch", name, start_point)
 
+    def has_commits(self) -> bool:
+        """Whether any commit exists yet. False while the initial branch is
+        unborn — no branch ref can exist without a commit, so "no refs under
+        refs/heads" means an empty repo."""
+        self._ensure_repo()
+        return bool(self._output("for-each-ref", "--count=1", "refs/heads").strip())
+
+    def set_head(self, branch: str) -> None:
+        """Point HEAD at `branch` — the repo-side half of changing the default
+        branch. Checks the branch out (rather than rewriting the symbolic ref
+        directly) so the working tree follows, matching what every other
+        branch-switching operation here does."""
+        self._ensure_repo()
+        if not self.branch_exists(branch):
+            raise ProjectRepoError(f"unknown branch: {branch}")
+        self._checkout_branch(branch)
+
     def delete_branch(self, name: str, *, fallback: str = "main") -> None:
         """Force-delete a branch.
 
@@ -258,7 +275,14 @@ class ProjectRepo:
         self._ensure_repo()
         if not specs:
             raise ProjectRepoError("no files to commit")
-        self._checkout_branch(branch)
+        if self.has_commits():
+            self._checkout_branch(branch)
+        else:
+            # The repo's very first commit may target any branch name: repoint
+            # the unborn HEAD so that branch (not necessarily the init-time
+            # placeholder) is the one born with this commit. git validates the
+            # ref name and errors out on a bad one.
+            self._run("symbolic-ref", "HEAD", f"refs/heads/{branch}")
 
         # Plan + validate everything first. Parsing/snapshotting handles
         # user-uploaded content that can fail many ways (malformed XML, not an

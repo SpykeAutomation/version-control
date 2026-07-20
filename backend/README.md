@@ -121,7 +121,7 @@ another. The creator is the `owner`; the owner and any `admin` are "managers".
 | Manage a PR's reviewers; delete **any** open PR; delete **any** comment | ✅ | ✅ | author only |
 | Revert a **protected** branch to an earlier commit (the emergency rollback that bypasses the PR loop) | ✅ | ✅ | ❌ |
 | Add members, change roles, rename, edit settings, **protect branches**, delete tags, **delete the project** | ✅ | ✅ | ❌ |
-| Remove or demote an **admin**; **unprotect the default branch** | ✅ | ❌ | ❌ |
+| Remove or demote an **admin**; **unprotect the default branch**; **change the default branch**; transfer ownership | ✅ | ❌ | ❌ |
 
 Members can merge — the gate is the **target branch's `required_approvals`**, not
 the role. The owner can't be removed or demoted. A manager-only call by a plain
@@ -164,9 +164,11 @@ revokes one — the token stops working on its next request.
   (owner/admin).
 
 **Ownership transfer.** `POST /projects/{id}/transfer` (current project owner)
-hands a project to another user — they get the `owner` role and the previous
-owner is demoted to `admin` (keeps access). Account deletion reuses the same
-logic to reassign owned projects to the org owner.
+hands a project to another user **in the same organization** — they get the
+`owner` role and the previous owner is demoted to `admin` (keeps access). A
+cross-org id gets the same `404` as an unknown one (the project's org derives
+from its owner, so a cross-org transfer would move the project itself). Account
+deletion reuses the same logic to reassign owned projects to the org owner.
 
 **Audit.** CLI approvals/revocations, member removals, and account deletions are
 written to an account-level audit log (`app/audit.py` → the `audit_log` table),
@@ -193,24 +195,25 @@ separate from the per-project activity feed.
 | `DELETE` | `/orgs/{id}/accounts/{user_id}` | — (org owner) | `204` — soft-delete the account (access cut, history kept); `409` if already deleted |
 | `GET`  | `/invites/{token}` | — (public, rate-limited) | `InvitePreview` (or `429`) |
 | `POST` | `/invites/{token}/accept` | `{email, first_name?, last_name?, password?}` (public, rate-limited) | `AcceptResult` (or `429`) |
-| `POST` | `/projects` | `{name, description?}` | `201` `Project` |
+| `POST` | `/projects` | `{name, description?, icon?}` — `icon` an integer 1–30 (`400` outside); omitted → the server picks one at random | `201` `Project` |
 | `GET`  | `/projects` | — | `[Project]` |
 | `GET`  | `/projects/{id}` | — | `Project` |
-| `PATCH` | `/projects/{id}` | `{name?, description?}` (owner/admin) | `Project` |
+| `PATCH` | `/projects/{id}` | `{name?, description?, icon?, default_branch?}` (owner/admin; **`default_branch` is owner-only** — admin gets `403`) | `Project` — the response echoes `icon` (1–30, `400` outside); changing the default branch also repoints the repo's HEAD (`400` if the branch is unknown or has no commits; same value = no-op) |
 | `DELETE` | `/projects/{id}` | — (owner/admin) | `204` — deletes the repo, members, PRs (+ their reviewers/approvals/comments), branch protections, activity & cached diffs |
-| `GET`  | `/projects/{id}/overview` | `?ref=main` | `RepositoryOverview` |
+| `GET`  | `/projects/{id}/overview` | `?ref=` (default: the project's default branch) | `RepositoryOverview` |
 | `GET`  | `/projects/{id}/members` | — | `[Member]` |
-| `POST` | `/projects/{id}/members` | `{email, role?}` — `role` ∈ `member`\|`admin` (owner/admin) | `201` `Member` |
+| `GET`  | `/projects/{id}/member-candidates` | `?q=<fragment>` (owner/admin; rate-limited per account) | `[MemberCandidate]` — ≤10 same-org non-members matching name/email case-insensitively; `q` under 2 chars → `[]` |
+| `POST` | `/projects/{id}/members` | `{email, role?}` — `role` ∈ `member`\|`admin` (owner/admin) | `201` `Member`; `404` for an unknown, deleted, or **other-org** email (one answer for all three) |
 | `PATCH` | `/projects/{id}/members/{user_id}` | `{role}` ∈ `member`\|`admin` (owner/admin) | `Member` |
 | `DELETE` | `/projects/{id}/members/{user_id}` | — (owner/admin; only the owner may remove an admin) | `204` |
-| `POST` | `/projects/{id}/transfer` | `{new_owner_id}` (current owner) | `Member` (the new owner) — previous owner demoted to `admin`; `404` unknown/deleted user, `400` already the owner |
+| `POST` | `/projects/{id}/transfer` | `{new_owner_id}` (current owner) | `Member` (the new owner) — previous owner demoted to `admin`; `404` for an unknown, deleted, or **other-org** user (one answer for all three), `400` already the owner |
 | `GET`  | `/projects/{id}/branches` | — | `[Branch]` (enriched: tip commit, default/protected, ahead/behind, merged) |
-| `POST` | `/projects/{id}/branches` | `{name, start_point?="main"}` | `201` `[Branch]` |
+| `POST` | `/projects/{id}/branches` | `{name, start_point?}` (default: the project's default branch) | `201` `[Branch]` |
 | `DELETE` | `/projects/{id}/branches/{branch}` | — (any member) | `204`; `400` if it's the default or a protected branch |
 | `PUT` | `/projects/{id}/branches/{branch}/protection` | `{protected, required_approvals?=0}` (owner/admin; unprotecting the **default** branch is **owner-only**) | `Branch` — unprotecting deletes the row and reopens direct commits/member reverts/review-free merges |
-| `POST` | `/projects/{id}/commits` | multipart: `files` (one or more, ≤100 MB each), `branch`, `title`, `description?` | `201` `CommitResult`; `413` if a file is too big; `400` if the branch is **explicitly protected** (commit via a PR — implicit default-branch protection does not block commits) |
+| `POST` | `/projects/{id}/commits` | multipart: `files` (one or more, ≤100 MB each), `branch`, `title`, `description?` | `201` `CommitResult`; `413` if a file is too big; `400` if the branch is **explicitly protected** (commit via a PR — implicit default-branch protection does not block commits). The repo's **first** commit may target any branch name — that branch is born as the project's default |
 | `POST` | `/projects/{id}/revert` | `{branch, target_sha, expected_tip_sha, message?, description?}` (any member; a **protected** branch: owner/admin only) | `201` `CommitResult` — restores `target_sha`'s repo state as ONE new commit on the branch (history preserved). Works on **every** branch: an unprotected branch reverts like it commits, and on a protected branch revert is the manager-only rollback path. **Preview = the existing diff endpoints** (`/diff`, `/compare`, `/tree`, per-file views) with `base=<current tip>&head=<target>` — there is no separate preview route. `403` member on a protected branch; `409` (current tip in `detail`) when the branch moved past `expected_tip_sha`; `400` target already the tip / non-ancestor target / identical trees; `404` unknown branch or target |
-| `GET`  | `/projects/{id}/commits` | `?branch=main&limit=50&offset=0` | `[Commit]` + `X-Total-Count` (each tagged with `branch` + `files_changed`) |
+| `GET`  | `/projects/{id}/commits` | `?branch=&limit=50&offset=0` (branch default: the project's default branch) | `[Commit]` + `X-Total-Count` (each tagged with `branch` + `files_changed`) |
 | `GET`  | `/projects/{id}/commits/{sha}` | — | `CommitDetail` (the commit + files it changed vs its parent) |
 | `GET`  | `/projects/{id}/commits/{sha}/diff/changeset` | `?path=l5x/<name>` | `ChangeSet` (parent → commit) |
 | `GET`  | `/projects/{id}/commits/{sha}/diff/ladder` | `?path=l5x/<name>` | `LadderDocument` (parent → commit) |
@@ -223,10 +226,10 @@ separate from the per-project activity feed.
 | `DELETE` | `/projects/{id}/commits/{sha}/comments/{cid}` | — (author/manager) | `204` — the reply subtree cascades away |
 | `GET`  | `/projects/{id}/compare` | `?base=<ref>&head=<ref>` | `CompareView` (rolled-up summary + impact rows) |
 | `GET`  | `/projects/{id}/tags` | `?limit=50&offset=0` | `[Tag]` + `X-Total-Count` (newest first; tags = releases) |
-| `POST` | `/projects/{id}/tags` | `{name, ref?="main", message?}` (any member) | `201` `Tag` |
+| `POST` | `/projects/{id}/tags` | `{name, ref?, message?}` (any member; ref default: the project's default branch) | `201` `Tag` |
 | `DELETE` | `/projects/{id}/tags/{name}` | — (owner/admin) | `204` |
 | `GET`  | `/projects/{id}/activity` | `?limit=50&offset=0` | `[Activity]` + `X-Total-Count` (newest first) |
-| `GET`  | `/projects/{id}/files` | `?ref=main` | `FileListing` |
+| `GET`  | `/projects/{id}/files` | `?ref=` (default: the project's default branch) | `FileListing` |
 | `GET`  | `/projects/{id}/files/raw` | `?ref=<ref>&path=<repo-path>` | raw bytes (file download) |
 | `GET`  | `/projects/{id}/diff` | `?base=<ref>&head=<ref>` | `DiffManifest` (changed files) |
 | `GET`  | `/projects/{id}/diff/changeset` | `?base=<ref>&head=<ref>&path=l5x/<name>` | `ChangeSet` |
@@ -234,12 +237,12 @@ separate from the per-project activity feed.
 | `GET`  | `/projects/{id}/diff/text` | `?base=<ref>&head=<ref>&path=files/<nested/path>` | `TextDiff` |
 | `GET`  | `/projects/{id}/tree` | `?base=<ref>&head=<ref>&path=l5x/<name>` | `ProjectTree` (organizer of one L5X at `head`, tagged by the `base..head` diff) |
 | `GET`  | `/projects/{id}/l5x` | `?ref=<ref>&path=l5x/<name>&section=controller\|datatypes\|tags\|modules\|aoi` (`section=aoi` also needs `&name=<aoi>`) | `L5XSection` — one raw section of the parsed file at `ref`, for the organizer's detail tables; cached per commit |
-| `POST` | `/projects/{id}/pulls` | `{title, description?, source_branch, target_branch?="main"}` | `201` `Pull` |
+| `POST` | `/projects/{id}/pulls` | `{title, description?, source_branch, target_branch?}` (target default: the project's default branch) | `201` `Pull` |
 | `GET`  | `/projects/{id}/pulls` | `?status_filter=open&limit=50&offset=0` | `[Pull]` + `X-Total-Count` |
 | `GET`  | `/projects/{id}/pulls/{n}` | — | `Pull` |
 | `PATCH` | `/projects/{id}/pulls/{n}` | `{title?, description?}` (any member) | `Pull` |
 | `DELETE` | `/projects/{id}/pulls/{n}` | — (author/manager; **open only**) | `204`; `409` if not open |
-| `POST` | `/projects/{id}/pulls/{n}/reviewers` | `{email}` (author/manager) | `201` `Pull` |
+| `POST` | `/projects/{id}/pulls/{n}/reviewers` | `{email}` (author/manager) | `201` `Pull`; `404` when the email isn't a project member's (one answer whether or not the account exists) |
 | `DELETE` | `/projects/{id}/pulls/{n}/reviewers/{user_id}` | — (author/manager) | `204` |
 | `POST` | `/projects/{id}/pulls/{n}/approve` | — (any member) | `Pull` |
 | `POST` | `/projects/{id}/pulls/{n}/request-changes` | — (any member) | `Pull` |
@@ -289,9 +292,17 @@ User    = { "id": int, "email": string, "first_name": string, "last_name": strin
             "deleted": bool }  // soft-deleted account — grey it out
 Project = { "id": int, "name": string, "slug": string, "description": string,
             "owner": User, "your_role": "owner"|"admin"|"member"|null,
-            "created_at": datetime, "branches": [string] }
+            "created_at": datetime, "branches": [string],
+            "default_branch": string,   // born with the first commit's branch;
+                                        // owner can re-point it at any time
+            "icon": int|null }          // 1..30 (ten glyphs x three tones; the
+                                        // frontend maps number -> glyph/tone;
+                                        // server picks one at random on create)
 Member  = { "id": int, "email": string, "first_name": string, "last_name": string,
             "role": "owner"|"admin"|"member" }
+MemberCandidate = { "id": int, "email": string, "first_name": string,
+                    "last_name": string, "avatar": string }  // add-member search hit:
+                                                             // same org, not yet a member
 RepositoryOverview = { "id": int, "name": string, "description": string,
                        "default_branch": string, "file_count": int, "l5x_count": int,
                        "open_pull_count": int, "unresolved_comment_count": int,
@@ -312,7 +323,7 @@ Commit  = { "sha": string, "title": string, "description": string,
 Branch  = { "name": string, "is_default": bool, "is_protected": bool,
             "required_approvals": int,     // approvals a PR into this branch needs to merge
             "latest_commit": Commit|null,  // null on an unborn branch (no commits yet)
-            "ahead": int, "behind": int,   // vs the default branch (main)
+            "ahead": int, "behind": int,   // vs the project's default branch
             "merged": bool }               // fully merged into the default branch (ahead == 0)
 CommitDetail = { "sha": string, "title": string, "description": string,
                  "author": string, "date": string, "branch": string|null,
@@ -329,14 +340,24 @@ FileEntry   = { "path": string, "kind": "l5x"|"file",     // "l5x/<name>" or "fi
                 "modified_by": string, "modified_at": string }  // last commit's author + ISO-8601 date
 DiffManifest = { "files": [ChangedFile] }
 ProjectTree = { "schema_version": int, "root": TreeNode }   // per-L5X organizer, nested under the file tree
-                // schema_version 3 adds: Data Types subfolders (User-Defined / Strings /
-                // Add-On-Defined AOI refs, keys "datatype:aoi:<name>"), AOI routine children
-                // (keys "aoi:<a>/routine:<r>", NO ladder-card identity), a Motion Groups
-                // folder ("motion:<group>" / "motion:<group>/axis:<tag>"; motion tags also
-                // stay under Controller Tags), Power-Up / Controller Fault Handler folders,
-                // and task program refs carrying the routine subtree
-                // ("task:<t>/program:<p>/routine:<r>", WITH ladder-card identity). The flat
-                // Programs folder and its keys are unchanged.
+                // schema_version 4: Studio 5000-canonical scheduling homes — there is NO
+                // flat Programs folder. Every program appears exactly ONCE, under its one
+                // scheduling home: its task ("task:<t>/program:<p>", full routine subtree,
+                // in ScheduledPrograms/execution order — not sorted), a handler folder
+                // (Power-Up / Controller Fault Handler, full subtree), or an "Unscheduled
+                // Programs" folder inside Tasks (omitted when empty). Removed programs
+                // attach under the task that scheduled them at the BASE ref (that task's
+                // phantom node if it was removed too; Unscheduled when unknown). A program
+                // moved between tasks lights descendant_changed on both tasks; its subtree
+                // shows under the head-ref task only. Task-nested routine nodes carry
+                // ladder-card identity ("task:<t>/program:<p>/routine:<r>"). v3 categories
+                // are unchanged: Data Types subfolders (User-Defined / Strings /
+                // Add-On-Defined AOI refs, keys "datatype:aoi:<name>"), AOI routine
+                // children (keys "aoi:<a>/routine:<r>", NO ladder-card identity), Motion
+                // Groups ("motion:<group>" / "motion:<group>/axis:<tag>"; motion tags also
+                // stay under Controller Tags). Treat `key` values as opaque; ladder cards
+                // and detail panels key on kind + controller/program/routine, which are
+                // unchanged.
 TreeNode    = { "key": string, "label": string,
                 "kind": "controller"|"folder"|"program"|"routine"|"aoi"|"datatype"|"tag"|"module"|"task",
                 "status": "unchanged"|"added"|"removed"|"modified",  // the node's own change
@@ -413,6 +434,14 @@ RungChange    = { "kind": "added"|"removed"|"modified"|"comment_changed",
 LineChange    = { "kind": "added"|"removed"|"modified", "old_number": int|null,
                   "new_number": int|null, "old_text": string|null, "new_text": string|null }
 ```
+
+`FieldChange.path` is dotted, with named-list elements in brackets
+(`values.Cmd.PRE`, `members[Pt1].data_type`). UDT member order and AOI
+parameter order are meaningful (memory layout; call-site operand order), so a
+reorder of those lists reports one extra row at `members.order` /
+`parameters.order` whose `old`/`new` are the names in old and new order.
+Every other named list is order-free: elements match by name and a moved
+element is not a change.
 
 ### `LadderDocument` — one L5X file's drawable ladder diff (the visual panel)
 
@@ -493,9 +522,11 @@ no such L5X file / AOI at the ref, or a bad ref → `400`.
 
 ## Behaviors to handle in the UI
 
-- **New project**: `branches` reports `["main"]`, but `main` has *no commits*
-  until the first upload (`GET /files` is empty too). Create branches only after
-  that first commit.
+- **New project**: `branches` reports `["main"]`, but that's an unborn
+  placeholder with *no commits* (`GET /files` is empty too). The first upload
+  may target **any** branch name; the branch it births becomes the project's
+  default (replacing the placeholder — there is always exactly one default).
+  Create further branches only after that first commit.
 - **Protected branches take no direct commits** (`POST /commits` returns
   `400` on a branch with an explicit protection row). The supported flow —
   which the UI should steer to — is: create a working branch, commit there,
@@ -579,8 +610,10 @@ and any diff. These need the Git history or the protection table.
 **What the frontend can derive itself — and therefore should, to avoid a round
 trip:**
 
-- **`is_default`** is just `name === "main"` (the default branch). The API sends
-  it for convenience, but you don't need a call to know it.
+- **`is_default`** is `name === project.default_branch` (stored per project —
+  born with the first commit's branch, owner-changeable via
+  `PATCH /projects/{id}`). You already have `default_branch` on every
+  `Project` payload, so no extra call is needed.
 - **`merged`** is exactly `ahead === 0` (for a non-default branch with a tip).
   If you already have a `Branch`, you don't need a separate "is it merged?" call.
 - **"Latest release"** is just `tags[0]` from `GET /tags` (newest first). Don't
@@ -712,6 +745,7 @@ All settings are `PLCVC_*` environment variables — see [`.env.example`](.env.e
 | `PLCVC_LOGIN_RATE_MAX` / `PLCVC_LOGIN_RATE_WINDOW_SECONDS` | Login attempts allowed per client IP per window (default 600 / 60s — a coarse flood guard, sized so a site behind one NAT never trips it) |
 | `PLCVC_LOGIN_ACCOUNT_MAX` / `PLCVC_LOGIN_ACCOUNT_WINDOW_SECONDS` | Failed logins allowed per account (email) per window before that account is locked out with `429` (default 8 / 900s); a successful login clears it |
 | `PLCVC_INVITE_RATE_MAX` / `PLCVC_INVITE_RATE_WINDOW_SECONDS` | Invite preview/accept calls per client IP per window (default 20 / 60s) |
+| `PLCVC_MEMBER_SEARCH_RATE_MAX` / `PLCVC_MEMBER_SEARCH_RATE_WINDOW_SECONDS` | Member-candidate searches allowed per **account** per window (default 30 / 60s) — the endpoint enumerates the org's user directory, so it's kept tight |
 | `PLCVC_MAX_UPLOAD_MB` | Max size of a single uploaded file (default 100). Per-file (→ `413`); the reverse proxy caps the whole request separately |
 | `PLCVC_ORG_STORAGE_LIMIT_GB` | Per-organization storage cap in GB (default 2); counts the logical bytes of committed uploads (→ `507`); per-org overrides live on the org row |
 | `PLCVC_DIFF_CACHE_MAX_MB` | Soft cap on the diff cache in MB (default 500); least-recently-used entries are evicted past it |
@@ -834,3 +868,41 @@ branch** that decision is **owner-only** (an admin gets `403`) — previously
 the default branch could never be unprotected, which combined with the new
 commit block would have locked direct commits out of `main` permanently the
 first time anyone protected it.
+
+### 2026-07-17 · Member search, same-org gates, configurable default branch & organizer v4
+
+| Method | Path | What it adds |
+|--------|------|--------------|
+| `GET` | `/projects/{id}/member-candidates` | Live search for the Settings tab's add-member box: `?q=<fragment>`, owner/admin only, ≤10 same-org non-members matched case-insensitively on name/email; rate-limited **per account** (`PLCVC_MEMBER_SEARCH_RATE_*`, default 30/min). |
+
+*Changed behavior — same-org enforcement:* `POST .../members` and
+`POST .../transfer` now answer one `404` for an unknown, deleted, **or
+other-org** target alike (previously any registered email/id could be
+attached across organizations); `POST .../pulls/{n}/reviewers` likewise
+answers one `404` whether the email has no account or just isn't a project
+member.
+
+*Changed shapes — default branch:* `Project` gains `default_branch`, stored
+per project and honored everywhere `main` used to be assumed (`is_default`,
+ahead/behind/merged base, deletion guard, implicit protection + owner-only
+unprotect, branch `start_point`, PR `target_branch`, tag `ref`, and the
+`?ref=`/`?branch=` fallbacks). `PATCH /projects/{id}` accepts
+`default_branch` (**owner-only**, `400` unknown/unborn branch, repoints the
+repo's HEAD, audited old → new). A fresh repo's **first commit** may target
+any branch name — that branch is born as the default.
+
+*Changed shapes — repository icon:* `Project` gains `icon` (int 1–30 — ten
+glyphs in three colour tones, mapped number→glyph/tone by the frontend;
+nullable), echoed on every Project payload. `POST /projects` accepts it
+(server picks one of the thirty at random when omitted, so every project has
+a stored icon) and `PATCH /projects/{id}` changes it under the normal
+owner/admin gate; out-of-range values are a `400`.
+
+*Changed shapes — diffs & tree:* the `ChangeSet` reports UDT member / AOI
+parameter reorders as one `members.order` / `parameters.order` row (order is
+memory layout / call-site operand order; previously a pure reorder produced
+no diff at all). `ProjectTree` schema_version bumped to **4**: no flat
+Programs folder — every program renders exactly once under its scheduling
+home (its task, in schedule order; a handler folder; or "Unscheduled
+Programs" inside Tasks), with removed programs attached at their base-ref
+home. Node identity fields are unchanged; keys are opaque and did change.

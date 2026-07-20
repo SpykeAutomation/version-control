@@ -160,9 +160,10 @@ def create_pull(
     db: Session = Depends(get_db),
     user: User = Depends(current_user),
 ) -> PullOut:
-    require_member(project_id, db, user)
+    project = require_member(project_id, db, user)
+    target_branch = payload.target_branch or project.default_branch
     repo = repo_for(project_id)  # branch-existence checks read refs; no lock
-    for branch in (payload.source_branch, payload.target_branch):
+    for branch in (payload.source_branch, target_branch):
         if not repo.branch_exists(branch):
             raise HTTPException(
                 status.HTTP_400_BAD_REQUEST, f"Unknown branch: {branch}"
@@ -182,7 +183,7 @@ def create_pull(
         title=payload.title,
         description=payload.description,
         source_branch=payload.source_branch,
-        target_branch=payload.target_branch,
+        target_branch=target_branch,
         author_id=user.id,
     )
     db.add(pr)
@@ -302,11 +303,12 @@ def add_reviewer(
             status.HTTP_403_FORBIDDEN, "Only the author or a manager can add reviewers"
         )
     invitee = db.scalar(select(User).where(User.email == payload.email))
-    if invitee is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "No user with that email")
-    if membership_role(project_id, db, invitee) is None:
+    # One 404 for "no such account" and "not a member of this project" alike —
+    # answering them differently would confirm which emails have accounts
+    # elsewhere. (The reviewer picker offers project members only anyway.)
+    if invitee is None or membership_role(project_id, db, invitee) is None:
         raise HTTPException(
-            status.HTTP_400_BAD_REQUEST, "Reviewer must be a member of this project"
+            status.HTTP_404_NOT_FOUND, "No project member with that email"
         )
     existing = db.scalar(
         select(PullReviewer).where(

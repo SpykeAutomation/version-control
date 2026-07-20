@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import os
+import random
 import re
 import tempfile
 from functools import lru_cache
@@ -24,7 +25,7 @@ from fastapi import (
     UploadFile,
     status,
 )
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from diff import ChangeSet, LadderDocument
@@ -42,7 +43,7 @@ from ..config import settings
 from ..db import get_db
 from ..deps import membership_role, require_manager, require_member, require_owner
 from ..membership import transfer_project_ownership
-from ..ratelimit import client_ip
+from ..ratelimit import client_ip, member_search_rate_limit
 from ..diffing import (
     build_compare,
     build_manifest,
@@ -77,6 +78,7 @@ from ..schemas import (
     FileEntry,
     FileListing,
     L5XSection,
+    MemberCandidateOut,
     MemberIn,
     MemberOut,
     ProjectIn,
@@ -99,11 +101,13 @@ from ..storage import delete_repo, locked_repo, repo_for
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
-# The repo's default branch. `init` creates it and PRs/overview default to it;
-# branch enrichment measures ahead/behind against it, it can never be deleted,
-# and it shows as protected in branch views even without a protection row
-# (write-blocking protection, though, is the explicit row alone).
-DEFAULT_BRANCH = "main"
+# The branch a brand-new repo is born with. Only project creation uses this;
+# everywhere else the default branch is per-project state (Project.
+# default_branch, changeable by the owner via PATCH /projects): it can never
+# be deleted, ahead/behind is measured against it, and it displays as
+# protected even without a protection row (write-blocking protection, though,
+# is the explicit row alone).
+INITIAL_BRANCH = "main"
 
 
 def _commit_out(commit: CommitLog | None, branch: str | None = None) -> CommitOut | None:
@@ -137,20 +141,23 @@ def _protection_map(db: Session, project_id: int) -> dict[str, int]:
     }
 
 
-def _branch_views(repo: ProjectRepo, db: Session, project_id: int) -> list[BranchOut]:
+def _branch_views(
+    repo: ProjectRepo, db: Session, project: Project
+) -> list[BranchOut]:
     """Every branch with its tip commit, default/protected flags, required
     approvals, and how far it sits ahead/behind (and whether it's merged into)
-    the default branch."""
-    protection = _protection_map(db, project_id)
+    the project's default branch."""
+    default = project.default_branch
+    protection = _protection_map(db, project.id)
     tips = repo.branch_tips()
     views: list[BranchOut] = []
     for name in repo.list_branches():
-        is_default = name == DEFAULT_BRANCH
+        is_default = name == default
         tip = tips.get(name)
         ahead = behind = 0
         merged = False
         if not is_default:
-            counts = repo.ahead_behind(name, DEFAULT_BRANCH)
+            counts = repo.ahead_behind(name, default)
             if counts is not None:
                 ahead, behind = counts
                 merged = tip is not None and ahead == 0
@@ -207,7 +214,13 @@ def _tree_compute(name: str):
         doc = repo.document_at(head_sha, name)
         if doc is None:
             raise ProjectRepoError(f"no L5X file {name!r} at this ref")
-        return build_project_tree(doc, repo.diff_refs(base_sha, head_sha, name))
+        return build_project_tree(
+            doc,
+            repo.diff_refs(base_sha, head_sha, name),
+            # The base snapshot places removed programs under the task that
+            # scheduled them back then (None when the file is new at base).
+            base_doc=repo.document_at(base_sha, name),
+        )
 
     return compute
 
@@ -235,6 +248,19 @@ def _unique_slug(db: Session, name: str, owner_id: int) -> str:
     return slug
 
 
+# Repository icon codes are 1..30: ten glyphs in three colour tones. The
+# number->glyph/tone mapping lives in the frontend; the backend only keeps
+# the stored value inside the designed set.
+_ICON_CODES = range(1, 31)
+
+
+def _validate_icon(icon: int | None) -> None:
+    if icon is not None and icon not in _ICON_CODES:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, "icon must be an integer from 1 to 30"
+        )
+
+
 def _to_out(
     db: Session, project: Project, branches: list[str], role: str | None = None
 ) -> ProjectOut:
@@ -248,6 +274,8 @@ def _to_out(
         your_role=role,
         created_at=project.created_at,
         branches=branches,
+        default_branch=project.default_branch,
+        icon=project.icon,
     )
 
 
@@ -257,11 +285,15 @@ def create_project(
     db: Session = Depends(get_db),
     user: User = Depends(current_user),
 ) -> ProjectOut:
+    _validate_icon(payload.icon)
     project = Project(
         name=payload.name,
         slug=_unique_slug(db, payload.name, user.id),
         description=payload.description,
         owner_id=user.id,
+        # Omitted (e.g. CLI creations): the server picks one of the thirty at
+        # random, so every project has a concrete stored icon.
+        icon=payload.icon if payload.icon is not None else random.choice(_ICON_CODES),
     )
     db.add(project)
     db.flush()  # assign project.id
@@ -269,10 +301,10 @@ def create_project(
     db.commit()
     db.refresh(project)
 
-    # Initialise the Git repo with an empty main branch.
+    # Initialise the Git repo with an empty initial branch.
     with locked_repo(project.id) as repo:
-        repo.init(initial_branch="main")
-    return _to_out(db, project, branches=["main"], role="owner")
+        repo.init(initial_branch=INITIAL_BRANCH)
+    return _to_out(db, project, branches=[INITIAL_BRANCH], role="owner")
 
 
 @router.get("", response_model=list[ProjectOut])
@@ -310,18 +342,67 @@ def update_project(
     db: Session = Depends(get_db),
     user: User = Depends(current_user),
 ) -> ProjectOut:
-    """Rename a project or edit its description (owner/admin only)."""
+    """Rename a project, edit its description or icon (owner/admin), or change
+    its default branch (owner only)."""
     project = require_manager(project_id, db, user)
     if payload.name is not None:
         project.name = payload.name
         project.slug = _unique_slug(db, payload.name, project.owner_id)
     if payload.description is not None:
         project.description = payload.description
+    if payload.icon is not None:
+        _validate_icon(payload.icon)
+        project.icon = payload.icon
+    if (
+        payload.default_branch is not None
+        and payload.default_branch != project.default_branch
+    ):
+        _change_default_branch(db, project, payload.default_branch, user)
     db.commit()
     db.refresh(project)
     role = membership_role(project_id, db, user)
     branches = repo_for(project_id).list_branches()  # read-only; no lock
     return _to_out(db, project, branches, role)
+
+
+def _change_default_branch(
+    db: Session, project: Project, name: str, user: User
+) -> None:
+    """Stage the default-branch switch: owner-only, target must be a real
+    branch with at least one commit, and the repo's HEAD follows it. Nothing
+    about protection changes here — an explicit row on the old default stays,
+    and the new default becomes implicitly protected by virtue of being the
+    default. The caller commits."""
+    require_owner(project.id, db, user)
+    repo = repo_for(project.id)
+    if not repo.branch_exists(name):
+        # An unborn branch (the initial branch before its first commit) shows
+        # in list_branches but has no ref yet — tell those two cases apart.
+        if name in repo.list_branches():
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                f"Branch {name!r} has no commits yet and cannot be the default",
+            )
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Unknown branch: {name}")
+    old = project.default_branch
+    # HEAD moves via checkout — a repo mutation, so take the write lock like
+    # every other mutating endpoint.
+    with locked_repo(project.id) as locked:
+        locked.set_head(name)
+    project.default_branch = name
+    audit.record(
+        db,
+        action="project.default_branch.changed",
+        actor_id=user.id,
+        target_type="project",
+        target_id=project.id,
+        summary=f"default branch of project {project.id}: {old} -> {name}",
+    )
+    activity.record(
+        db, project_id=project.id, actor_id=user.id, verb="branch.default_changed",
+        target_type="branch", target_id=name,
+        summary=f"changed the default branch from {old} to {name}",
+    )
 
 
 @router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -347,12 +428,13 @@ def delete_project(
 @router.get("/{project_id}/overview", response_model=RepositoryOverview)
 def project_overview(
     project_id: int,
-    ref: str = "main",
+    ref: str | None = None,  # omitted -> the project's default branch
     db: Session = Depends(get_db),
     user: User = Depends(current_user),
 ) -> RepositoryOverview:
     """One-call repository summary for the project landing page."""
     project = require_member(project_id, db, user)
+    ref = ref or project.default_branch
 
     open_pulls = db.scalar(
         select(func.count())
@@ -384,6 +466,7 @@ def project_overview(
         id=project.id,
         name=project.name,
         description=project.description,
+        default_branch=project.default_branch,
         file_count=len(files),
         l5x_count=len(l5x_files),
         open_pull_count=open_pulls or 0,
@@ -435,6 +518,68 @@ def list_members(
     ]
 
 
+def _project_org_id(db: Session, project: Project) -> int | None:
+    """The organization a project belongs to — its owner's org (projects have
+    no org column of their own; see usage.credit_project_deletion)."""
+    return db.scalar(select(User.organization_id).where(User.id == project.owner_id))
+
+
+def _like_fragment(q: str) -> str:
+    """Quote LIKE wildcards so the user's fragment matches literally."""
+    escaped = q.replace("\\", r"\\").replace("%", r"\%").replace("_", r"\_")
+    return f"%{escaped}%"
+
+
+@router.get("/{project_id}/member-candidates", response_model=list[MemberCandidateOut])
+def member_candidates(
+    project_id: int,
+    q: str = "",
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+) -> list[MemberCandidateOut]:
+    """Live search for the add-member box (owner/admin only): colleagues from
+    the project's own organization who aren't members yet, matched
+    case-insensitively on first name, last name, or email. Only ever searches
+    that one org — other organizations' users and soft-deleted accounts are
+    invisible here."""
+    project = require_manager(project_id, db, user)
+    member_search_rate_limit(user.id)
+    q = q.strip()
+    if len(q) < 2:
+        return []
+    org_id = _project_org_id(db, project)
+    if org_id is None:
+        # An org-less project has no directory to search; never fall through
+        # to "all org-less users".
+        return []
+    fragment = _like_fragment(q)
+    already = select(ProjectMember.user_id).where(
+        ProjectMember.project_id == project_id
+    )
+    rows = db.scalars(
+        select(User)
+        .where(
+            User.organization_id == org_id,
+            User.deleted_at.is_(None),
+            User.id.not_in(already),
+            or_(
+                User.first_name.ilike(fragment, escape="\\"),
+                User.last_name.ilike(fragment, escape="\\"),
+                User.email.ilike(fragment, escape="\\"),
+            ),
+        )
+        .order_by(User.last_name, User.first_name, User.id)
+        .limit(10)
+    ).all()
+    return [
+        MemberCandidateOut(
+            id=u.id, email=u.email, first_name=u.first_name,
+            last_name=u.last_name, avatar=u.avatar,
+        )
+        for u in rows
+    ]
+
+
 @router.post(
     "/{project_id}/members", response_model=MemberOut, status_code=status.HTTP_201_CREATED
 )
@@ -444,13 +589,20 @@ def add_member(
     db: Session = Depends(get_db),
     user: User = Depends(current_user),
 ) -> MemberOut:
-    require_manager(project_id, db, user)
+    project = require_manager(project_id, db, user)
     if payload.role not in ("member", "admin"):
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST, "role must be 'member' or 'admin'"
         )
     invitee = db.scalar(select(User).where(User.email == payload.email))
-    if invitee is None:
+    # One 404 for "no such account", "account deleted", and "different
+    # organization" alike — a manager probing emails must not be able to tell
+    # which accounts exist outside their org.
+    if (
+        invitee is None
+        or invitee.deleted_at is not None
+        or invitee.organization_id != _project_org_id(db, project)
+    ):
         raise HTTPException(
             status.HTTP_404_NOT_FOUND, "No registered user with that email"
         )
@@ -561,7 +713,15 @@ def transfer_ownership(
     access."""
     project = require_owner(project_id, db, user)
     new_owner = db.get(User, payload.new_owner_id)
-    if new_owner is None or new_owner.deleted_at is not None:
+    # One 404 for "no such user", "deleted", and "different organization" —
+    # the project's org is derived from its owner, so a cross-org transfer
+    # would silently move the project (and its storage accounting) to the
+    # other organization.
+    if (
+        new_owner is None
+        or new_owner.deleted_at is not None
+        or new_owner.organization_id != _project_org_id(db, project)
+    ):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
     if new_owner.id == project.owner_id:
         raise HTTPException(
@@ -594,9 +754,9 @@ def list_branches(
 ) -> list[BranchOut]:
     """Every branch with its tip commit, default/protected flags, and how far it
     is ahead/behind (and whether it's merged into) the default branch."""
-    require_member(project_id, db, user)
+    project = require_member(project_id, db, user)
     # Tip/ahead/behind reads on refs — no lock needed.
-    return _branch_views(repo_for(project_id), db, project_id)
+    return _branch_views(repo_for(project_id), db, project)
 
 
 @router.post(
@@ -610,11 +770,13 @@ def create_branch(
     db: Session = Depends(get_db),
     user: User = Depends(current_user),
 ) -> list[BranchOut]:
-    require_member(project_id, db, user)
+    project = require_member(project_id, db, user)
     try:
         with locked_repo(project_id) as repo:
-            repo.create_branch(payload.name, payload.start_point)
-            views = _branch_views(repo, db, project_id)
+            repo.create_branch(
+                payload.name, payload.start_point or project.default_branch
+            )
+            views = _branch_views(repo, db, project)
     except ProjectRepoError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc))
     activity.record(
@@ -638,8 +800,8 @@ def delete_branch(
     """Delete a branch (any member). The default branch and any protected branch
     cannot be deleted — unprotect it first. Deletion is permanent and may discard
     commits that were never merged."""
-    require_member(project_id, db, user)
-    if branch == DEFAULT_BRANCH:
+    project = require_member(project_id, db, user)
+    if branch == project.default_branch:
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST, "The default branch cannot be deleted"
         )
@@ -650,7 +812,7 @@ def delete_branch(
         )
     try:
         with locked_repo(project_id) as repo:
-            repo.delete_branch(branch, fallback=DEFAULT_BRANCH)
+            repo.delete_branch(branch, fallback=project.default_branch)
     except ProjectRepoError as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc))
     activity.record(
@@ -679,14 +841,14 @@ def set_branch_protection(
     (an admin gets 403); once unprotected, the default branch keeps only its
     "default" tag: it still can't be deleted, but commits/reverts/merges flow
     without review like any other unprotected branch."""
-    require_manager(project_id, db, user)
+    project = require_manager(project_id, db, user)
     required = max(0, payload.required_approvals)
     # Protection state lives in the DB; git is only consulted for existence
     # and the branch views — reads, so no lock is needed.
     repo = repo_for(project_id)
     if not repo.branch_exists(branch):
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"Unknown branch: {branch}")
-    if branch == DEFAULT_BRANCH and not payload.protected:
+    if branch == project.default_branch and not payload.protected:
         # Owner-only: reopening direct writes to the default branch is the
         # project owner's call, not an admin's. Without this, protecting the
         # default branch once would lock direct commits out forever (the row
@@ -710,7 +872,7 @@ def set_branch_protection(
             )
         )
     db.commit()
-    views = _branch_views(repo, db, project_id)
+    views = _branch_views(repo, db, project)
     for view in views:
         if view.name == branch:
             return view
@@ -744,7 +906,7 @@ def upload_files(
     branch's *implicit* protection deliberately does NOT block commits: a
     project with no protection rows works straight on main.
     """
-    require_member(project_id, db, user)
+    project = require_member(project_id, db, user)
     if branch in _protection_map(db, project_id):
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
@@ -778,6 +940,7 @@ def upload_files(
         usage.reserve(db, user, incoming)
         try:
             with locked_repo(project_id) as repo:
+                first_commit = not repo.has_commits()
                 info = repo.commit_files(
                     specs,
                     branch=branch,
@@ -797,6 +960,11 @@ def upload_files(
                 os.unlink(path)
             except OSError:
                 pass
+    if first_commit and project.default_branch != branch:
+        # The repo's first commit births its first branch — whatever it was
+        # named, that branch is the project's default (there is always exactly
+        # one) until the owner points it elsewhere via PATCH /projects.
+        project.default_branch = branch
     usage.add_project_bytes(db, project_id, incoming)
     activity.record(
         db, project_id=project_id, actor_id=user.id, verb="commit.pushed",
@@ -933,7 +1101,7 @@ def revert_branch(
 def list_commits(
     project_id: int,
     response: Response,
-    branch: str = "main",
+    branch: str | None = None,  # omitted -> the project's default branch
     limit: int = 50,
     offset: int = 0,
     db: Session = Depends(get_db),
@@ -942,7 +1110,8 @@ def list_commits(
     """Commit history for a branch, newest first. Each commit is tagged with the
     `branch` it was listed under and a `files_changed` count (vs its parent).
     Paginated via `limit`/`offset`, with the branch's total in `X-Total-Count`."""
-    require_member(project_id, db, user)
+    project = require_member(project_id, db, user)
+    branch = branch or project.default_branch
     limit = max(1, min(limit, 200))
     repo = repo_for(project_id)  # history reads — no lock needed
     commits = repo.log(branch, limit=limit, offset=max(0, offset))
@@ -1564,7 +1733,7 @@ def l5x_section(
 @router.get("/{project_id}/files", response_model=FileListing)
 def list_files(
     project_id: int,
-    ref: str = "main",
+    ref: str | None = None,  # omitted -> the project's default branch
     db: Session = Depends(get_db),
     user: User = Depends(current_user),
 ) -> FileListing:
@@ -1572,7 +1741,8 @@ def list_files(
 
     Non-L5X files keep their uploaded folder structure (e.g. files/docs/io.csv);
     each entry includes its size and who last changed it and when."""
-    require_member(project_id, db, user)
+    project = require_member(project_id, db, user)
+    ref = ref or project.default_branch
     repo = repo_for(project_id)
     entries = repo.list_files(ref, with_history=True)
     return FileListing(
@@ -1653,12 +1823,12 @@ def create_tag(
 ) -> TagOut:
     """Cut a tag/release at a ref (any member). A non-empty `message` makes an
     annotated tag attributed to you, with the message as release notes."""
-    require_member(project_id, db, user)
+    project = require_member(project_id, db, user)
     try:
         with locked_repo(project_id) as repo:
             tag = repo.create_tag(
                 payload.name,
-                payload.ref,
+                payload.ref or project.default_branch,
                 message=payload.message,
                 tagger_name=f"{user.first_name} {user.last_name}".strip(),
                 tagger_email=user.email,

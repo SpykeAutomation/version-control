@@ -126,11 +126,19 @@ class AcceptResult(BaseModel):
 class ProjectIn(BaseModel):
     name: str
     description: str = ""
+    # Icon code 1..30 (400 outside the range); omitted -> the server picks one
+    # at random, so every project has a concrete stored icon.
+    icon: Optional[int] = None
 
 
 class ProjectUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
+    # Owner only (admins get 403 for this field). The branch must exist and
+    # have at least one commit; changing it also repoints the repo's HEAD.
+    default_branch: Optional[str] = None
+    # Icon code 1..30; same owner/admin gate as name and description.
+    icon: Optional[int] = None
 
 
 class ProjectOut(BaseModel):
@@ -142,6 +150,8 @@ class ProjectOut(BaseModel):
     your_role: Optional[str] = None  # the requesting user's role on this project
     created_at: datetime
     branches: list[str] = []
+    default_branch: str = "main"
+    icon: Optional[int] = None  # 1..30; the frontend maps it to a glyph + tone
 
 
 class MemberIn(BaseModel):
@@ -165,9 +175,19 @@ class MemberOut(BaseModel):
     role: str
 
 
+class MemberCandidateOut(BaseModel):
+    """One "add member" search hit: an org colleague not yet on the project."""
+
+    id: int
+    email: EmailStr
+    first_name: str
+    last_name: str
+    avatar: str = "000"  # 3-char code; the frontend renders the illustration
+
+
 class BranchIn(BaseModel):
     name: str
-    start_point: str = "main"
+    start_point: Optional[str] = None  # omitted -> the project's default branch
 
 
 class CommitOut(BaseModel):
@@ -206,7 +226,7 @@ class RevertIn(BaseModel):
 # --- branches ---
 class BranchOut(BaseModel):
     name: str
-    is_default: bool = False  # the repo's default branch ("main")
+    is_default: bool = False  # the project's stored default branch
     is_protected: bool = False  # default branch, or explicitly protected
     required_approvals: int = 0  # approvals a PR into this branch needs to merge
     latest_commit: Optional[CommitOut] = None  # None on an unborn branch
@@ -223,7 +243,7 @@ class BranchProtectionIn(BaseModel):
 # --- tags / releases ---
 class TagIn(BaseModel):
     name: str
-    ref: str = "main"  # the commit/branch/ref to tag
+    ref: Optional[str] = None  # commit/branch/ref to tag; omitted -> default branch
     message: str = ""  # release notes; a non-empty message makes an annotated tag
 
 
@@ -346,7 +366,7 @@ class PullIn(BaseModel):
     title: str
     description: str = ""  # optional human summary, editable later
     source_branch: str
-    target_branch: str = "main"
+    target_branch: Optional[str] = None  # omitted -> the project's default branch
 
 
 class PullUpdate(BaseModel):
