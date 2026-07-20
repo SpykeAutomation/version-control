@@ -2624,6 +2624,7 @@ a.rail-item:focus-visible,
   border: 1px solid var(--add-line);
   border-radius: 6px;
   padding: 3px 8px;
+  vertical-align: middle;
 }
 /* modal dialog */
 .modal-overlay {
@@ -2736,8 +2737,10 @@ a.rail-item:focus-visible,
   color: var(--ink2);
   background: var(--panel2);
   border: 1px solid var(--line);
-  border-radius: var(--r-sm);
-  padding: 3px 6px;
+  /* Smaller, pill-rounded, and centred against the branch-name chip. */
+  border-radius: 999px;
+  padding: 2px 7px;
+  vertical-align: middle;
 }
 .branch-msg {
   margin-left: 8px;
@@ -2763,6 +2766,7 @@ a.rail-item:focus-visible,
   align-items: center;
   color: var(--ink3);
   cursor: default;
+  vertical-align: middle;
 }
 .dz-branch-approvals {
   font: 500 12px/1 var(--sans);

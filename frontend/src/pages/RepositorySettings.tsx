@@ -513,7 +513,7 @@ function DangerZone({
               <div className="dz-branch" key={b.name}>
                 <span className="branch-name">{b.name}</span>
                 {b.isDefault && <span className="badge blue">default</span>}
-                {b.isProtected ? (
+                {b.isProtected && (
                   <>
                     <ProtectedLock />
                     {b.requiredApprovals > 0 && (
@@ -523,8 +523,6 @@ function DangerZone({
                       </span>
                     )}
                   </>
-                ) : (
-                  <span className="badge gray">unprotected</span>
                 )}
                 <span className="dz-branch-spacer" />
                 {canManage &&
@@ -540,7 +538,7 @@ function DangerZone({
                       }
                       onClick={() => onStage({ kind: "unprotect", branch: b })}
                     >
-                      Unprotect…
+                      Unprotect branch
                     </button>
                   ) : (
                     <button
@@ -548,7 +546,7 @@ function DangerZone({
                       className="btn-dz"
                       onClick={() => onStage({ kind: "protect", branch: b })}
                     >
-                      Protect…
+                      Protect branch
                     </button>
                   ))}
               </div>

@@ -59,6 +59,7 @@ import {
 } from "../api/queries";
 import { formatDate, timeAgo } from "../lib/time";
 import { RepoIcon } from "../lib/repoIcons";
+import { ProtectedLock } from "../components/ProtectedLock";
 import { initials } from "../lib/initials";
 import { RepositorySettings } from "./RepositorySettings";
 import { formatBytes } from "../lib/format";
@@ -884,6 +885,7 @@ function BranchesCard({
                       Merged
                     </span>
                   )}
+                  {b.isProtected && <ProtectedLock style={{ marginLeft: 8 }} />}
                 </td>
                 <td>
                   {b.lastCommitHash ? (
