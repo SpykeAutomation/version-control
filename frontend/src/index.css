@@ -1089,6 +1089,17 @@ button.link:hover {
   opacity: 0;
   pointer-events: none;
 }
+/* Collapsed rail: the faded user-meta also leaves the layout, so the avatar
+   sits dead-centre in the block instead of hugging the left padding. */
+.sidebar.collapsed .user-block {
+  justify-content: center;
+  padding: 9px 0;
+  gap: 0;
+}
+.sidebar.collapsed .user-block .user-meta {
+  flex: 0 0 0;
+  width: 0;
+}
 .sidebar-nav {
   display: flex;
   flex-direction: column;
@@ -1150,17 +1161,19 @@ button.link:hover {
   align-items: center;
   gap: 10px;
   padding: 9px 10px;
-  border: 1px solid rgba(255, 255, 255, 0.22);
+  border: 1px solid rgba(255, 255, 255, 0.3);
   border-radius: var(--r-lg);
-  background: rgba(255, 255, 255, 0.13);
+  background: rgba(255, 255, 255, 0.22);
 }
 .avatar {
   width: 32px;
   height: 32px;
   flex: none;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.12);
-  color: #fff;
+  /* Near-solid white chip on the translucent block, so the avatar reads as
+     the button's focal point instead of blending into it. */
+  background: rgba(255, 255, 255, 0.94);
+  color: #16181a;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2611,6 +2624,7 @@ a.rail-item:focus-visible,
   border: 1px solid var(--add-line);
   border-radius: 6px;
   padding: 3px 8px;
+  vertical-align: middle;
 }
 /* modal dialog */
 .modal-overlay {
@@ -2723,8 +2737,18 @@ a.rail-item:focus-visible,
   color: var(--ink2);
   background: var(--panel2);
   border: 1px solid var(--line);
-  border-radius: var(--r-sm);
-  padding: 3px 6px;
+  /* Smaller, pill-rounded, and centred against the branch-name chip. */
+  border-radius: 999px;
+  padding: 2px 7px;
+  vertical-align: middle;
+}
+/* Branch cell: the name chip plus its tags flow with even spacing and gain
+   row spacing when a tag wraps to the next line (instead of sticking to it). */
+.branch-cell {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
 }
 .branch-msg {
   margin-left: 8px;
@@ -2742,6 +2766,43 @@ a.rail-item:focus-visible,
   color: var(--accent);
   background: var(--accent-weak);
   border-color: var(--blue-line);
+}
+/* Protected-branch marker: a lock glyph (tooltip "Protected branch") that
+   replaces the old "protected" text badge. */
+.branch-lock {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  color: var(--ink3);
+  cursor: default;
+  vertical-align: middle;
+}
+/* Fast CSS tooltip (native title has an uncontrollable ~1s delay). */
+.branch-lock::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  background: var(--ink-title);
+  color: #fff;
+  font: 500 11px/1 var(--sans);
+  padding: 5px 8px;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(30, 28, 24, 0.18);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 20;
+  transition: opacity 0.09s ease;
+}
+.branch-lock:hover::after,
+.branch-lock:focus-visible::after {
+  opacity: 1;
+}
+.dz-branch-approvals {
+  font: 500 12px/1 var(--sans);
+  color: var(--ink3);
 }
 .ba {
   display: inline-flex;
@@ -4300,6 +4361,8 @@ a.mr-commit-row:hover {
 /* Wraps the shared LadderDiff renderer inside the numbered section card. */
 .mr-ladderwrap {
   padding: 14px;
+  /* Wide rungs (an indivisible branch cluster) scroll instead of clipping. */
+  overflow-x: auto;
 }
 .mr-ladderwrap .ladder-diff-doc {
   gap: 0;
@@ -4353,6 +4416,42 @@ a.mr-commit-row:hover {
 .pr-routine-name {
   font: 600 13px/1 var(--sans);
   color: var(--ink-title);
+}
+
+/* Changes tab: entity old → new tables. The value columns wear the diff
+   tints so the direction of a change reads at a glance. */
+.entity-diff .entity-old {
+  color: var(--danger);
+  background: var(--danger-bg);
+}
+.entity-diff .entity-new {
+  color: var(--add);
+  background: var(--add-bg);
+}
+.entity-diff td {
+  vertical-align: top;
+}
+
+/* Changes tab: unified text diff for non-L5X files. */
+.udiff {
+  padding: 10px 16px;
+  overflow-x: auto;
+}
+.ud-line {
+  font: 400 12.5px/1.75 var(--mono);
+  white-space: pre;
+  padding: 0 8px;
+}
+.ud-add {
+  color: var(--add);
+  background: var(--add-bg);
+}
+.ud-rem {
+  color: var(--danger);
+  background: var(--danger-bg);
+}
+.ud-meta {
+  color: var(--ink4);
 }
 
 /* Side-by-side diff: two outlined panels with a transparent centre channel
@@ -4698,7 +4797,9 @@ a.mr-commit-row:hover {
   background: var(--panel);
   border: 1px solid var(--line2);
   border-radius: 12px;
-  overflow: hidden;
+  /* Wide rungs (an indivisible branch cluster) scroll instead of clipping. */
+  overflow-x: auto;
+  overflow-y: hidden;
 }
 .tree-rail {
   position: relative;
@@ -5055,9 +5156,6 @@ a.mr-commit-row:hover {
   height: 100%;
   padding: 12px 16px 14px;
 }
-.lad-rung-branched {
-  min-height: 156px;
-}
 /* a wholly added/removed rung tints its whole row; a modified rung gets no row
    styling — the changed element's badge/outline carries the colour */
 .lad-rung-add {
@@ -5132,8 +5230,11 @@ a.mr-commit-row:hover {
   min-width: 0;
   padding: 4px 0;
   flex-wrap: wrap;
-  align-items: center;
-  row-gap: 6px;
+  /* Rows align element TOPS; every element puts its wire line exactly 31px
+     below its own top (the rail-offset invariant), so a row's elements meet
+     on one wire line no matter how tall each is. */
+  align-items: flex-start;
+  row-gap: 10px;
   position: relative;
 }
 /* Continuation arrows at a wrap point: a right-pointing chevron where a row
@@ -5201,7 +5302,7 @@ a.mr-commit-row:hover {
      (.rung-fill) and closed by the overlaid right rail. */
   flex: 0 0 auto;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   min-width: 0;
 }
 /* The boundary slot (the first write) is the ONLY growable item on the line, and
@@ -5228,7 +5329,9 @@ a.mr-commit-row:hover {
   min-width: 8px;
   height: 2px;
   background: var(--wire);
-  align-self: center;
+  /* On the wire line: 30px down + 2px tall centres on the 31px rail offset. */
+  align-self: flex-start;
+  margin-top: 30px;
   opacity: 0.85;
 }
 .el-iwire {
@@ -5249,9 +5352,10 @@ a.mr-commit-row:hover {
   border-radius: 7px;
   /* No horizontal padding: the wire row reaches the chip edge so the rung line
      stays unbroken across the glyph. Breathing room for the change highlight
-     comes from the tag's own padding instead. */
+     comes from the tag's own padding instead. No transform: the fixed-height
+     tag zone (2 + 13 + 1) puts the glyph centre at 2+13+1+15 = 31px — the
+     rail offset — with everything on whole pixels, so text stays crisp. */
   padding: 2px 0 1px;
-  transform: translateY(-7.8px);
 }
 .el-chip .el-tag {
   max-width: 126px;
@@ -5259,7 +5363,8 @@ a.mr-commit-row:hover {
   overflow: hidden;
   text-overflow: ellipsis;
   text-align: center;
-  font: 600 10.5px/1.3 var(--mono);
+  font: 600 10.5px/13px var(--mono);
+  height: 13px;
   color: var(--ink2);
   margin-bottom: 1px;
   padding: 0 6px;
@@ -5413,21 +5518,12 @@ a.mr-commit-row:hover {
 /* branch: parallel legs stacked vertically, joined on both ends */
 .ladder-branch {
   flex: none;
+  position: relative;
   display: flex;
-  align-items: stretch;
-  /* The transform drops the branch so its top leg sits on the rail, but a
-     transform paints outside the layout box without reserving space — so the
-     lower leg would hang below the slot and collide with a wrapped
-     continuation row. Reserve the drop symmetrically (top + bottom) so the
-     slot grows to contain the dropped branch and stays centred on the rail
-     (which keeps the wrap measurement, keyed on slot centres, correct). No
-     horizontal margin: the slot's own wire stubs butt against the join bars,
-     so there's no gap between the branch and the wires on either side. */
-  margin: var(--branch-drop, 0px) 0;
-  min-height: 0;
+  align-items: flex-start;
   background: transparent;
-  overflow: visible;
-  transform: translateY(var(--branch-drop, 0px));
+  /* 2px each side so the legs' wires butt against the absolute join bars. */
+  padding: 0 2px;
 }
 .ladder-diff-card .ladder-branch.el-added,
 .ladder-diff-card .ladder-branch.el-removed,
@@ -5435,35 +5531,39 @@ a.mr-commit-row:hover {
   background: transparent;
 }
 .branch-join {
+  /* Span from the first leg's wire line (top + 30px) down to the last leg's:
+     legs put their wire lines a fixed 31px below their own top, so the only
+     variable is the last leg's offset in the stack — measured by the
+     component into --join-span. */
+  position: absolute;
+  top: 30px;
   width: 2px;
-  /* Span only from the top leg's wire line to the bottom leg's, so the
-     connectors enclose the legs as a branch box. Stretching the full grid
-     height made the bars overshoot above and below the contacts (the 54px
-     rows + 8px gap are taller than the ~30px contacts), reading as ladder
-     rails. Leg centres are (lanes - 1) * (54 + 8) = (lanes - 1) * 62px apart. */
-  align-self: center;
-  height: calc((var(--branch-lanes, 2) - 1) * 62px);
+  height: calc(var(--join-span, 0px) + 2px);
   background: var(--wire);
-  flex: none;
   border-radius: 1px;
 }
+.branch-join-l {
+  left: 0;
+}
+.branch-join-r {
+  right: 0;
+}
 .branch-legs {
-  display: grid;
-  grid-auto-rows: 54px;
+  position: relative; /* offset parent for the join-span measurement */
+  display: flex;
+  flex-direction: column;
   gap: 8px;
-  align-content: center;
-  padding: 3px 0;
 }
 .branch-leg {
   display: flex;
-  align-items: center;
-  min-height: 54px;
-  height: 54px;
-  overflow: visible;
+  align-items: flex-start;
+  /* Content-driven: a leg is as tall as its tallest element (a multi-operand
+     box, even a nested branch). The min keeps empty/contact legs readable. */
+  min-height: 46px;
 }
 .branch-leg-elements {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   flex: none;
 }
 .branch-leg .el-iwire {
@@ -5476,17 +5576,13 @@ a.mr-commit-row:hover {
 .branch-leg .ladder-box {
   min-width: 112px;
 }
-.branch-leg .el-chip {
-  /* Same lift as a stand-alone contact (.el-chip) so the branch leg's glyph
-     sits exactly on its wire line — -6px left it 1.8px low, kinking the wire. */
-  transform: translateY(-7.8px);
-}
 /* an empty (pass-through) branch leg drawn as a plain horizontal wire */
 .branch-wire {
   flex: 1 1 14px;
   min-width: 14px;
   height: 2px;
-  align-self: center;
+  align-self: flex-start;
+  margin-top: 30px;
   background: var(--wire);
   opacity: 0.85;
   border-radius: 1px;
@@ -5496,6 +5592,8 @@ a.mr-commit-row:hover {
   flex: none;
   width: 18px;
   height: 2px;
+  align-self: flex-start;
+  margin-top: 30px;
   background: var(--wire);
   opacity: 0.85;
   border-radius: 1px;
@@ -5510,7 +5608,7 @@ a.mr-commit-row:hover {
 /* raw fallback: verbatim text in a monospace pill */
 .ladder-raw {
   flex: none;
-  margin: 0 6px;
+  margin: 20px 6px 0;
   padding: 4px 8px;
   border: 1px solid var(--line);
   border-radius: var(--r-sm);
@@ -5694,10 +5792,32 @@ a.mr-commit-row:hover {
   border-radius: 0 0 var(--r-lg) var(--r-lg);
   overflow: hidden;
 }
+/* A rung wider than the panel (an indivisible branch cluster) scrolls inside
+   its own cell; the rung box grows to its content so the wire measurement and
+   right rail land at the TRUE right edge, reachable by scrolling. */
+.ladfull-cell,
+.lad-cell {
+  overflow-x: auto;
+}
+.ladfull-cell .lad-rung,
+.lad-cell .lad-rung {
+  min-width: fit-content;
+}
 .ladfull-cell {
   background: var(--panel);
 }
-.ladfull-cell + .ladfull-cell {
+.ladfull-cell + /* A rung wider than the panel (an indivisible branch cluster) scrolls inside
+   its own cell; the rung box grows to its content so the wire measurement and
+   right rail land at the TRUE right edge, reachable by scrolling. */
+.ladfull-cell,
+.lad-cell {
+  overflow-x: auto;
+}
+.ladfull-cell .lad-rung,
+.lad-cell .lad-rung {
+  min-width: fit-content;
+}
+.ladfull-cell {
   border-top: 1px solid var(--line2);
 }
 .cmfull {
@@ -6921,19 +7041,19 @@ a.cmr-tl-link:hover .cmr-tl-msg {
   display: flex;
   gap: 10px;
   align-items: baseline;
-  margin-bottom: 2px;
+  margin-top: 3px;
 }
 .ct-tooltip-sha {
   font: 600 12px/1.4 var(--mono);
-  color: var(--ink);
+  color: var(--ink3);
 }
 .ct-tooltip-when {
   font: 400 11.5px/1.4 var(--sans);
   color: var(--ink3);
 }
 .ct-tooltip-title {
-  font: 500 12.5px/1.45 var(--sans);
-  color: var(--ink);
+  font: 600 12.5px/1.45 var(--sans);
+  color: var(--ink-title);
 }
 .ct-tooltip-meta {
   margin-top: 2px;
@@ -6992,4 +7112,524 @@ a.cmr-tl-link:hover .cmr-tl-msg {
   color: #1c5cab;
   font-weight: 600;
   text-decoration: underline;
+}
+
+/* ---- Repository settings tab ---- */
+.settings-col {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 900px;
+  width: 100%;
+  margin: 0 auto;
+}
+.settings-body {
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.settings-note {
+  font: 400 13px/1.55 var(--sans);
+  color: var(--ink2);
+  margin: 0;
+}
+.settings-you {
+  font: 600 10.5px/1 var(--sans);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink3);
+  background: var(--gray-bg);
+  border: 1px solid var(--gray-line);
+  border-radius: 999px;
+  padding: 2px 7px;
+  margin-left: 8px;
+}
+.members-table .role-select {
+  min-width: 110px;
+}
+.member-remove-cell {
+  width: 36px;
+  text-align: right;
+}
+
+/* Add-member search */
+.member-search {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.member-search-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.member-search-ico {
+  color: var(--ink4);
+  display: inline-flex;
+}
+.member-search-input {
+  flex: 1;
+}
+.settings-hint {
+  font: 400 12.5px/1.5 var(--sans);
+  color: var(--ink3);
+  margin: 0;
+}
+.ms-results {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.ms-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 12px;
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--line2);
+  font: 400 13px/1.4 var(--sans);
+  color: var(--ink);
+  cursor: pointer;
+  text-align: left;
+}
+.ms-row:last-child {
+  border-bottom: 0;
+}
+.ms-row:hover {
+  background: var(--panel2);
+}
+.ms-name {
+  font-weight: 600;
+}
+.ms-email {
+  color: var(--ink3);
+}
+.ms-add {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--accent);
+  font: 600 12px/1 var(--sans);
+}
+.ms-empty {
+  padding: 10px 12px;
+  font: 400 12.5px/1.4 var(--sans);
+  color: var(--ink3);
+}
+
+/* Danger zone */
+.danger-zone {
+  border: 1px solid var(--danger-line);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.dz-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  font: 600 13.5px/1 var(--sans);
+  color: var(--danger);
+  background: var(--danger-bg);
+  border-bottom: 1px solid var(--danger-line);
+}
+.dz-row {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line);
+}
+.dz-row:last-child {
+  border-bottom: 0;
+}
+.dz-info {
+  flex: 1;
+  min-width: 0;
+}
+.dz-title {
+  font: 600 13.5px/1.3 var(--sans);
+  color: var(--ink-title);
+}
+.dz-desc {
+  font: 400 12.5px/1.5 var(--sans);
+  color: var(--ink2);
+  margin: 4px 0 0;
+}
+.dz-action {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+.dz-locked {
+  font: 400 12.5px/1.4 var(--sans);
+  color: var(--ink3);
+}
+.dz-row-branches {
+  flex-direction: column;
+  align-items: stretch;
+}
+.dz-branches {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.dz-branch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--line2);
+  font: 400 13px/1.3 var(--sans);
+}
+.dz-branch:last-child {
+  border-bottom: 0;
+}
+.dz-branch .badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.dz-branch-spacer {
+  flex: 1;
+}
+.btn-dz {
+  font: 600 12.5px/1 var(--sans);
+  color: var(--danger);
+  background: none;
+  border: 1px solid var(--danger-line);
+  border-radius: 7px;
+  padding: 7px 12px;
+  cursor: pointer;
+}
+.btn-dz:hover:not(:disabled) {
+  background: var(--danger-bg);
+}
+.btn-dz:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.dz-seg .seg-btn:disabled {
+  cursor: default;
+}
+
+/* Danger-zone confirm dialog */
+.dz-modal {
+  max-width: 460px;
+}
+.dz-modal-ico {
+  color: var(--danger);
+  margin-right: 6px;
+  vertical-align: -3px;
+}
+.dz-modal-body {
+  font: 400 13px/1.55 var(--sans);
+  color: var(--ink2);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.dz-modal-body p {
+  margin: 0;
+}
+.dz-consequences {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.dz-approvals {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font: 600 12.5px/1.3 var(--sans);
+  color: var(--ink-title);
+}
+.dz-approvals-input {
+  width: 70px;
+}
+.dz-fine {
+  font: 400 12px/1.5 var(--sans);
+  color: var(--ink3);
+}
+.btn-dz-confirm {
+  background: var(--danger);
+  color: #fff;
+  border: 1px solid var(--danger);
+}
+.btn-dz-confirm:hover:not(:disabled) {
+  filter: brightness(0.94);
+}
+.btn-dz-confirm:disabled {
+  opacity: 0.5;
+}
+.dz-confirm-phrase {
+  white-space: nowrap;
+}
+
+/* ---- Account menu (sidebar foot) ---- */
+.user-block-btn {
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+}
+.user-block-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+.account-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: transparent;
+}
+.account-pop {
+  position: fixed;
+  left: 12px;
+  bottom: 76px;
+  z-index: 61;
+  width: 234px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
+  padding: 6px;
+}
+.ap-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px 10px;
+  border-bottom: 1px solid var(--line2);
+  margin-bottom: 6px;
+}
+.ap-id {
+  min-width: 0;
+}
+.ap-name {
+  font: 600 13px/1.3 var(--sans);
+  color: var(--ink-title);
+}
+.ap-email {
+  font: 400 11.5px/1.3 var(--sans);
+  color: var(--ink3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ap-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font: 500 13px/1 var(--sans);
+  color: var(--ink);
+  background: none;
+  border: 0;
+  cursor: pointer;
+  text-decoration: none;
+}
+.ap-item:hover {
+  background: var(--panel2);
+}
+.ap-sep {
+  height: 1px;
+  background: var(--line2);
+  margin: 6px 4px;
+}
+.ap-logout {
+  color: var(--danger);
+}
+.ap-logout:hover {
+  background: var(--danger-bg);
+}
+
+/* ---- One-time hints: org intro bubble + dismissible rail cards ---- */
+.intro-bubble {
+  position: relative;
+  margin-top: 12px;
+  max-width: 660px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 13px 15px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
+}
+/* The tail pointing up at the organization name. */
+.intro-bubble::before {
+  content: "";
+  position: absolute;
+  top: -7px;
+  left: 26px;
+  width: 12px;
+  height: 12px;
+  background: var(--panel);
+  border-left: 1px solid var(--line);
+  border-top: 1px solid var(--line);
+  transform: rotate(45deg);
+}
+.intro-bubble p {
+  margin: 0;
+  font: 400 13px/1.65 var(--sans);
+  color: var(--ink2);
+}
+.intro-bubble-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 10px;
+}
+.dismissible {
+  position: relative;
+}
+.dismiss-x {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 1;
+  display: inline-flex;
+  padding: 4px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--ink4);
+  cursor: pointer;
+}
+.dismiss-x:hover {
+  background: var(--panel2);
+  color: var(--ink2);
+}
+
+/* ---- Repository icon set: three new tones + the picker swatches ---- */
+.repo-ico.tone-teal,
+.rail-ico.tone-teal {
+  color: #0f766e;
+  background: #e4f3f1;
+  border-color: #bfe3dd;
+}
+.repo-ico.tone-orange,
+.rail-ico.tone-orange {
+  color: #c2410c;
+  background: #fdeee3;
+  border-color: #f6d3b9;
+}
+.repo-ico.tone-indigo,
+.rail-ico.tone-indigo {
+  color: #4f46e5;
+  background: #ecebfe;
+  border-color: #d6d3fb;
+}
+.icon-pick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.icon-swatch {
+  width: 46px;
+  height: 46px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--panel2);
+  color: var(--ink3);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+.icon-swatch:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+.icon-swatch.selected {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.icon-swatch.tone-blue { color: var(--blue); background: var(--blue-bg); border-color: var(--blue-line); }
+.icon-swatch.tone-green { color: var(--add); background: var(--add-bg); border-color: var(--add-line); }
+.icon-swatch.tone-amber { color: var(--mod); background: var(--mod-bg); border-color: var(--mod-line); }
+.icon-swatch.tone-violet { color: var(--purple); background: var(--purple-bg); border-color: var(--purple-line); }
+.icon-swatch.tone-slate { color: var(--gray); background: var(--gray-bg); border-color: var(--gray-line); }
+.icon-swatch.tone-teal { color: #0f766e; background: #e4f3f1; border-color: #bfe3dd; }
+.icon-swatch.tone-orange { color: #c2410c; background: #fdeee3; border-color: #f6d3b9; }
+.icon-swatch.tone-indigo { color: #4f46e5; background: #ecebfe; border-color: #d6d3fb; }
+
+/* Icon picker: tone chips above the glyph grid; bigger tiles + glyphs. */
+.icon-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.tone-row {
+  display: flex;
+  gap: 8px;
+}
+.tone-chip {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  cursor: pointer;
+  padding: 0;
+}
+.tone-chip:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+.tone-chip.selected {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.tone-chip-blue { background: var(--blue); }
+.tone-chip-green { background: var(--add); }
+.tone-chip-amber { background: var(--mod); }
+
+/* Solid icon palette, sampled from the reference image. */
+.repo-ico.tone-blue,
+.rail-ico.tone-blue,
+.icon-swatch.tone-blue {
+  color: #4799fa;
+  background: #e9f2fe;
+  border-color: #c8dffd;
+}
+.repo-ico.tone-green,
+.rail-ico.tone-green,
+.icon-swatch.tone-green {
+  color: #57c765;
+  background: #eaf8ec;
+  border-color: #c8edcd;
+}
+.repo-ico.tone-red,
+.rail-ico.tone-red,
+.icon-swatch.tone-red {
+  color: #ff575c;
+  background: #ffecec;
+  border-color: #ffcfd1;
+}
+.tone-chip-red { background: #ff575c; }
+.tone-chip-blue { background: #4799fa; }
+.tone-chip-green { background: #57c765; }
+
+/* Neutral light-grey icon tiles: the solid glyph carries the colour and the
+   square fades into the page background (the reference style). Overrides the
+   per-tone tinted backgrounds above. */
+.repo-ico.tone-blue,
+.repo-ico.tone-green,
+.repo-ico.tone-red,
+.rail-ico.tone-blue,
+.rail-ico.tone-green,
+.rail-ico.tone-red,
+.icon-swatch.tone-blue,
+.icon-swatch.tone-green,
+.icon-swatch.tone-red {
+  background: #f5f6f7;
+  border-color: #e9ebed;
 }

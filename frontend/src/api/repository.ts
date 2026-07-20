@@ -2,7 +2,7 @@
 // change-request / controller endpoints yet, so the page renders empty states
 // until a real detail payload is available; this describes its shape.
 import { type ProjectRow, type RepoStatus } from "./projects";
-import type { Rung } from "./compare";
+import { STATUS_META } from "../lib/statusMeta";
 
 export interface Commit {
   hash: string; // short 7-char hash for display
@@ -79,20 +79,6 @@ export type FileKind =
   | "document"
   | "udt";
 
-// A file's rendered contents, shaped by what kind of file it is. PLC logic is
-// shown as ladder; tabular files (tags, I/O, UDT members) as a table; notes as
-// text; binary formats (e.g. HMI runtime) can't be rendered inline.
-export interface LadderRoutine {
-  name: string;
-  rungs: Rung[];
-}
-
-export type FileContent =
-  | { type: "ladder"; routines: LadderRoutine[] }
-  | { type: "table"; columns: string[]; rows: string[][] }
-  | { type: "text"; text: string }
-  | { type: "binary"; note: string };
-
 export interface FileEntry {
   name: string;
   // Raw repo path ("l5x/<name>" or "files/<nested/path>") — keys the per-file
@@ -104,7 +90,6 @@ export interface FileEntry {
   size: string;
   modifiedAt: string; // ISO
   modifiedBy: string;
-  content?: FileContent; // present when a single file is opened
 }
 
 export const FILE_KIND_LABEL: Record<FileKind, string> = {
@@ -141,12 +126,8 @@ export interface RepositoryDetail {
   fileList: FileEntry[];
 }
 
-export const CR_META: Record<CRStatus, { tone: string; label: string }> = {
-  open: { tone: "orange", label: "Open" },
-  review: { tone: "blue", label: "In review" },
-  approved: { tone: "green", label: "Approved" },
-  merged: { tone: "purple", label: "Merged" },
-};
+export const CR_META: Record<CRStatus, { tone: string; label: string }> =
+  STATUS_META;
 
 // Map the sparse fields a ProjectRow can supply onto a RepositoryDetail. The
 // backend has no rich detail endpoint, so commits/branches/change requests are

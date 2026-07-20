@@ -1,7 +1,10 @@
 import { useMemo, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
-import { FileText, Globe, Lock } from "lucide-react";
+import {
+  Dices, FileText, Globe, Lock } from "lucide-react";
 import { ApiError } from "../api/client";
+import { randomRepoIconId } from "../lib/repoIcons";
+import { IconPicker } from "../components/IconPicker";
 import { useCreateProject } from "../api/queries";
 import { useAuth } from "../auth/AuthContext";
 
@@ -32,6 +35,8 @@ export function OnboardingPage() {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [visibility, setVisibility] = useState<"private" | "public">("private");
+  // "random" = the surprise-me default: a concrete icon is drawn on submit.
+  const [icon, setIcon] = useState<number | "random">("random");
   const [readme, setReadme] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -45,7 +50,10 @@ export function OnboardingPage() {
     setError(null);
     setSubmitting(true);
     try {
-      const project = await createProjectMut.mutateAsync(name.trim());
+      const project = await createProjectMut.mutateAsync({
+        name: name.trim(),
+        icon: icon === "random" ? randomRepoIconId() : icon,
+      });
       navigate("/done", {
         replace: true,
         state: { projectId: project.id, projectName: project.name },
@@ -104,6 +112,29 @@ export function OnboardingPage() {
             placeholder="Conveyor logic, reject station, safety interlocks, and HMI notes."
             value={description}
             onChange={(e) => setDescription(e.target.value)}
+          />
+        </div>
+
+        {/* Icon */}
+        <div className="field">
+          <label className="label">Icon</label>
+          <div className="field-hint">
+            How this project shows up in lists — pick one, or let us surprise
+            you
+          </div>
+          <div className="icon-pick">
+            <button
+              type="button"
+              className={`icon-swatch icon-swatch-random${icon === "random" ? " selected" : ""}`}
+              onClick={() => setIcon("random")}
+              title="Surprise me"
+            >
+              <Dices size={24} strokeWidth={2} />
+            </button>
+          </div>
+          <IconPicker
+            selected={icon === "random" ? null : icon}
+            onSelect={(code) => setIcon(code)}
           />
         </div>
 

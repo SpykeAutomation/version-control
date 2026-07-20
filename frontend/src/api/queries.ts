@@ -12,22 +12,40 @@ import {
 } from "@tanstack/react-query";
 import { ApiError } from "./client";
 import {
+  addMember,
   createProject,
+  deleteProject,
+  getProjectOverview,
   listMembers,
   listProjects,
+  removeMember,
+  searchMemberCandidates,
+  setDefaultBranch,
+  setProjectIcon,
+  transferOwnership,
+  updateMemberRole,
+  type MemberCandidate,
   type Project,
+  type ProjectOverviewBrief,
   type ProjectRow,
 } from "./projects";
-import { listBranches, listCommits, type BranchSummary } from "./commits";
+import {
+  listBranches,
+  listCommits,
+  setBranchProtection,
+  type BranchSummary,
+} from "./commits";
 import { listProjectFiles } from "./files";
 import type { FileEntry } from "./repository";
 import {
   getCommitDiff,
   getCommitLadderDiff,
+  getCommitTextDiff,
   getDiff,
   getLadderDiff,
   type ChangeSet,
   type LadderDiffDoc,
+  type TextDiff,
 } from "./diff";
 import {
   getCommitTree,
@@ -84,6 +102,8 @@ export const queryKeys = {
     ["projects", projectId, "commit-diff", sha] as const,
   commitLadderDiff: (projectId: number, sha: string) =>
     ["projects", projectId, "commit-ladder", sha] as const,
+  commitTextDiff: (projectId: number, sha: string, path: string) =>
+    ["projects", projectId, "commit-text-diff", sha, path] as const,
   diff: (projectId: number, base: string, head: string) =>
     ["projects", projectId, "diff", base, head] as const,
   ladderDiff: (projectId: number, base: string, head: string) =>
@@ -128,6 +148,28 @@ export function useProject(slug: string | undefined) {
   return { ...query, project };
 }
 
+// One overview per repo, for the org home's tiles/filters. Bounded by the
+// repo count and cached; collapses to a single list request once the backend
+// carries controller_name/open_pull_count on GET /projects itself.
+export function useProjectOverviews(
+  projectIds: number[],
+): Map<number, ProjectOverviewBrief> {
+  const results = useQueries({
+    queries: projectIds.map((id) => ({
+      queryKey: ["projects", id, "overview"] as const,
+      queryFn: () => getProjectOverview(id),
+      staleTime: 30_000,
+    })),
+  });
+  // Rebuilt each render — a handful of entries, cheaper than getting a
+  // variable-length memo dependency array wrong.
+  const map = new Map<number, ProjectOverviewBrief>();
+  results.forEach((r, i) => {
+    if (r.data) map.set(projectIds[i], r.data);
+  });
+  return map;
+}
+
 export function useMembers(projectId: number | undefined) {
   return useQuery({
     queryKey: queryKeys.members(projectId ?? -1),
@@ -149,6 +191,109 @@ export function useBranches(projectId: number | undefined) {
     queryKey: queryKeys.branches(projectId ?? -1),
     queryFn: () => listBranches(projectId!),
     enabled: projectId != null,
+  });
+}
+
+// ---- Settings tab: members, protection, ownership ----
+
+// Live add-member search (backend addition; 404 until deployed — the settings
+// tab catches that and falls back to exact-email add). Debounce in the caller.
+export function useMemberCandidates(
+  projectId: number | undefined,
+  q: string,
+) {
+  return useQuery<MemberCandidate[]>({
+    queryKey: ["projects", projectId ?? -1, "member-candidates", q],
+    queryFn: () => searchMemberCandidates(projectId!, q),
+    enabled: projectId != null && q.trim().length >= 2,
+    staleTime: 30_000,
+    retry: false, // a 404 (endpoint not deployed) should fail fast, not retry
+  });
+}
+
+export function useAddMember(projectId: number | undefined) {
+  const qc = useQueryClient();
+  return useMutation<unknown, Error, { email: string; role?: "member" | "admin" }>({
+    mutationFn: (input) => addMember(projectId!, input.email, input.role),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.members(projectId ?? -1) });
+    },
+  });
+}
+
+export function useUpdateMemberRole(projectId: number | undefined) {
+  const qc = useQueryClient();
+  return useMutation<unknown, Error, { userId: number; role: "member" | "admin" }>({
+    mutationFn: (input) => updateMemberRole(projectId!, input.userId, input.role),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.members(projectId ?? -1) });
+    },
+  });
+}
+
+export function useRemoveMember(projectId: number | undefined) {
+  const qc = useQueryClient();
+  return useMutation<unknown, Error, number>({
+    mutationFn: (userId) => removeMember(projectId!, userId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.members(projectId ?? -1) });
+    },
+  });
+}
+
+// Transferring ownership changes roles (old owner -> admin), which the project
+// list echoes via your_role — refresh both.
+export function useTransferOwnership(projectId: number | undefined) {
+  const qc = useQueryClient();
+  return useMutation<unknown, Error, number>({
+    mutationFn: (newOwnerId) => transferOwnership(projectId!, newOwnerId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.members(projectId ?? -1) });
+      qc.invalidateQueries({ queryKey: queryKeys.projects });
+    },
+  });
+}
+
+export function useDeleteProject(projectId: number | undefined) {
+  const qc = useQueryClient();
+  return useMutation<void, Error, void>({
+    mutationFn: () => deleteProject(projectId!),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.projects });
+    },
+  });
+}
+
+// Changing the default branch flips is_default and ahead/behind across the
+// branch list, and the project payload echoes it — refresh both.
+export function useSetDefaultBranch(projectId: number | undefined) {
+  const qc = useQueryClient();
+  return useMutation<void, Error, string>({
+    mutationFn: (branch) => setDefaultBranch(projectId!, branch),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.branches(projectId ?? -1) });
+      qc.invalidateQueries({ queryKey: queryKeys.projects });
+    },
+  });
+}
+
+export function useSetBranchProtection(projectId: number | undefined) {
+  const qc = useQueryClient();
+  return useMutation<
+    unknown,
+    Error,
+    { branch: string; isProtected: boolean; requiredApprovals?: number }
+  >({
+    mutationFn: (input) =>
+      setBranchProtection(
+        projectId!,
+        input.branch,
+        input.isProtected,
+        input.requiredApprovals ?? 0,
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.branches(projectId ?? -1) });
+    },
   });
 }
 
@@ -187,6 +332,20 @@ export function useCommitLadderDiff(
     queryKey: queryKeys.commitLadderDiff(projectId ?? -1, sha ?? ""),
     queryFn: () => getCommitLadderDiff(projectId!, sha!),
     enabled: projectId != null && !!sha,
+  });
+}
+
+// The text diff for one non-L5X file at a commit, fetched lazily by the
+// Changes tab's per-file sections.
+export function useCommitTextDiff(
+  projectId: number | undefined,
+  sha: string | undefined,
+  path: string,
+) {
+  return useQuery<TextDiff>({
+    queryKey: queryKeys.commitTextDiff(projectId ?? -1, sha ?? "", path),
+    queryFn: () => getCommitTextDiff(projectId!, sha!, path),
+    enabled: projectId != null && !!sha && !!path,
   });
 }
 
@@ -488,8 +647,8 @@ export function useCreateComment(
 ) {
   const qc = useQueryClient();
   const { project } = useProject(slug);
-  return useMutation<unknown, Error, string>({
-    mutationFn: (body) => createComment(project!.id, mrId!, body),
+  return useMutation<unknown, Error, { body: string; parentId?: number | null }>({
+    mutationFn: (input) => createComment(project!.id, mrId!, input),
     onSuccess: () => {
       qc.invalidateQueries({
         queryKey: queryKeys.mergeRequest(slug ?? "", mrId ?? ""),
@@ -524,8 +683,18 @@ export function useMergePull(
 // Creating a project changes the cached list, so refresh it on success.
 export function useCreateProject() {
   const qc = useQueryClient();
-  return useMutation<Project, Error, string>({
-    mutationFn: (name) => createProject(name),
+  return useMutation<Project, Error, { name: string; icon?: number }>({
+    mutationFn: (input) => createProject(input.name, input.icon),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.projects });
+    },
+  });
+}
+
+export function useSetProjectIcon(projectId: number | undefined) {
+  const qc = useQueryClient();
+  return useMutation<void, Error, number>({
+    mutationFn: (icon) => setProjectIcon(projectId!, icon),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.projects });
     },

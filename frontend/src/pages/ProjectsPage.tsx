@@ -4,32 +4,27 @@ import { Link } from "react-router-dom";
 import {
   ArrowRight,
   Box,
-  Boxes,
   Calendar,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
   Cpu,
   Database,
-  Droplet,
-  Flame,
   GitBranch,
   GitPullRequestArrow,
-  type LucideIcon,
-  MoreHorizontal,
   Plus,
   Search,
-  Workflow,
 } from "lucide-react";
 import { useTopBarActions } from "../app/TopBarActions";
-import { StatusBadge } from "../components/StatusBadge";
+import { Dismissible } from "../components/Dismissible";
+import { useDismissal } from "../lib/dismissals";
 import { useAuth } from "../auth/AuthContext";
-import { type ProjectRow, type RepoStatus } from "../api/projects";
-import { errorText, useProjects } from "../api/queries";
+import { type ProjectRow } from "../api/projects";
+import { errorText, useProjectOverviews, useProjects } from "../api/queries";
 import { timeAgo } from "../lib/time";
+import { RepoIcon } from "../lib/repoIcons";
 
 type SortKey = "updated" | "name" | "created";
-type StatusFilter = "all" | RepoStatus;
 type ControllerFilter = "all" | string;
 
 const PAGE_SIZE = 6;
@@ -41,39 +36,6 @@ const initials = (name: string): string => {
   return ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "")).toUpperCase() || "?";
 };
 
-// A repository's list icon and colour tone. Derived from the slug so each
-// repository reads distinctly across the table and rail without depending on a
-// backend category field. Tones map to the shared status palette.
-const REPO_VISUALS: { Icon: LucideIcon; tone: string }[] = [
-  { Icon: Boxes, tone: "blue" },
-  { Icon: Workflow, tone: "green" },
-  { Icon: Droplet, tone: "violet" },
-  { Icon: Flame, tone: "amber" },
-  { Icon: Box, tone: "slate" },
-];
-
-function repoVisual(slug: string): { Icon: LucideIcon; tone: string } {
-  let h = 0;
-  for (let i = 0; i < slug.length; i += 1) h = (h * 31 + slug.charCodeAt(i)) >>> 0;
-  return REPO_VISUALS[h % REPO_VISUALS.length];
-}
-
-function RepoIcon({
-  slug,
-  size,
-  className,
-}: {
-  slug: string;
-  size: number;
-  className: string;
-}) {
-  const { Icon, tone } = repoVisual(slug);
-  return (
-    <span className={`${className} tone-${tone}`}>
-      <Icon size={size} strokeWidth={1.9} />
-    </span>
-  );
-}
 
 export function ProjectsPage() {
   const { data: projects, isPending, error } = useProjects();
@@ -116,32 +78,34 @@ function ProjectsView({ projects }: { projects: ProjectRow[] }) {
   const { user } = useAuth();
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortKey>("updated");
-  const [status, setStatus] = useState<StatusFilter>("all");
   const [controller, setController] = useState<ControllerFilter>("all");
   const [page, setPage] = useState(1);
+
+  // The list endpoint doesn't carry controller / open-MR data, so the tiles,
+  // the controller filter and the per-row MR counts read from one overview
+  // call per repo (cached; folds into the list once the backend carries it).
+  const projectIds = useMemo(() => projects.map((p) => p.id), [projects]);
+  const overviews = useProjectOverviews(projectIds);
+  const controllerOf = (p: ProjectRow): string | null =>
+    overviews.get(p.id)?.controller_name ?? null;
+  const openPullsOf = (p: ProjectRow): number =>
+    overviews.get(p.id)?.open_pull_count ?? 0;
 
   const controllers = useMemo(
     () =>
       Array.from(
         new Set(
-          projects.map((p) => p.controller).filter((c): c is string => Boolean(c)),
+          projects
+            .map((p) => overviews.get(p.id)?.controller_name)
+            .filter((c): c is string => Boolean(c)),
         ),
       ).sort(),
-    [projects],
+    [projects, overviews],
   );
 
-  const totalControllers = useMemo(
-    () =>
-      new Set(
-        projects.map((p) => p.controller).filter((c): c is string => Boolean(c)),
-      ).size,
-    [projects],
-  );
+  const totalControllers = controllers.length;
 
-  const openChanges = useMemo(
-    () => projects.reduce((n, p) => n + (p.open_changes ?? 0), 0),
-    [projects],
-  );
+  const openChanges = projects.reduce((n, p) => n + openPullsOf(p), 0);
 
   const totalBranches = useMemo(
     () => projects.reduce((n, p) => n + (p.branches?.length ?? 0), 0),
@@ -150,15 +114,15 @@ function ProjectsView({ projects }: { projects: ProjectRow[] }) {
 
   const visible = useMemo(() => {
     let rows = [...projects];
-    if (status !== "all") rows = rows.filter((p) => p.status === status);
-    if (controller !== "all") rows = rows.filter((p) => p.controller === controller);
+    if (controller !== "all")
+      rows = rows.filter((p) => controllerOf(p) === controller);
     const q = query.trim().toLowerCase();
     if (q) {
       rows = rows.filter(
         (p) =>
           p.name.toLowerCase().includes(q) ||
           p.slug.toLowerCase().includes(q) ||
-          (p.controller?.toLowerCase().includes(q) ?? false) ||
+          (controllerOf(p)?.toLowerCase().includes(q) ?? false) ||
           (p.description?.toLowerCase().includes(q) ?? false),
       );
     }
@@ -169,7 +133,8 @@ function ProjectsView({ projects }: { projects: ProjectRow[] }) {
       return ak < bk ? 1 : -1;
     });
     return rows;
-  }, [projects, status, controller, query, sort]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projects, overviews, controller, query, sort]);
 
   const pageCount = Math.max(1, Math.ceil(visible.length / PAGE_SIZE));
   const safePage = Math.min(page, pageCount);
@@ -179,10 +144,7 @@ function ProjectsView({ projects }: { projects: ProjectRow[] }) {
     <div className="page-grid">
       <div className="page-header">
         <h1>{user?.organization ? `${user.organization}'s Home` : "Home"}</h1>
-        <p>
-          Manage PLC repositories, branches, releases, and commissioning
-          context across your plant.
-        </p>
+        <OrgIntroBubble orgName={user?.organization} />
       </div>
 
       <div className="page-main">
@@ -242,20 +204,6 @@ function ProjectsView({ projects }: { projects: ProjectRow[] }) {
             ]}
           />
           <SelectControl
-            value={status}
-            onChange={(v) => {
-              setStatus(v as StatusFilter);
-              setPage(1);
-            }}
-            options={[
-              ["all", "All statuses"],
-              ["production", "Production"],
-              ["commissioning", "Commissioning"],
-              ["review", "Needs review"],
-              ["draft", "Draft"],
-            ]}
-          />
-          <SelectControl
             value={sort}
             onChange={(v) => setSort(v as SortKey)}
             icon={<Calendar size={15} strokeWidth={1.8} />}
@@ -283,6 +231,7 @@ function ProjectsView({ projects }: { projects: ProjectRow[] }) {
           <div className="panel-msg">No repositories match these filters.</div>
         ) : (
           <ProjectsTable
+            openPullsOf={openPullsOf}
             rows={pageRows}
             total={visible.length}
             page={safePage}
@@ -293,7 +242,9 @@ function ProjectsView({ projects }: { projects: ProjectRow[] }) {
       </div>
 
       <aside className="page-rail">
-        <AboutRepositoriesCard />
+        <Dismissible id="about-repositories">
+          <AboutRepositoriesCard />
+        </Dismissible>
       </aside>
     </div>
   );
@@ -335,12 +286,14 @@ function ProjectsTable({
   page,
   pageCount,
   onPage,
+  openPullsOf,
 }: {
   rows: ProjectRow[];
   total: number;
   page: number;
   pageCount: number;
   onPage: (p: number) => void;
+  openPullsOf: (p: ProjectRow) => number;
 }) {
   const from = (page - 1) * PAGE_SIZE + 1;
   const to = Math.min(page * PAGE_SIZE, total);
@@ -353,9 +306,7 @@ function ProjectsTable({
             <th>Default branch</th>
             <th>Owner</th>
             <th>Last activity</th>
-            <th>Status</th>
             <th>Activity</th>
-            <th aria-label="Actions" />
           </tr>
         </thead>
         <tbody>
@@ -364,7 +315,7 @@ function ProjectsTable({
               {/* Repository */}
               <td>
                 <Link to={`/organization/${p.slug}`} className="repo-cell">
-                  <RepoIcon slug={p.slug} size={18} className="repo-ico" />
+                  <RepoIcon icon={p.icon} slug={p.slug} size={24} className="repo-ico" />
                   <div>
                     <div className="repo-name">{p.name}</div>
                     {p.description && (
@@ -408,15 +359,6 @@ function ProjectsTable({
                 </div>
               </td>
 
-              {/* Status */}
-              <td>
-                {p.status ? (
-                  <StatusBadge status={p.status} />
-                ) : (
-                  <span className="cell-empty">—</span>
-                )}
-              </td>
-
               {/* Activity counters */}
               <td>
                 <div className="act-counts">
@@ -425,27 +367,15 @@ function ProjectsTable({
                     {p.branches?.length ?? 0}
                   </span>
                   <span
-                    className={`act-count${
-                      (p.open_changes ?? 0) > 0 ? " has" : ""
-                    }`}
+                    className={`act-count${openPullsOf(p) > 0 ? " has" : ""}`}
                   >
                     <GitPullRequestArrow size={13} strokeWidth={1.9} />
-                    {p.open_changes ?? 0}
+                    {openPullsOf(p)}
                   </span>
                 </div>
               </td>
 
               {/* Kebab */}
-              <td className="row-action">
-                <button
-                  className="icon-btn"
-                  aria-label="More actions"
-                  disabled
-                  title="Coming soon"
-                >
-                  <MoreHorizontal size={16} strokeWidth={1.8} />
-                </button>
-              </td>
             </tr>
           ))}
         </tbody>
@@ -483,6 +413,27 @@ function ProjectsTable({
             <ChevronRight size={15} strokeWidth={1.8} />
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// The one-time welcome bubble under the organization name: a fuller
+// description than the old static subtitle, shown until this user clicks OK.
+function OrgIntroBubble({ orgName }: { orgName?: string | null }) {
+  const { dismissed, dismiss } = useDismissal("org-intro");
+  if (dismissed) return null;
+  return (
+    <div className="intro-bubble">
+      <p>
+        This is {orgName ? `${orgName}'s` : "your organization's"} home; every
+        PLC repository your team tracks lives here. Open a repository to browse
+        its files, branches, and merge requests.
+      </p>
+      <div className="intro-bubble-actions">
+        <button type="button" className="btn btn-primary btn-sm" onClick={dismiss}>
+          OK
+        </button>
       </div>
     </div>
   );

@@ -15,25 +15,21 @@ import {
   GitMerge,
   GitPullRequestArrow,
   Maximize2,
-  Minus,
-  MoreVertical,
-  Plus,
   ShieldAlert,
-  ThumbsUp,
   Users,
 } from "lucide-react";
-import { RoutineLadderDiffView } from "../components/LadderDiff";
+import { FileSection, ZoomControl } from "../components/ChangesView";
+import { TabStrip } from "../components/Tabs";
+import { Discussion } from "../components/Discussion";
+import { Dismissible } from "../components/Dismissible";
 import { ApiError } from "../api/client";
 import {
   MR_STATUS_META,
   REVIEW_STATE_META,
   type MergeRequest,
-  type MRCodeDiff,
-  type MRComment,
   type MRCommitRow,
   type MRReviewer,
   type PRFile,
-  type PRRoutineChange,
 } from "../api/mergeRequest";
 import {
   errorText,
@@ -43,13 +39,8 @@ import {
   useProject,
 } from "../api/queries";
 import type { MergeOutcome } from "../api/mergeRequest";
-import { useAuth } from "../auth/AuthContext";
 import { formatDate, timeAgo } from "../lib/time";
-
-function initials(name: string): string {
-  const p = name.trim().split(/\s+/);
-  return ((p[0]?.[0] ?? "") + (p[1]?.[0] ?? "")).toUpperCase() || "?";
-}
+import { initials } from "../lib/initials";
 
 export function MergeRequestPage() {
   const { slug, mrId } = useParams();
@@ -115,6 +106,9 @@ function MergeRequestView({
   const [zoom, setZoom] = useState(100);
   const [tab, setTab] = useState<MrTab>("changes");
   const merge = useMergePull(slug, mrId, projectId);
+  // Threaded discussion: posting (or replying) refetches the merge request,
+  // which carries the comment list.
+  const comment = useCreateComment(slug, mrId);
   const merged = mr.status === "merged";
   const onMerge = () => merge.mutate();
   // The merge buttons stay inert without a project id and while a merge is in
@@ -171,11 +165,18 @@ function MergeRequestView({
           ) : (
             <FilesOverview files={mr.files} onOpenChanges={() => setTab("changes")} />
           )}
-          <Discussion comments={mr.comments} slug={slug} mrId={mrId} />
+          <Discussion
+            comments={mr.comments}
+            posting={comment.isPending}
+            postError={comment.error}
+            onAdd={(body, parentId) => comment.mutate({ body, parentId })}
+          />
         </div>
 
         <aside className="repo-rail mr-rail">
-          <AboutMergeRequestsCard />
+          <Dismissible id="about-merge-requests">
+            <AboutMergeRequestsCard />
+          </Dismissible>
           <ReviewersCard reviewers={mr.reviewers} />
           <MergeDetails mr={mr} />
           <MergeActions
@@ -386,21 +387,7 @@ function Tabs({
     { key: "commits", label: "Commits", count: mr.commits.length || mr.sourceCommits },
     { key: "files", label: "Files", count: mr.files.length },
   ];
-  return (
-    <nav className="pr-tabs">
-      {tabs.map((t) => (
-        <button
-          key={t.key}
-          className={`pr-tab${t.key === tab ? " active" : ""}`}
-          type="button"
-          onClick={() => onSelect(t.key)}
-        >
-          {t.label}
-          {t.count != null && <span className="pr-tab-count">{t.count}</span>}
-        </button>
-      ))}
-    </nav>
-  );
+  return <TabStrip tabs={tabs} active={tab} onSelect={onSelect} />;
 }
 
 // ---- Commits tab ----
@@ -582,288 +569,6 @@ function ChangesToolbar({
         <button className="mr-fs" type="button" aria-label="Fullscreen">
           <Maximize2 size={15} strokeWidth={1.9} />
         </button>
-      </div>
-    </div>
-  );
-}
-
-// One changed file: a header naming the file and the kinds of change it holds,
-// then each routine that changed inside it (ladder and/or structured text).
-function FileSection({
-  index,
-  file,
-  showNumbers,
-  zoom,
-}: {
-  index: number;
-  file: PRFile;
-  showNumbers: boolean;
-  zoom: number;
-}) {
-  return (
-    <section className="mr-section pr-file">
-      <div className="mr-section-head">
-        <div className="mr-section-title">
-          <span className="mr-section-num">{index}.</span>
-          <span className="pr-file-ico">
-            <FileCode2 size={15} strokeWidth={1.8} />
-          </span>
-          <span className="pr-file-name">{file.name}</span>
-          <span className="mr-section-count">
-            {file.changes.length} {file.changes.length === 1 ? "routine" : "routines"}
-          </span>
-        </div>
-      </div>
-      <div className="pr-file-body" style={{ zoom: zoom / 100 }}>
-        {file.changes.map((ch, i) => (
-          <RoutineChangeBlock key={i} change={ch} showNumbers={showNumbers} />
-        ))}
-      </div>
-    </section>
-  );
-}
-
-// One routine's change within a file: a sub-header (routine name + kind), then
-// the diff drawn by the matching renderer.
-function RoutineChangeBlock({
-  change,
-  showNumbers,
-}: {
-  change: PRRoutineChange;
-  showNumbers: boolean;
-}) {
-  return (
-    <div className="pr-routine">
-      <div className="pr-routine-head">
-        <span className="pr-routine-name">{change.routine}</span>
-      </div>
-      {change.kind === "ladder" && change.ladder ? (
-        <div className="mr-ladderwrap">
-          <RoutineLadderDiffView routine={change.ladder} showNumbers={showNumbers} />
-        </div>
-      ) : change.code ? (
-        <CodeDiffBody diff={change.code} />
-      ) : null}
-    </div>
-  );
-}
-
-function ZoomControl({
-  zoom,
-  onZoom,
-}: {
-  zoom: number;
-  onZoom: (z: number) => void;
-}) {
-  return (
-    <div className="zoom">
-      <button
-        className="zoom-btn"
-        type="button"
-        aria-label="Zoom out"
-        onClick={() => onZoom(Math.max(50, zoom - 10))}
-      >
-        <Minus size={14} strokeWidth={2} />
-      </button>
-      <span className="zoom-val">{zoom}%</span>
-      <button
-        className="zoom-btn"
-        type="button"
-        aria-label="Zoom in"
-        onClick={() => onZoom(Math.min(200, zoom + 10))}
-      >
-        <Plus size={14} strokeWidth={2} />
-      </button>
-    </div>
-  );
-}
-
-// ---- Structured text changes ----
-const ST_KEYWORDS = new Set([
-  "IF", "THEN", "ELSE", "ELSIF", "END_IF", "AND", "OR", "NOT", "TRUE", "FALSE",
-  "RETURN", "FOR", "TO", "DO", "WHILE", "END_FOR", "END_WHILE", "CASE", "OF",
-  "END_CASE", "XOR", "MOD",
-]);
-
-// Lightweight ST highlighter. Tokens wrapped in ⟦…⟧ are the changed value on
-// this side (green when added on the right, red when removed on the left);
-// known keywords render in the accent colour; everything else is plain text.
-function highlightST(text: string, side: "left" | "right"): React.ReactNode[] {
-  const out: React.ReactNode[] = [];
-  const changeCls = side === "right" ? "tok-add" : "tok-rem";
-  const parts = text.split(/(⟦[^⟧]*⟧)/g);
-  let key = 0;
-  for (const part of parts) {
-    if (!part) continue;
-    if (part.startsWith("⟦") && part.endsWith("⟧")) {
-      out.push(
-        <span className={changeCls} key={key++}>
-          {part.slice(1, -1)}
-        </span>,
-      );
-      continue;
-    }
-    // Split keywords out of the plain run, keeping the delimiters.
-    const toks = part.split(/(\b[A-Za-z_][A-Za-z0-9_]*\b)/g);
-    for (const tok of toks) {
-      if (!tok) continue;
-      if (ST_KEYWORDS.has(tok)) {
-        out.push(
-          <span className="tok-kw" key={key++}>
-            {tok}
-          </span>,
-        );
-      } else {
-        out.push(<span key={key++}>{tok}</span>);
-      }
-    }
-  }
-  return out;
-}
-
-// Structured-text diff body (no section chrome — it sits inside a file's
-// routine block).
-function CodeDiffBody({ diff }: { diff: MRCodeDiff }) {
-  const rows = Math.max(diff.left.lines.length, diff.right.lines.length);
-  const last = rows - 1;
-  return (
-    <div className="pr-codewrap">
-      <div className="mr-sxs mr-sxs-code">
-        <div className="sxs-head sxs-head-l">
-          <span className="sxs-head-ver">{diff.left.ref}</span>
-        </div>
-        <div className="sxs-head sxs-gut" />
-        <div className="sxs-head sxs-head-r">
-          <span className="sxs-head-ver">{diff.right.ref}</span>
-        </div>
-        {Array.from({ length: rows }).map((_, i) => {
-          const l = diff.left.lines[i];
-          const r = diff.right.lines[i];
-          const edge = i === last ? " sxs-last" : "";
-          return (
-            <div className="sxs-row" key={i} style={{ display: "contents" }}>
-              <div className={`sxs-cell sxs-l${edge}`}>
-                {l && (
-                  <div className="cd-line">
-                    <span className="cd-num">{l.ln}</span>
-                    <span className="cd-code">{highlightST(l.text, "left")}</span>
-                  </div>
-                )}
-              </div>
-              <div className="sxs-gut" />
-              <div className={`sxs-cell sxs-r${edge}`}>
-                {r && (
-                  <div className="cd-line">
-                    <span className="cd-num">{r.ln}</span>
-                    <span className="cd-code">{highlightST(r.text, "right")}</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-// ---- Discussion ----
-function Discussion({
-  comments,
-  slug,
-  mrId,
-}: {
-  comments: MRComment[];
-  slug?: string;
-  mrId?: string;
-}) {
-  return (
-    <section className="mr-section">
-      <div className="mr-section-head">
-        <div className="mr-section-title">
-          Discussion
-          <span className="mr-section-count">{comments.length} comments</span>
-        </div>
-      </div>
-      <div className="disc-list">
-        {comments.length === 0 && (
-          <div className="rail-empty">No comments yet.</div>
-        )}
-        {comments.map((c, i) => (
-          <article className="disc-item" key={i}>
-            <span className="disc-av">{initials(c.author)}</span>
-            <div className="disc-main">
-              <div className="disc-content">
-                <div className="disc-top">
-                  <span className="disc-who">{c.author}</span>
-                  <span className="disc-role">{c.role}</span>
-                  {c.on && <span className="disc-on">Comment on {c.on}</span>}
-                </div>
-                <p className="disc-body">{c.body}</p>
-              </div>
-              <div className="disc-aside">
-                <div className="disc-aside-top">
-                  <span className="disc-time">{timeAgo(c.at)}</span>
-                  <button className="disc-kebab" type="button" aria-label="More" disabled title="Coming soon">
-                    <MoreVertical size={15} strokeWidth={2} />
-                  </button>
-                </div>
-                <div className="disc-aside-actions">
-                  <button className="disc-reply-btn" type="button">
-                    Reply
-                  </button>
-                  <button className="disc-like" type="button" aria-label="Like">
-                    <ThumbsUp size={14} strokeWidth={1.9} />
-                  </button>
-                </div>
-              </div>
-            </div>
-          </article>
-        ))}
-        <DiscussionComposer slug={slug} mrId={mrId} />
-      </div>
-    </section>
-  );
-}
-
-// Comment composer: a textarea + Comment button that posts a thread-level
-// comment, then lets the merge-request query refetch to show it.
-function DiscussionComposer({ slug, mrId }: { slug?: string; mrId?: string }) {
-  const { user } = useAuth();
-  const [body, setBody] = useState("");
-  const create = useCreateComment(slug, mrId);
-  const canSubmit = body.trim().length > 0 && !create.isPending && !!slug && !!mrId;
-
-  const submit = () => {
-    if (!canSubmit) return;
-    create.mutate(body.trim(), { onSuccess: () => setBody("") });
-  };
-
-  return (
-    <div className="disc-composer">
-      <span className="disc-av">{initials(user?.name ?? "You")}</span>
-      <div className="disc-composer-main">
-        <textarea
-          className="textarea tall"
-          placeholder="Add a comment…"
-          value={body}
-          onChange={(e) => setBody(e.target.value)}
-        />
-        {create.isError && (
-          <div className="disc-composer-error">
-            {errorText(create.error, "Couldn't post comment.")}
-          </div>
-        )}
-        <div className="disc-composer-actions">
-          <button
-            className="btn btn-primary btn-sm"
-            type="button"
-            disabled={!canSubmit}
-            onClick={submit}
-          >
-            {create.isPending ? "Posting…" : "Comment"}
-          </button>
-        </div>
       </div>
     </div>
   );

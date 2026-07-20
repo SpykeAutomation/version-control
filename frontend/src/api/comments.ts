@@ -7,7 +7,7 @@
 import { apiFetch } from "./client";
 import { displayName, type UserBrief } from "./users";
 
-interface CommentApi {
+export interface CommentApi {
   id: number;
   author: UserBrief;
   body: string;

@@ -13,6 +13,7 @@
 // draw as a dashed tail instead of guessing.
 import type { Commit } from "../api/repository";
 import type { ChangeRequestSummary } from "../api/mergeRequest";
+import { shortSha } from "./format";
 
 export interface GraphDot {
   sha: string;
@@ -135,7 +136,7 @@ export function buildCommitGraph(
   const mergeName = (c: Commit): string => {
     const m = MERGE_RE.exec(c.message);
     const pull = m ? pullByNumber.get(parseInt(m[1], 10)) : undefined;
-    return pull?.sourceBranch ?? `merge ${c.sha.slice(0, 7)}`;
+    return pull?.sourceBranch ?? `merge ${shortSha(c.sha)}`;
   };
   for (const trunkCommit of trunkWalk.commits) {
     const extraParents = (trunkCommit.parents ?? []).slice(1);
@@ -212,7 +213,7 @@ export function buildCommitGraph(
     const lane = laneByKey.get(ch.key)!;
     const laneGraphDots: GraphDot[] = ch.commits.map((c) => ({
       sha: c.sha,
-      shortSha: c.sha.slice(0, 7),
+      shortSha: shortSha(c.sha),
       title: c.message,
       author: c.author,
       at: c.at,

@@ -1,5 +1,6 @@
 import { Link, useParams } from "react-router-dom";
-import { ChevronDown, GitBranch, ShieldCheck } from "lucide-react";
+import { ChevronDown, GitBranch } from "lucide-react";
+import { ProtectedLock } from "../components/ProtectedLock";
 import { useAuth } from "../auth/AuthContext";
 import { errorText, useBranches, useProject } from "../api/queries";
 import { timeAgo } from "../lib/time";
@@ -79,17 +80,7 @@ export function BranchesPage() {
                           </span>
                         )}
                         {b.isProtected && (
-                          <span
-                            className="mini-badge accent"
-                            style={{ marginLeft: 8 }}
-                          >
-                            <ShieldCheck
-                              size={11}
-                              strokeWidth={2}
-                              style={{ verticalAlign: -1, marginRight: 3 }}
-                            />
-                            Protected
-                          </span>
+                          <ProtectedLock style={{ marginLeft: 8 }} />
                         )}
                       </td>
                       <td>

@@ -24,8 +24,7 @@ import {
   useProject,
 } from "../api/queries";
 import { formatDate, timeAgo } from "../lib/time";
-
-const short = (sha: string) => sha.slice(0, 7);
+import { shortSha } from "../lib/format";
 
 export function RevertPage() {
   const { slug } = useParams();
@@ -139,7 +138,7 @@ export function RevertPage() {
                   <GitBranch size={13} strokeWidth={2} />
                   {branch}
                 </span>{" "}
-                to <span className="cm-commit-sha">{short(target)}</span>
+                to <span className="cm-commit-sha">{shortSha(target)}</span>
               </h1>
             </div>
             <p className="mr-sub">
@@ -149,7 +148,7 @@ export function RevertPage() {
                   {timeAgo(targetMeta.at)} ({formatDate(targetMeta.at)})
                 </>
               ) : (
-                <>Restoring the repository state of commit {short(target)}.</>
+                <>Restoring the repository state of commit {shortSha(target)}.</>
               )}
             </p>
           </div>
@@ -160,7 +159,7 @@ export function RevertPage() {
           <div>
             Confirming adds <strong>one new commit</strong> to{" "}
             <strong>{branch}</strong> that restores the repository to the state
-            of <strong>{short(target)}</strong>. Nothing is deleted — every
+            of <strong>{shortSha(target)}</strong>. Nothing is deleted — every
             commit in between stays in the history, and this revert can itself
             be reverted. The changes below are exactly what the new commit will
             apply.
@@ -217,7 +216,7 @@ export function RevertPage() {
                 <SummaryStat
                   label="Commits being reverted"
                   value={targetIdx}
-                  sub={<>between {short(target)} and the tip</>}
+                  sub={<>between {shortSha(target)} and the tip</>}
                 />
               )}
             </div>

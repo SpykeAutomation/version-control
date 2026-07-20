@@ -13,8 +13,6 @@ import { CommitsPage } from "./pages/CommitsPage";
 import { CommitPage } from "./pages/CommitPage";
 import { CommitReviewPage } from "./pages/CommitReviewPage";
 import { RevertPage } from "./pages/RevertPage";
-import { FileViewPage } from "./pages/FileViewPage";
-import { ComparePage } from "./pages/ComparePage";
 import { MergeRequestPage } from "./pages/MergeRequestPage";
 import { CreateMergeRequestPage } from "./pages/CreateMergeRequestPage";
 import { ComingSoon } from "./pages/ComingSoon";
@@ -70,7 +68,6 @@ export function App() {
         <Route path="organization/:slug/commit" element={<CommitPage />} />
         <Route path="organization/:slug/commit/:sha" element={<CommitReviewPage />} />
         <Route path="organization/:slug/revert" element={<RevertPage />} />
-        <Route path="organization/:slug/files/:fileName" element={<FileViewPage />} />
         <Route
           path="organization/:slug/merge-requests/new"
           element={<CreateMergeRequestPage />}
@@ -80,7 +77,7 @@ export function App() {
         <Route path="projects/*" element={<LegacyProjectsRedirect />} />
         <Route path="projects" element={<LegacyProjectsRedirect />} />
         <Route path="changes" element={<ComingSoon title="Changes" />} />
-        <Route path="compare" element={<ComparePage />} />
+        <Route path="compare" element={<ComingSoon title="Compare" />} />
         <Route path="releases" element={<ComingSoon title="Releases" />} />
         <Route path="commissioning" element={<ComingSoon title="Commissioning" />} />
         <Route path="documentation" element={<ComingSoon title="Documentation" />} />

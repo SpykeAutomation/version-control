@@ -48,11 +48,8 @@ import type { BranchSummary } from "../api/commits";
 import type { Commit } from "../api/repository";
 import { useAuth } from "../auth/AuthContext";
 import { timeAgo } from "../lib/time";
-
-function initials(name: string): string {
-  const p = name.trim().split(/\s+/);
-  return ((p[0]?.[0] ?? "") + (p[1]?.[0] ?? "")).toUpperCase() || "?";
-}
+import { initials } from "../lib/initials";
+import { TabStrip } from "../components/Tabs";
 
 const TITLE_LIMIT = 100;
 
@@ -482,21 +479,7 @@ function Tabs({
     { key: "overview", label: "Overview" },
     { key: "commits", label: "Commits", count: counts.commits },
   ];
-  return (
-    <nav className="pr-tabs">
-      {tabs.map((t) => (
-        <button
-          key={t.key}
-          className={`pr-tab${t.key === tab ? " active" : ""}`}
-          type="button"
-          onClick={() => onSelect(t.key)}
-        >
-          {t.label}
-          {t.count != null && <span className="pr-tab-count">{t.count}</span>}
-        </button>
-      ))}
-    </nav>
-  );
+  return <TabStrip tabs={tabs} active={tab} onSelect={onSelect} />;
 }
 
 // ---- Overview tab (the form) ----

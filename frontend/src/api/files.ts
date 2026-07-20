@@ -5,6 +5,7 @@
 // routers/projects.py); hand-written TS is the convention here.
 import { apiFetch } from "./client";
 import type { FileEntry, FileKind } from "./repository";
+import { formatBytes } from "../lib/format";
 
 // What the endpoint returns per file (FileEntry in backend/app/schemas.py).
 interface FileOut {
@@ -15,18 +16,9 @@ interface FileOut {
   modified_at: string; // ISO-8601
 }
 
-// Human-readable byte size for the Size column.
-function formatBytes(n: number): string {
-  if (n <= 0) return "0 B";
-  const units = ["B", "KB", "MB", "GB"];
-  const i = Math.min(units.length - 1, Math.floor(Math.log(n) / Math.log(1024)));
-  const v = n / 1024 ** i;
-  return `${i === 0 ? v : v.toFixed(v < 10 ? 1 : 0)} ${units[i]}`;
-}
-
 // Drop the top-level container prefix so the table shows a clean name: L5X files
 // list by their bare name; other files keep their folder structure under files/.
-function displayName(path: string): string {
+function stripPrefix(path: string): string {
   if (path.startsWith("l5x/")) return path.slice("l5x/".length);
   if (path.startsWith("files/")) return path.slice("files/".length);
   return path;
@@ -49,7 +41,7 @@ export async function listProjectFiles(
     `/projects/${projectId}/files?ref=${encodeURIComponent(ref)}`,
   );
   return data.files.map((f) => ({
-    name: displayName(f.path),
+    name: stripPrefix(f.path),
     path: f.path,
     kind: fileKind(f.kind),
     size: formatBytes(f.size),
